@@ -112,7 +112,7 @@ On startup: no state → fresh. Resumable state → reuse, skip completed/merged
 
 ### Modify
 
-- `src/engine/index.ts` — Add re-exports for Orchestrator, worktree functions, concurrency utilities
+- `src/engine/index.ts` — Add re-exports for Orchestrator, worktree functions, concurrency utilities in the `// --- orchestration ---` section marker (deterministic positioning for clean parallel merges)
 
 ## Verification
 

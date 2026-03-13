@@ -122,7 +122,7 @@ graph TD
 
 ### Modify
 
-- `src/engine/index.ts` — Add re-exports for `ForgeEngine`, `ForgeEngineOptions`
+- `src/engine/index.ts` — Add re-exports for `ForgeEngine`, `ForgeEngineOptions` in the `// --- forge-core ---` section marker (deterministic positioning for clean parallel merges)
 
 ## Verification
 

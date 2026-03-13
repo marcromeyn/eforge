@@ -86,7 +86,7 @@ graph TD
 
 ### Modify
 
-- `src/engine/index.ts` — Add re-exports for `runReview`, `parseReviewIssues`
+- `src/engine/index.ts` — Add re-exports for `runReview`, `parseReviewIssues` in the `// --- reviewer ---` section marker (deterministic positioning for clean parallel merges)
 
 ## Verification
 

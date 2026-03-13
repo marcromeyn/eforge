@@ -179,7 +179,7 @@ Six focused files, each with a single responsibility. All are pure library code 
 - `src/engine/prompts.ts` — `loadPrompt(name, vars?)` — reads from `src/engine/prompts/` (or bundled path), substitutes `{{var}}` placeholders
 - `src/engine/agents/common.ts` — `mapSDKMessages(messages, agent, planId?)` async generator, `parseClarificationBlocks(text)` helper
 - `src/engine/state.ts` — `loadState(stateDir)`, `saveState(stateDir, state)`, `updatePlanStatus(state, planId, status)`, `isResumable(state)`
-- `src/engine/index.ts` — Barrel re-exports from all foundation files
+- `src/engine/index.ts` — Barrel re-exports from all foundation files. Includes pre-placed section markers (`// --- planner ---`, `// --- builder ---`, `// --- reviewer ---`, `// --- orchestration ---`, `// --- config ---`, `// --- forge-core ---`) so Wave 2+ plans edit non-overlapping regions and git auto-merges cleanly
 
 ### Modify
 

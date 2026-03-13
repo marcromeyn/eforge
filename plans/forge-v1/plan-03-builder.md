@@ -137,7 +137,7 @@ Adapted from review plugin's fix-evaluation-policy. Key sections:
 
 ### Modify
 
-- `src/engine/index.ts` — Add re-exports for builder types and functions
+- `src/engine/index.ts` — Add re-exports for builder types and functions in the `// --- builder ---` section marker (deterministic positioning for clean parallel merges)
 
 ## Verification
 

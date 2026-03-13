@@ -102,7 +102,7 @@ Extracted from `schaake-cc-marketplace/eee-plugin/skills/excursion-planner/SKILL
 
 ### Modify
 
-- `src/engine/index.ts` — Add re-export of `runPlanner`
+- `src/engine/index.ts` — Add re-export of `runPlanner` in the `// --- planner ---` section marker (deterministic positioning for clean parallel merges)
 
 ## Verification
 

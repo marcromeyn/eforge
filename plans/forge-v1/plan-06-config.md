@@ -114,7 +114,7 @@ interface SpanHandle {
 ### Modify
 
 - `package.json` — Add `langfuse` to `dependencies`
-- `src/engine/index.ts` — Add re-exports from `config.ts` and `tracing.ts`
+- `src/engine/index.ts` — Add re-exports from `config.ts` and `tracing.ts` in the `// --- config ---` section marker (deterministic positioning for clean parallel merges)
 
 ## Verification
 
