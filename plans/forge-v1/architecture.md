@@ -312,7 +312,7 @@ function isResumable(state: ForgeState): boolean;
 | **builder** | Builder agent (multi-turn) + builder/evaluator prompts | foundation |
 | **reviewer** | Reviewer agent + reviewer prompt extraction | foundation |
 | **orchestration** | Dependency graph, wave execution, worktree lifecycle, state tracking | foundation |
-| **forge-core** | ForgeEngine integration (plan/build/review/status methods) | planner, builder, reviewer, orchestration |
+| **forge-core** | ForgeEngine integration (plan/build/review/status methods) | planner, builder, reviewer, orchestration, config |
 | **cli** | Commander wiring, display rendering, interactive prompts | forge-core |
 | **config** | forge.yaml loading, Langfuse tracing setup | foundation |
 
@@ -329,6 +329,7 @@ graph TD
     builder --> forge-core
     reviewer --> forge-core
     orchestration --> forge-core
+    config --> forge-core
     forge-core --> cli
 ```
 
