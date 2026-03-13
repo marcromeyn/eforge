@@ -10,7 +10,7 @@ architecture:
 
 modules:
   foundation:
-    status: pending
+    status: planned
     description: ForgeEvent types, plan parsing, prompt loading, SDK→event mapping
   planner:
     status: pending
