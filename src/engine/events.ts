@@ -2,7 +2,13 @@
 
 export const ORCHESTRATION_MODES = ['errand', 'excursion', 'expedition'] as const;
 
-export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'evaluator';
+export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'evaluator' | 'module-planner';
+
+export interface ExpeditionModule {
+  id: string;
+  description: string;
+  dependsOn: string[];
+}
 
 export type ForgeResult = { status: 'completed' | 'failed'; summary: string };
 
@@ -131,6 +137,13 @@ export type ForgeEvent =
   | { type: 'wave:complete'; wave: number }
   | { type: 'merge:start'; planId: string }
   | { type: 'merge:complete'; planId: string }
+
+  // Expedition planning phases
+  | { type: 'expedition:architecture:complete'; modules: ExpeditionModule[] }
+  | { type: 'expedition:module:start'; moduleId: string }
+  | { type: 'expedition:module:complete'; moduleId: string }
+  | { type: 'expedition:compile:start' }
+  | { type: 'expedition:compile:complete'; plans: PlanFile[] }
 
   // Agent-level (verbose streaming)
   | { type: 'agent:message'; planId?: string; agent: AgentRole; content: string }

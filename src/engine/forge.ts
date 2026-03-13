@@ -6,6 +6,7 @@
 
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -18,16 +19,21 @@ import type {
   PlanFile,
   ClarificationQuestion,
   AgentResultData,
+  ExpeditionModule,
+  OrchestrationConfig,
 } from './events.js';
 import type { ForgeConfig } from './config.js';
 import type { PlannerOptions } from './agents/planner.js';
 import { loadConfig } from './config.js';
-import { createTracingContext, type SpanHandle } from './tracing.js';
+import { createTracingContext, type SpanHandle, type TracingContext } from './tracing.js';
 import { runPlanner } from './agents/planner.js';
+import { runModulePlanner } from './agents/module-planner.js';
 import { builderImplement, builderEvaluate } from './agents/builder.js';
 import { runReview } from './agents/reviewer.js';
 import { Orchestrator } from './orchestrator.js';
-import { parseOrchestrationConfig, parsePlanFile, validatePlanSet } from './plan.js';
+import { parseOrchestrationConfig, parsePlanFile, parseExpeditionIndex, validatePlanSet } from './plan.js';
+import { compileExpedition } from './compiler.js';
+import { parseModulesBlock } from './agents/common.js';
 import { loadState } from './state.js';
 
 const exec = promisify(execFile);
@@ -76,13 +82,18 @@ export class ForgeEngine {
   }
 
   /**
-   * Plan: explore codebase, write plan files.
-   * Wraps runPlanner() with forge:start/forge:end lifecycle events.
+   * Plan: explore codebase, assess scope, write planning artifacts.
+   *
+   * The planner explores and assesses scope. Based on the assessment:
+   * - errand/excursion: planner generates plan files + orchestration.yaml directly
+   * - expedition: planner generates architecture.md + index.yaml + module list,
+   *   then engine runs module planners and compiles plan files
    */
   async *plan(source: string, options: Partial<PlanOptions> = {}): AsyncGenerator<ForgeEvent> {
     const runId = randomUUID();
     const planSet = options.name ?? source;
     const tracing = createTracingContext(this.config, runId, 'plan', planSet);
+    const cwd = options.cwd ?? this.cwd;
 
     yield {
       type: 'forge:start',
@@ -98,20 +109,44 @@ export class ForgeEngine {
     tracing.setInput({ source, planSet });
 
     try {
+      // Run planner agent (explores codebase, assesses scope, generates artifacts)
       const span = tracing.createSpan('planner', { source, planSet });
       span.setInput({ source, planSet });
 
       const plannerOptions: PlannerOptions = {
         ...options,
-        cwd: options.cwd ?? this.cwd,
+        cwd,
         onClarification: this.onClarification,
       };
 
+      let scopeAssessment: OrchestrationConfig['mode'] | undefined;
+      let expeditionModules: ExpeditionModule[] = [];
+
       try {
         for await (const event of runPlanner(source, plannerOptions)) {
+          // Track scope assessment
+          if (event.type === 'plan:scope') {
+            scopeAssessment = event.assessment;
+          }
+
+          // Detect <modules> block in agent messages (expedition mode, first match only)
+          if (event.type === 'agent:message' && event.agent === 'planner' && expeditionModules.length === 0) {
+            const modules = parseModulesBlock(event.content);
+            if (modules.length > 0) {
+              expeditionModules = modules;
+              yield { type: 'expedition:architecture:complete', modules };
+            }
+          }
+
           if (event.type === 'agent:result' && event.agent === 'planner') {
             populateSpan(span, event.result);
           }
+
+          // Suppress planner's plan:complete in expedition mode (compilation emits the real one)
+          if (event.type === 'plan:complete' && scopeAssessment === 'expedition' && expeditionModules.length > 0) {
+            continue;
+          }
+
           yield event;
         }
         span.end();
@@ -119,6 +154,19 @@ export class ForgeEngine {
         status = 'failed';
         summary = (err as Error).message;
         span.error(err as Error);
+      }
+
+      // If expedition scope with modules defined, continue with module planning + compilation
+      if (status !== 'failed' && scopeAssessment === 'expedition' && expeditionModules.length > 0) {
+        try {
+          yield* this.planExpeditionModules(source, expeditionModules, tracing, {
+            ...options,
+            cwd,
+          });
+        } catch (err) {
+          status = 'failed';
+          summary = (err as Error).message;
+        }
       }
     } finally {
       tracing.setOutput({ status, summary });
@@ -130,6 +178,77 @@ export class ForgeEngine {
       };
       await tracing.flush();
     }
+  }
+
+  /**
+   * Run module planners for each expedition module, then compile to plan files.
+   */
+  private async *planExpeditionModules(
+    source: string,
+    modules: ExpeditionModule[],
+    tracing: TracingContext,
+    options: Partial<PlanOptions> & { cwd: string },
+  ): AsyncGenerator<ForgeEvent> {
+    const planSetName = options.name ?? source;
+    const cwd = options.cwd;
+    const planDir = resolve(cwd, 'plans', planSetName);
+
+    // Read architecture content for module planners
+    let architectureContent = '';
+    try {
+      architectureContent = await readFile(resolve(planDir, 'architecture.md'), 'utf-8');
+    } catch {
+      // Architecture file may not exist if planner didn't create it
+    }
+
+    // Resolve source content
+    let sourceContent: string;
+    try {
+      const sourcePath = resolve(cwd, source);
+      const stats = await stat(sourcePath);
+      if (stats.isFile()) {
+        sourceContent = await readFile(sourcePath, 'utf-8');
+      } else {
+        sourceContent = source;
+      }
+    } catch {
+      sourceContent = source;
+    }
+
+    // Run module planners sequentially
+    for (const mod of modules) {
+      const modSpan = tracing.createSpan('module-planner', { moduleId: mod.id });
+      modSpan.setInput({ moduleId: mod.id, description: mod.description });
+
+      try {
+        for await (const event of runModulePlanner({
+          cwd,
+          planSetName,
+          moduleId: mod.id,
+          moduleDescription: mod.description,
+          moduleDependsOn: mod.dependsOn,
+          architectureContent,
+          sourceContent,
+          verbose: options.verbose,
+          onClarification: this.onClarification,
+        })) {
+          if (event.type === 'agent:result' && event.agent === 'module-planner') {
+            populateSpan(modSpan, event.result);
+          }
+          yield event;
+        }
+        modSpan.end();
+      } catch (err) {
+        // Module planning failure is non-fatal — continue with other modules
+        modSpan.error(err as Error);
+      }
+    }
+
+    // Compile modules into plan files + orchestration.yaml
+    yield { type: 'expedition:compile:start' };
+    const plans = await compileExpedition(cwd, planSetName);
+    yield { type: 'expedition:compile:complete', plans };
+    yield { type: 'plan:complete', plans };
   }
 
   /**

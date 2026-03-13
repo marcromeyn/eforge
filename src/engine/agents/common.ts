@@ -5,7 +5,7 @@ import type {
   SDKResultMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import { ORCHESTRATION_MODES } from '../events.js';
-import type { ForgeEvent, AgentRole, AgentResultData, ClarificationQuestion, OrchestrationConfig } from '../events.js';
+import type { ForgeEvent, AgentRole, AgentResultData, ClarificationQuestion, OrchestrationConfig, ExpeditionModule } from '../events.js';
 
 /**
  * Map an async iterable of SDK messages to ForgeEvents.
@@ -188,6 +188,43 @@ export interface ScopeDeclaration {
 }
 
 const VALID_ASSESSMENTS = new Set<string>(ORCHESTRATION_MODES);
+
+/**
+ * Parse a <modules> XML block from assistant text into ExpeditionModule[].
+ *
+ * Expected format:
+ *   <modules>
+ *     <module id="foundation" depends_on="">Core types and utilities</module>
+ *     <module id="auth" depends_on="foundation">Auth system</module>
+ *   </modules>
+ */
+export function parseModulesBlock(text: string): ExpeditionModule[] {
+  const modules: ExpeditionModule[] = [];
+  const blockMatch = text.match(/<modules>([\s\S]*?)<\/modules>/);
+  if (!blockMatch) return modules;
+
+  const blockContent = blockMatch[1];
+  const moduleRegex = /<module\s+([^>]*)>([\s\S]*?)<\/module>/g;
+  let moduleMatch: RegExpExecArray | null;
+
+  while ((moduleMatch = moduleRegex.exec(blockContent)) !== null) {
+    const attrs = moduleMatch[1];
+    const description = moduleMatch[2].trim();
+
+    const idMatch = attrs.match(/id="([^"]+)"/);
+    const depsMatch = attrs.match(/depends_on="([^"]*)"/);
+
+    if (!idMatch || !description) continue;
+
+    const dependsOn = depsMatch && depsMatch[1].trim()
+      ? depsMatch[1].split(',').map((d) => d.trim())
+      : [];
+
+    modules.push({ id: idMatch[1], description, dependsOn });
+  }
+
+  return modules;
+}
 
 /**
  * Parse a <scope> XML block from assistant text into a ScopeDeclaration.

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseClarificationBlocks, parseScopeBlock } from '../src/engine/agents/common.js';
+import { parseClarificationBlocks, parseScopeBlock, parseModulesBlock } from '../src/engine/agents/common.js';
 import { parseReviewIssues } from '../src/engine/agents/reviewer.js';
 import { parseEvaluationBlock } from '../src/engine/agents/builder.js';
 
@@ -178,6 +178,74 @@ And trailing text.`;
 
     const result = parseScopeBlock(text);
     expect(result?.justification).toBe('Lots of whitespace around this.');
+  });
+});
+
+describe('parseModulesBlock', () => {
+  it('parses modules with dependencies', () => {
+    const text = `
+<modules>
+  <module id="foundation" depends_on="">Core types and utilities</module>
+  <module id="auth" depends_on="foundation">Authentication system</module>
+  <module id="api" depends_on="foundation,auth">API endpoints</module>
+</modules>`;
+
+    const result = parseModulesBlock(text);
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual({ id: 'foundation', description: 'Core types and utilities', dependsOn: [] });
+    expect(result[1]).toEqual({ id: 'auth', description: 'Authentication system', dependsOn: ['foundation'] });
+    expect(result[2]).toEqual({ id: 'api', description: 'API endpoints', dependsOn: ['foundation', 'auth'] });
+  });
+
+  it('returns empty array when no block present', () => {
+    expect(parseModulesBlock('no modules here')).toEqual([]);
+  });
+
+  it('skips modules missing id', () => {
+    const text = `
+<modules>
+  <module depends_on="">No id</module>
+  <module id="valid" depends_on="">Has id</module>
+</modules>`;
+
+    const result = parseModulesBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('valid');
+  });
+
+  it('skips modules with empty description', () => {
+    const text = `
+<modules>
+  <module id="empty" depends_on="">   </module>
+  <module id="valid" depends_on="">Has description</module>
+</modules>`;
+
+    const result = parseModulesBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('valid');
+  });
+
+  it('handles missing depends_on attribute', () => {
+    const text = `
+<modules>
+  <module id="standalone">Independent module</module>
+</modules>`;
+
+    const result = parseModulesBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].dependsOn).toEqual([]);
+  });
+
+  it('ignores surrounding text', () => {
+    const text = `Here is some analysis.
+<modules>
+  <module id="core" depends_on="">Core module</module>
+</modules>
+And some trailing text.`;
+
+    const result = parseModulesBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('core');
   });
 });
 

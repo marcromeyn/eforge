@@ -1,7 +1,72 @@
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import type { PlanFile, OrchestrationConfig } from './events.js';
+import type { PlanFile, OrchestrationConfig, ExpeditionModule } from './events.js';
+
+/**
+ * Parsed expedition index.yaml.
+ */
+export interface ExpeditionIndex {
+  name: string;
+  description: string;
+  created: string;
+  status: string;
+  mode: 'expedition';
+  architecture: { status: string; lastUpdated?: string };
+  modules: Record<string, { status: string; description: string; dependsOn: string[] }>;
+}
+
+/**
+ * Parse an expedition index.yaml file.
+ */
+export async function parseExpeditionIndex(yamlPath: string): Promise<ExpeditionIndex> {
+  const absPath = resolve(yamlPath);
+  const raw = await readFile(absPath, 'utf-8');
+  const data = parseYaml(raw) as Record<string, unknown>;
+
+  if (!data.name || typeof data.name !== 'string') {
+    throw new Error(`Expedition index missing required 'name' field: ${absPath}`);
+  }
+
+  const modulesRaw = (data.modules ?? {}) as Record<string, Record<string, unknown>>;
+  const modules: ExpeditionIndex['modules'] = {};
+
+  for (const [id, mod] of Object.entries(modulesRaw)) {
+    modules[id] = {
+      status: (mod.status as string) ?? 'pending',
+      description: (mod.description as string) ?? '',
+      dependsOn: Array.isArray(mod.depends_on) ? (mod.depends_on as string[]) : [],
+    };
+  }
+
+  const arch = (data.architecture ?? {}) as Record<string, unknown>;
+
+  return {
+    name: data.name,
+    description: (data.description as string) ?? '',
+    created: (data.created as string) ?? '',
+    status: (data.status as string) ?? 'draft',
+    mode: 'expedition',
+    architecture: {
+      status: (arch.status as string) ?? 'pending',
+      lastUpdated: arch.last_updated as string | undefined,
+    },
+    modules,
+  };
+}
+
+/**
+ * Convert ExpeditionIndex modules to ExpeditionModule array.
+ */
+export function indexModulesToExpeditionModules(
+  modules: ExpeditionIndex['modules'],
+): ExpeditionModule[] {
+  return Object.entries(modules).map(([id, mod]) => ({
+    id,
+    description: mod.description,
+    dependsOn: mod.dependsOn,
+  }));
+}
 
 /**
  * Parse a plan file (.md) with YAML frontmatter into a PlanFile.

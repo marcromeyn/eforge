@@ -226,6 +226,30 @@ export function renderEvent(event: ForgeEvent): void {
       succeedSpinner(`merge:${event.planId}`, `Merged ${chalk.cyan(event.planId)}`);
       break;
 
+    // Expedition planning phases
+    case 'expedition:architecture:complete':
+      succeedSpinner('plan', `Architecture complete \u2014 ${event.modules.length} modules defined`);
+      for (const mod of event.modules) {
+        console.log(`  ${chalk.cyan(mod.id)} \u2014 ${mod.description}`);
+      }
+      break;
+
+    case 'expedition:module:start':
+      startSpinner(`mod:${event.moduleId}`, `Planning module ${chalk.cyan(event.moduleId)}...`);
+      break;
+
+    case 'expedition:module:complete':
+      succeedSpinner(`mod:${event.moduleId}`, `Module ${chalk.cyan(event.moduleId)} planned`);
+      break;
+
+    case 'expedition:compile:start':
+      startSpinner('compile', 'Compiling plan files...');
+      break;
+
+    case 'expedition:compile:complete':
+      succeedSpinner('compile', `Compiled ${event.plans.length} plan file(s)`);
+      break;
+
     // Agent-level (verbose streaming)
     case 'agent:message':
       if (!verbose) break;
