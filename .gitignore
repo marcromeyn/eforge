@@ -5,3 +5,5 @@ dist/
 .forge-state.json
 .forge-logs/
 .mcp.json
+.schaake-os-track
+.forge.db
