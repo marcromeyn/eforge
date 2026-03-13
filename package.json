@@ -21,7 +21,8 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.26.0",
   "dependencies": {
-    "commander": "^14.0.3"
+    "commander": "^14.0.3",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.74",
