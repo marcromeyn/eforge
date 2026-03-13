@@ -4,17 +4,33 @@ Autonomous plan-build-review CLI for code generation, built on the [Claude Agent
 
 aroh-forge extracts battle-tested workflows from Claude Code plugins into a standalone tool that runs independently — no Claude Code required.
 
-## How it works
+## Architecture
+
+**Library-first**: A pure, event-driven engine (`src/engine/`) yields typed `ForgeEvent`s via `AsyncGenerator`. Thin consumer layers render, persist, or stream events as appropriate.
 
 ```
-PRD / prompt  →  Planner Agent  →  Plan files
-                                       ↓
-                                 Builder Agent  →  Code commits
-                                       ↓
-                                 Reviewer Agent  →  Blind review + fixes
-                                       ↓
-                                 Builder (turn 2)  →  Evaluate fixes → Final commit
+┌───────────────────────────────────────┐
+│  Consumers                            │
+│  CLI (v1) · TUI · Headless · Web UI  │
+│              ↑ ForgeEvent stream      │
+├──────────────┼────────────────────────┤
+│  Engine      │                        │
+│         ┌────┴────┐                   │
+│         │  Forge  │                   │
+│         │  Core   │                   │
+│         └─┬──┬──┬─┘                   │
+│           │  │  │                     │
+│     Planner Builder Reviewer          │
+│           │  │  │                     │
+│         claude-agent-sdk              │
+└───────────────────────────────────────┘
 ```
+
+**Three-agent loop**:
+
+1. **Planner** — one-shot. Explores codebase, writes plan files. Asks clarifying questions when encountering ambiguity.
+2. **Builder** — multi-turn. Turn 1: implement plan → commit. Turn 2: evaluate reviewer's fixes.
+3. **Reviewer** — one-shot, blind. Reviews committed code independently, leaves fixes unstaged.
 
 For multi-plan sets, an orchestrator resolves dependencies, computes execution waves, and runs plans in parallel using git worktrees.
 
