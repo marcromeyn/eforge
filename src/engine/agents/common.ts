@@ -4,7 +4,8 @@ import type {
   SDKPartialAssistantMessage,
   SDKResultMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { ForgeEvent, AgentRole, ClarificationQuestion } from '../events.js';
+import { ORCHESTRATION_MODES } from '../events.js';
+import type { ForgeEvent, AgentRole, ClarificationQuestion, OrchestrationConfig } from '../events.js';
 
 /**
  * Map an async iterable of SDK messages to ForgeEvents.
@@ -130,4 +131,35 @@ export function parseClarificationBlocks(text: string): ClarificationQuestion[] 
   }
 
   return questions;
+}
+
+/**
+ * Scope assessment from planner.
+ */
+export interface ScopeDeclaration {
+  assessment: OrchestrationConfig['mode'];
+  justification: string;
+}
+
+const VALID_ASSESSMENTS = new Set<string>(ORCHESTRATION_MODES);
+
+/**
+ * Parse a <scope> XML block from assistant text into a ScopeDeclaration.
+ *
+ * Expected format:
+ *   <scope assessment="errand">
+ *     Focused change adding a single CLI flag — one area, no migrations.
+ *   </scope>
+ */
+export function parseScopeBlock(text: string): ScopeDeclaration | null {
+  const match = text.match(/<scope\s+assessment="([^"]+)">([\s\S]*?)<\/scope>/);
+  if (!match) return null;
+
+  const assessment = match[1].trim();
+  const justification = match[2].trim();
+
+  if (!VALID_ASSESSMENTS.has(assessment)) return null;
+  if (!justification) return null;
+
+  return { assessment: assessment as OrchestrationConfig['mode'], justification };
 }

@@ -62,7 +62,7 @@ export async function parseOrchestrationConfig(yamlPath: string): Promise<Orches
     name: data.name as string,
     description: (data.description as string) ?? '',
     created: (data.created as string) ?? '',
-    mode: (data.mode as OrchestrationConfig['mode']) ?? 'excursion',
+    mode: (data.mode as OrchestrationConfig['mode']) ?? 'errand',
     baseBranch: (data.base_branch as string) ?? 'main',
     plans,
   };

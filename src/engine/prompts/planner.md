@@ -22,34 +22,54 @@ The user wants you to plan the following:
 2. Identify success criteria and constraints
 3. If anything is ambiguous, ask clarifying questions using the `<clarification>` format below
 
+**Scope Assessment** — Before exploring the codebase, classify the work:
+
+| Level | Plans | When to use |
+|-------|-------|-------------|
+| **errand** | 1 | Focused change in one area. No migrations, no architecture decisions. **This is the default — most tasks are errands.** |
+| **excursion** | 2-3 | Cross-cutting change with natural phasing — e.g., a migration must land before a feature, or backend/frontend have a real dependency edge. |
+| **expedition** | 4+ | Large initiative spanning multiple subsystems with a meaningful dependency graph. |
+
+**Decision criteria for splitting into multiple plans:**
+- A database migration must complete before dependent code can be built
+- Independent subsystems with zero shared files can be parallelized
+- There is a genuine dependency ordering that the orchestrator needs to know about
+
+**Do NOT split when:**
+- Different files are involved but the change is atomic — a single plan handles multiple files fine
+- Backend and frontend changes can be done in one pass
+- Tests or docs accompany a feature — they belong in the same plan as the code they test/document
+- The only reason to split is "it's a lot of files" — plan scope is about dependency structure, not file count
+
+After assessment, emit a `<scope>` block declaring your assessment:
+
+```xml
+<scope assessment="errand">
+  Adding a single CLI flag to an existing command — one area, no migrations, no architecture impact.
+</scope>
+```
+
+This declaration frames all subsequent work. If exploration reveals the work is larger than initially assessed, emit a new `<scope>` block with an updated assessment.
+
 ### Phase 2: Codebase Exploration
 
 1. **Keyword search** — Extract key terms from the source and search for related existing code
 2. **Pattern identification** — Find similar features to follow as examples, note conventions and standards, identify shared utilities to reuse
 3. **Impact analysis** — Determine what files need changes, what the dependencies are, whether database migrations are needed, and what tests need updating
 
-### Phase 3: Complexity Assessment
-
-Use these criteria to assess appropriate scope:
-
-| Indicator | Simple (1 plan) | Medium (2-3 plans) | Complex (4+ plans) |
-|-----------|-----------------|---------------------|----------------------|
-| Files affected | 1-5 | 5-15 | 15+ |
-| Database changes | None | 1-2 migrations | Schema redesign |
-| Architecture impact | None | Fits existing | Requires decisions |
-| Integration points | 0-1 | 2-4 | 5+ |
-
-### Phase 4: Plan Generation
+### Phase 3: Plan Generation
 
 Create 1 or more plan files in `plans/{{planSetName}}/`.
 
-**Single plan** when all work is in one area and has no natural phasing.
+**Single plan** (errand) when all work is in one area and has no natural phasing. This is the common case.
 
-**Multiple plans** when there is clear separation (e.g., backend/frontend), a database migration must complete first, or a natural dependency order exists.
+**Multiple plans** (excursion/expedition) when there is clear separation — e.g., a database migration must complete first, or a genuine dependency order exists between independent subsystems.
 
-### Phase 5: Orchestration Setup
+### Phase 4: Orchestration Setup
 
 Generate `plans/{{planSetName}}/orchestration.yaml` alongside the plan files.
+
+Set `mode` to match your scope assessment (`errand`, `excursion`, or `expedition`).
 
 ## Clarification Format
 
@@ -153,7 +173,7 @@ name: {{planSetName}}
 description: {description derived from source}
 created: {YYYY-MM-DD}
 compiled: {YYYY-MM-DD}
-mode: excursion
+mode: errand
 base_branch: {current git branch}
 
 plans:
@@ -169,7 +189,7 @@ plans:
 
 Important:
 - Determine the current git branch for `base_branch` (run `git rev-parse --abbrev-ref HEAD`)
-- `mode` should be `excursion` for most work
+- `mode` must match your scope assessment: `errand` for 1 plan, `excursion` for 2-3 plans, `expedition` for 4+
 - Plan entries must match the plan files exactly
 - `depends_on` in orchestration.yaml must use the same IDs as in plan file frontmatter
 

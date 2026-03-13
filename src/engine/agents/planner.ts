@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ForgeEvent, PlanOptions, ClarificationQuestion, PlanFile } from '../events.js';
-import { mapSDKMessages, parseClarificationBlocks } from './common.js';
+import { mapSDKMessages, parseClarificationBlocks, parseScopeBlock } from './common.js';
 import { loadPrompt } from '../prompts.js';
 import { parsePlanFile } from '../plan.js';
 
@@ -69,10 +69,14 @@ export async function* runPlanner(
   });
 
   for await (const event of mapSDKMessages(q, 'planner')) {
-    // Detect clarification blocks in agent text output
+    // Detect scope and clarification blocks in agent text output
     if (event.type === 'agent:message') {
-      const questions = parseClarificationBlocks(event.content);
+      const scope = parseScopeBlock(event.content);
+      if (scope) {
+        yield { type: 'plan:scope', assessment: scope.assessment, justification: scope.justification };
+      }
 
+      const questions = parseClarificationBlocks(event.content);
       if (questions.length > 0 && !options.auto) {
         yield { type: 'plan:clarification', questions };
 

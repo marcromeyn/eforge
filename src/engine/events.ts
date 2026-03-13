@@ -1,5 +1,7 @@
 // ForgeEvent discriminated union and all supporting types
 
+export const ORCHESTRATION_MODES = ['errand', 'excursion', 'expedition'] as const;
+
 export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'evaluator';
 
 export type ForgeResult = { status: 'completed' | 'failed'; summary: string };
@@ -35,7 +37,7 @@ export interface OrchestrationConfig {
   name: string;
   description: string;
   created: string;
-  mode: 'excursion' | 'expedition';
+  mode: (typeof ORCHESTRATION_MODES)[number];
   baseBranch: string;
   plans: Array<{ id: string; name: string; dependsOn: string[]; branch: string }>;
 }
@@ -94,6 +96,7 @@ export type ForgeEvent =
 
   // Planning
   | { type: 'plan:start'; source: string }
+  | { type: 'plan:scope'; assessment: OrchestrationConfig['mode']; justification: string }
   | { type: 'plan:clarification'; questions: ClarificationQuestion[] }
   | { type: 'plan:clarification:answer'; answers: Record<string, string> }
   | { type: 'plan:progress'; message: string }

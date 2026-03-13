@@ -79,6 +79,17 @@ export function renderEvent(event: ForgeEvent): void {
       startSpinner('plan', `Planning from ${chalk.cyan(event.source)}...`);
       break;
 
+    case 'plan:scope': {
+      const scopeColors: Record<string, (s: string) => string> = {
+        errand: chalk.green,
+        excursion: chalk.yellow,
+        expedition: chalk.magenta,
+      };
+      const colorFn = scopeColors[event.assessment] ?? chalk.dim;
+      console.log(`  Scope: ${colorFn(event.assessment)} \u2014 ${chalk.dim(event.justification)}`);
+      break;
+    }
+
     case 'plan:clarification': {
       const spinner = spinners.get('plan');
       if (spinner) spinner.stop();
