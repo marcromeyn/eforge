@@ -8,6 +8,10 @@ eforge is a standalone CLI tool that extracts plan-build-review workflows from t
 
 The architecture is **library-first**: a pure, event-driven engine (`src/engine/`) that yields typed `EforgeEvent`s via `AsyncGenerator`, consumed by thin surface layers (CLI today, Claude Code plugin and headless/CI in the future).
 
+**Engine vs plugin boundary**: The engine handles everything that runs without Claude Code (plan generation, review cycles, build execution, orchestration, state, monitoring, tracing). The plugin is a thin launcher/facilitator — requirement refinement in conversation context, subprocess delegation, status rendering. Not a reimplementation.
+
+**Relationship to orchestrate & EEE plugins**: eforge is a graduated replacement. The eforge plugin will supersede both for planning and execution, eventually deprecating them entirely.
+
 ## Commands
 
 ```bash
