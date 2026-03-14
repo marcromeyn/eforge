@@ -1,13 +1,14 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentBackend } from '../backend.js';
 import type { ForgeEvent } from '../events.js';
 import { loadPrompt } from '../prompts.js';
-import { mapSDKMessages } from './common.js';
 import { parseEvaluationBlock } from './builder.js';
 
 /**
  * Options for the plan evaluator agent.
  */
 export interface PlanEvaluatorOptions {
+  /** Backend for running the agent */
+  backend: AgentBackend;
   /** The plan set name */
   planSetName: string;
   /** The original source/PRD content for context */
@@ -33,7 +34,7 @@ export interface PlanEvaluatorOptions {
 export async function* runPlanEvaluate(
   options: PlanEvaluatorOptions,
 ): AsyncGenerator<ForgeEvent> {
-  const { planSetName, sourceContent, cwd, verbose, abortController } = options;
+  const { backend, planSetName, sourceContent, cwd, verbose, abortController } = options;
 
   yield { type: 'plan:evaluate:start' };
 
@@ -42,20 +43,12 @@ export async function* runPlanEvaluate(
     source_content: sourceContent,
   });
 
-  const q = query({
-    prompt,
-    options: {
-      cwd,
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
-      maxTurns: 30,
-      abortController,
-    },
-  });
-
   let fullText = '';
   try {
-    for await (const event of mapSDKMessages(q, 'plan-evaluator')) {
+    for await (const event of backend.run(
+      { prompt, cwd, maxTurns: 30, tools: 'coding', abortSignal: abortController?.signal },
+      'plan-evaluator',
+    )) {
       if (event.type === 'agent:result' || event.type === 'agent:tool_use' || event.type === 'agent:tool_result' || verbose) {
         yield event;
       }

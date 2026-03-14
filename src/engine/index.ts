@@ -31,8 +31,12 @@ export {
 // --- prompts ---
 export { loadPrompt } from './prompts.js';
 
+// --- backend ---
+export type { AgentBackend, AgentRunOptions, ToolPreset } from './backend.js';
+export { ClaudeSDKBackend } from './backends/claude-sdk.js';
+
 // --- agents/common ---
-export { mapSDKMessages, parseClarificationBlocks } from './agents/common.js';
+export { parseClarificationBlocks } from './agents/common.js';
 
 // --- state ---
 export { loadState, saveState, updatePlanStatus, isResumable } from './state.js';

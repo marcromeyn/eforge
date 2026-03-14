@@ -1,9 +1,9 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentBackend } from '../backend.js';
 import type { ForgeEvent, ClarificationQuestion } from '../events.js';
 import { loadPrompt } from '../prompts.js';
-import { mapSDKMessages } from './common.js';
 
 export interface ModulePlannerOptions {
+  backend: AgentBackend;
   cwd: string;
   planSetName: string;
   moduleId: string;
@@ -18,7 +18,7 @@ export interface ModulePlannerOptions {
 
 /**
  * Run the module planner agent for a single expedition module.
- * One-shot SDK query that reads the architecture and writes a detailed
+ * One-shot query that reads the architecture and writes a detailed
  * module plan to plans/{planSetName}/modules/{moduleId}.md.
  */
 export async function* runModulePlanner(
@@ -36,19 +36,10 @@ export async function* runModulePlanner(
     cwd: options.cwd,
   });
 
-  const q = query({
-    prompt,
-    options: {
-      cwd: options.cwd,
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
-      maxTurns: 20,
-      tools: { type: 'preset', preset: 'claude_code' },
-      abortController: options.abortController,
-    },
-  });
-
-  for await (const event of mapSDKMessages(q, 'module-planner')) {
+  for await (const event of options.backend.run(
+    { prompt, cwd: options.cwd, maxTurns: 20, tools: 'coding', abortSignal: options.abortController?.signal },
+    'module-planner',
+  )) {
     // Always yield agent:result + tool events for tracing; gate streaming text on verbose
     if (event.type === 'agent:result' || event.type === 'agent:tool_use' || event.type === 'agent:tool_result' || options.verbose) {
       yield event;

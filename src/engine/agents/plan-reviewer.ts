@@ -1,13 +1,14 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentBackend } from '../backend.js';
 import type { ForgeEvent } from '../events.js';
 import { loadPrompt } from '../prompts.js';
-import { mapSDKMessages } from './common.js';
 import { parseReviewIssues } from './reviewer.js';
 
 /**
  * Options for the plan reviewer agent.
  */
 export interface PlanReviewerOptions {
+  /** Backend for running the agent */
+  backend: AgentBackend;
   /** The original source/PRD content to review plans against */
   sourceContent: string;
   /** The plan set name (directory under plans/) */
@@ -21,7 +22,7 @@ export interface PlanReviewerOptions {
 }
 
 /**
- * Run the plan reviewer agent as a one-shot SDK query.
+ * Run the plan reviewer agent as a one-shot query.
  *
  * Reviews all plan files in the plan set for cohesion, completeness,
  * correctness, feasibility, dependency ordering, and scope. Leaves
@@ -35,7 +36,7 @@ export interface PlanReviewerOptions {
 export async function* runPlanReview(
   options: PlanReviewerOptions,
 ): AsyncGenerator<ForgeEvent> {
-  const { sourceContent, planSetName, cwd, verbose, abortController } = options;
+  const { backend, sourceContent, planSetName, cwd, verbose, abortController } = options;
 
   yield { type: 'plan:review:start' };
 
@@ -46,18 +47,10 @@ export async function* runPlanReview(
 
   let fullText = '';
 
-  const q = query({
-    prompt,
-    options: {
-      cwd,
-      maxTurns: 30,
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
-      abortController,
-    },
-  });
-
-  for await (const event of mapSDKMessages(q, 'plan-reviewer')) {
+  for await (const event of backend.run(
+    { prompt, cwd, maxTurns: 30, tools: 'none', abortSignal: abortController?.signal },
+    'plan-reviewer',
+  )) {
     if (event.type === 'agent:result' || event.type === 'agent:tool_use' || event.type === 'agent:tool_result' || verbose) {
       yield event;
     }

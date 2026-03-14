@@ -1,12 +1,13 @@
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentBackend } from '../backend.js';
 import type { ForgeEvent, PlanFile } from '../events.js';
 import { loadPrompt } from '../prompts.js';
-import { mapSDKMessages } from './common.js';
 
 /**
  * Options for builder agent functions.
  */
 export interface BuilderOptions {
+  /** Backend for running the agent */
+  backend: AgentBackend;
   /** Working directory (typically a worktree path) */
   cwd: string;
   /** Stream verbose agent-level events */
@@ -25,7 +26,7 @@ export interface EvaluationVerdict {
 }
 
 /**
- * Turn 1: Implement a plan. The SDK agent reads the plan, implements it,
+ * Turn 1: Implement a plan. The agent reads the plan, implements it,
  * runs verification, and commits all changes in a single commit.
  */
 export async function* builderImplement(
@@ -41,19 +42,12 @@ export async function* builderImplement(
     plan_branch: plan.branch,
   });
 
-  const q = query({
-    prompt,
-    options: {
-      cwd: options.cwd,
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
-      maxTurns: 50,
-      abortController: options.abortController,
-    },
-  });
-
   try {
-    for await (const event of mapSDKMessages(q, 'builder', plan.id)) {
+    for await (const event of options.backend.run(
+      { prompt, cwd: options.cwd, maxTurns: 50, tools: 'coding', abortSignal: options.abortController?.signal },
+      'builder',
+      plan.id,
+    )) {
       if (event.type === 'agent:result' || event.type === 'agent:tool_use' || event.type === 'agent:tool_result' || options.verbose) {
         yield event;
       }
@@ -68,7 +62,7 @@ export async function* builderImplement(
 }
 
 /**
- * Turn 2: Evaluate reviewer's unstaged fixes. The SDK agent runs
+ * Turn 2: Evaluate reviewer's unstaged fixes. The agent runs
  * `git reset --soft HEAD~1`, inspects staged (implementation) vs unstaged
  * (reviewer fixes), applies verdicts, and commits the final result.
  */
@@ -83,20 +77,13 @@ export async function* builderEvaluate(
     plan_name: plan.name,
   });
 
-  const q = query({
-    prompt,
-    options: {
-      cwd: options.cwd,
-      permissionMode: 'bypassPermissions',
-      allowDangerouslySkipPermissions: true,
-      maxTurns: 30,
-      abortController: options.abortController,
-    },
-  });
-
   let fullText = '';
   try {
-    for await (const event of mapSDKMessages(q, 'evaluator', plan.id)) {
+    for await (const event of options.backend.run(
+      { prompt, cwd: options.cwd, maxTurns: 30, tools: 'coding', abortSignal: options.abortController?.signal },
+      'evaluator',
+      plan.id,
+    )) {
       if (event.type === 'agent:result' || event.type === 'agent:tool_use' || event.type === 'agent:tool_result' || options.verbose) {
         yield event;
       }

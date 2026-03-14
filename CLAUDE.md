@@ -27,13 +27,15 @@ node --env-file=.env dist/cli.js plan docs/init-prd.md --verbose
 
 **Design principle**: Engine emits, consumers render. The engine never writes to stdout — all communication flows through `ForgeEvent`s.
 
-**Agent loop**: planner → plan-reviewer → plan-evaluator → builder → reviewer → evaluator, each wrapping an SDK `query()` call. Planning and building both use a shared `runReviewCycle()` for the review→evaluate pattern.
+**Agent loop**: planner → plan-reviewer → plan-evaluator → builder → reviewer → evaluator, each consuming the `AgentBackend` interface. Planning and building both use a shared `runReviewCycle()` for the review→evaluate pattern.
+
+**Backend abstraction**: Agent runners never import the AI SDK directly. All LLM interaction goes through the `AgentBackend` interface (`src/engine/backend.ts`). The sole SDK adapter lives in `src/engine/backends/claude-sdk.ts`. New agents must accept an `AgentBackend` via their options — do not import `@anthropic-ai/claude-agent-sdk` outside of `src/engine/backends/`.
 
 - **Planner** — one-shot query. Explores codebase, assesses scope, writes plan files (YAML frontmatter format). Outputs `<clarification>` XML blocks for ambiguities. For expeditions, also generates architecture + module list.
 - **Plan Reviewer** — one-shot query. Blind review of plan files against PRD for cohesion, completeness, correctness. Leaves fixes unstaged.
 - **Plan Evaluator** — one-shot query. Evaluates plan reviewer's unstaged fixes against planner's intent. Accepts/rejects.
 - **Module Planner** — one-shot query (expedition mode only). Writes detailed plan for a single module using architecture context.
-- **Builder** — multi-turn SDK client. Turn 1: implement plan. Turn 2: evaluate reviewer's unstaged fixes (accept/reject/review).
+- **Builder** — multi-turn agent. Turn 1: implement plan. Turn 2: evaluate reviewer's unstaged fixes (accept/reject/review).
 - **Reviewer** — one-shot query. Blind code review (no builder context), leaves fixes unstaged.
 
 **Engine** (`src/engine/`): Pure library, no stdout. Agent implementations in `src/engine/agents/`, prompts in `src/engine/prompts/` (self-contained `.md` files, no runtime plugin dependencies).
@@ -54,6 +56,9 @@ src/
     forge.ts                  # ForgeEngine: plan(), build(), review(), status()
     events.ts                 # ForgeEvent type definitions
     index.ts                  # Barrel re-exports for engine public API
+    backend.ts                # AgentBackend interface (provider abstraction)
+    backends/
+      claude-sdk.ts           # Claude Agent SDK adapter (sole SDK import point)
     agents/
       planner.ts              # PRD → plan files (one-shot query)
       module-planner.ts       # Expedition module → detailed plan (one-shot query)
@@ -61,7 +66,7 @@ src/
       reviewer.ts             # Blind code review (one-shot query)
       plan-reviewer.ts        # Blind plan review (one-shot query)
       plan-evaluator.ts       # Plan fix evaluation (one-shot query)
-      common.ts               # SDK message → ForgeEvent mapping
+      common.ts               # Provider-agnostic XML parsers for agent output
     plan.ts                   # Plan file parsing (YAML frontmatter)
     state.ts                  # .forge/state.json read/write
     orchestrator.ts           # Dependency graph, wave execution
@@ -104,16 +109,18 @@ Tests live in `test/` and use vitest. Organize by **logical unit**, not source f
 - **No mocks.** Test real code. For SDK types, hand-craft data objects cast through `unknown` rather than mocking.
 - **Fixtures for I/O tests only.** File-reading tests use `test/fixtures/`; everything else constructs inputs inline.
 - **Helpers colocated.** Test helpers (e.g., `makeState()`, `asyncIterableFrom()`) live in the test file that uses them. No shared test utils unless reuse spans 3+ files.
-- **Only test pure logic.** Agent runners, `ForgeEngine`, worktree/git ops, and tracing are thin SDK wrappers — testing them means testing mocks, so don't.
+- **Agent wiring tests use `StubBackend`** (`test/stub-backend.ts`). Test the logic between backend calls and ForgeEvents: clarification loops, XML parsing → event synthesis, error propagation. See `test/agent-wiring.test.ts`.
+- **Don't test backend implementations or infra.** `ClaudeSDKBackend`, `ForgeEngine` orchestration, worktree/git ops, and tracing are integration-level — don't unit test them.
 
 ## Conventions
 
 - Use Mermaid diagrams instead of ASCII art in documentation
+- SDK imports (`@anthropic-ai/claude-agent-sdk`) are restricted to `src/engine/backends/` — agent runners use the `AgentBackend` interface
 
 ## Tech decisions
 
 - ESM-only (`"type": "module"`), target Node.js 22+
-- `@anthropic-ai/claude-agent-sdk` is a runtime dependency (externalized from bundle so its `import.meta.url` resolves correctly). Chosen for Max subscription billing (zero API cost). Vendor lock-in accepted.
+- `@anthropic-ai/claude-agent-sdk` is a runtime dependency (externalized from bundle so its `import.meta.url` resolves correctly). Chosen for Max subscription billing (zero API cost). Isolated behind `AgentBackend` interface for future provider swappability.
 - tsup bundles to `dist/cli.js` with shebang; SDK is externalized via `external` config to preserve subprocess resolution
 - Engine uses `AsyncGenerator<ForgeEvent>` pattern — consumers iterate, no callbacks except clarification/approval
 - Clarification uses engine-level events (parsed from agent XML output), not SDK's built-in `AskUserQuestion`

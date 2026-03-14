@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mapSDKMessages } from '../src/engine/agents/common.js';
+import { mapSDKMessages } from '../src/engine/backends/claude-sdk.js';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ForgeEvent } from '../src/engine/events.js';
 

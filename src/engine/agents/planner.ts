@@ -1,16 +1,15 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { query as sdkQuery } from '@anthropic-ai/claude-agent-sdk';
-import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { AgentBackend } from '../backend.js';
 import type { ForgeEvent, PlanOptions, ClarificationQuestion, PlanFile } from '../events.js';
-import { mapSDKMessages, parseClarificationBlocks, parseScopeBlock } from './common.js';
+import { parseClarificationBlocks, parseScopeBlock } from './common.js';
 import { loadPrompt } from '../prompts.js';
 import { parsePlanFile, deriveNameFromSource } from '../plan.js';
 
 export interface PlannerOptions extends PlanOptions {
+  backend: AgentBackend;
   onClarification?: (questions: ClarificationQuestion[]) => Promise<Record<string, string>>;
-  abortController?: AbortController;
 }
 
 /**
@@ -43,13 +42,12 @@ ${rows.join('\n')}`;
 }
 
 /**
- * Run the planner agent. One-shot SDK query that explores the codebase,
- * asks clarifying questions via <clarification> XML blocks, and writes
- * plan files to disk.
+ * Run the planner agent. Explores the codebase, asks clarifying questions
+ * via <clarification> XML blocks, and writes plan files to disk.
  *
- * If the SDK subprocess dies while waiting for clarification answers (e.g.
- * user stepped away), the planner automatically retries with answers baked
- * into the prompt.
+ * Clarification flow: when the agent emits <clarification> blocks,
+ * the planner pauses, collects answers via onClarification callback,
+ * bakes answers into the prompt, and restarts the agent.
  *
  * @param source - PRD file path or inline prompt string
  * @param options - Planner configuration
@@ -57,9 +55,10 @@ ${rows.join('\n')}`;
  */
 export async function* runPlanner(
   source: string,
-  options: PlannerOptions = {},
+  options: PlannerOptions,
 ): AsyncGenerator<ForgeEvent> {
   const cwd = options.cwd ?? process.cwd();
+  const { backend } = options;
 
   // Resolve source: file path → read contents, otherwise use as inline string
   let sourceContent: string;
@@ -81,7 +80,7 @@ export async function* runPlanner(
   yield { type: 'plan:start', source };
   yield { type: 'plan:progress', message: 'Loading planner prompt...' };
 
-  // Track clarification Q&A across the session for potential retry
+  // Track clarification Q&A across iterations
   const allClarifications: Array<{ questions: ClarificationQuestion[]; answers: Record<string, string> }> = [];
 
   function buildPrompt(): Promise<string> {
@@ -93,34 +92,29 @@ export async function* runPlanner(
     });
   }
 
-  function createQuery(prompt: string) {
-    return sdkQuery({
-      prompt,
-      options: {
-        cwd,
-        permissionMode: 'bypassPermissions',
-        allowDangerouslySkipPermissions: true,
-        maxTurns: 30,
-        tools: { type: 'preset', preset: 'claude_code' },
-        abortController: options.abortController,
-      },
-    });
-  }
-
-  let prompt = await buildPrompt();
-  let q = createQuery(prompt);
-
-  yield { type: 'plan:progress', message: 'Starting planner agent...' };
-
-  // Shared event-processing logic for both initial run and retry
   let scopeEmitted = false;
 
-  async function* processEvents(
-    query: ReturnType<typeof createQuery>,
-    /** When true, streamInput failures trigger a retry instead of propagating */
-    allowRetry: boolean,
-  ): AsyncGenerator<ForgeEvent | { type: '__retry__' }> {
-    for await (const event of mapSDKMessages(query, 'planner')) {
+  // Main loop: run agent, collect clarifications, restart with answers baked in
+  let iteration = 0;
+  const maxIterations = 5; // prevent infinite loops
+
+  while (iteration < maxIterations) {
+    iteration++;
+
+    const prompt = await buildPrompt();
+
+    if (iteration === 1) {
+      yield { type: 'plan:progress', message: 'Starting planner agent...' };
+    } else {
+      yield { type: 'plan:progress', message: 'Planner restarted with prior clarifications' };
+    }
+
+    let needsRestart = false;
+
+    for await (const event of backend.run(
+      { prompt, cwd, maxTurns: 30, tools: 'coding', abortSignal: options.abortController?.signal },
+      'planner',
+    )) {
       if (event.type === 'agent:message') {
         if (!scopeEmitted) {
           const scope = parseScopeBlock(event.content);
@@ -137,31 +131,10 @@ export async function* runPlanner(
           if (options.onClarification) {
             const answers = await options.onClarification(questions);
             yield { type: 'plan:clarification:answer', answers };
-
             allClarifications.push({ questions, answers });
-
-            const answerText = Object.entries(answers)
-              .map(([id, answer]) => `${id}: ${answer}`)
-              .join('\n');
-
-            try {
-              await query.streamInput(
-                (async function* (): AsyncGenerator<SDKUserMessage> {
-                  yield {
-                    type: 'user',
-                    message: { role: 'user', content: answerText },
-                    parent_tool_use_id: null,
-                    session_id: '',
-                  } as SDKUserMessage;
-                })(),
-              );
-            } catch {
-              if (allowRetry) {
-                yield { type: '__retry__' };
-                return;
-              }
-              throw new Error('Planner transport died while feeding clarification answers');
-            }
+            // Restart agent with answers baked into prompt
+            needsRestart = true;
+            break;
           }
         }
       }
@@ -171,40 +144,8 @@ export async function* runPlanner(
         yield event;
       }
     }
-  }
 
-  // Run the query event loop, with one retry if the transport dies after clarification
-  let needsRetry = false;
-
-  try {
-    for await (const event of processEvents(q, true)) {
-      if (event.type === '__retry__') {
-        needsRetry = true;
-        break;
-      }
-      yield event as ForgeEvent;
-    }
-  } catch (err) {
-    // Transport death can also surface on the iterator's next() call
-    if (allClarifications.length > 0) {
-      needsRetry = true;
-    } else {
-      throw err instanceof Error ? err : new Error('Planner agent failed unexpectedly');
-    }
-  }
-
-  // Retry: start a fresh query with clarification answers baked into the prompt
-  if (needsRetry) {
-    yield { type: 'plan:progress', message: 'Session expired, restarting planner with your answers...' };
-
-    prompt = await buildPrompt();
-    q = createQuery(prompt);
-
-    yield { type: 'plan:progress', message: 'Planner restarted with prior clarifications' };
-
-    for await (const event of processEvents(q, false)) {
-      yield event as ForgeEvent;
-    }
+    if (!needsRestart) break;
   }
 
   yield { type: 'plan:progress', message: 'Scanning plan files...' };
@@ -229,4 +170,3 @@ export async function* runPlanner(
 
   yield { type: 'plan:complete', plans };
 }
-

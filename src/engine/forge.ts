@@ -24,8 +24,10 @@ import type {
   ScopeAssessment,
 } from './events.js';
 import type { ForgeConfig } from './config.js';
+import type { AgentBackend } from './backend.js';
 import type { PlannerOptions } from './agents/planner.js';
 import { loadConfig } from './config.js';
+import { ClaudeSDKBackend } from './backends/claude-sdk.js';
 import { createTracingContext, type SpanHandle, type ToolCallHandle, type TracingContext } from './tracing.js';
 import { runPlanner } from './agents/planner.js';
 import { runModulePlanner } from './agents/module-planner.js';
@@ -46,6 +48,8 @@ export interface ForgeEngineOptions {
   cwd?: string;
   /** Config overrides (deep-merged with loaded config) */
   config?: Partial<ForgeConfig>;
+  /** Agent backend (defaults to ClaudeSDKBackend) */
+  backend?: AgentBackend;
   /** Clarification callback for interactive planning */
   onClarification?: (questions: ClarificationQuestion[]) => Promise<Record<string, string>>;
   /** Approval callback for build gates */
@@ -55,12 +59,14 @@ export interface ForgeEngineOptions {
 export class ForgeEngine {
   private readonly config: ForgeConfig;
   private readonly cwd: string;
+  private readonly backend: AgentBackend;
   private readonly onClarification?: ForgeEngineOptions['onClarification'];
   private readonly onApproval?: ForgeEngineOptions['onApproval'];
 
   private constructor(config: ForgeConfig, options: ForgeEngineOptions = {}) {
     this.config = config;
     this.cwd = options.cwd ?? process.cwd();
+    this.backend = options.backend ?? new ClaudeSDKBackend();
     this.onClarification = options.onClarification;
     this.onApproval = options.onApproval;
   }
@@ -130,6 +136,7 @@ export class ForgeEngine {
       const plannerOptions: PlannerOptions = {
         ...options,
         cwd,
+        backend: this.backend,
         onClarification: this.onClarification,
       };
 
@@ -217,12 +224,12 @@ export class ForgeEngine {
             reviewer: {
               role: 'plan-reviewer',
               metadata: { planSet: planSetName },
-              run: () => runPlanReview({ sourceContent, planSetName, cwd, verbose, abortController }),
+              run: () => runPlanReview({ backend: this.backend, sourceContent, planSetName, cwd, verbose, abortController }),
             },
             evaluator: {
               role: 'plan-evaluator',
               metadata: { planSet: planSetName },
-              run: () => runPlanEvaluate({ planSetName, sourceContent, cwd, verbose, abortController }),
+              run: () => runPlanEvaluate({ backend: this.backend, planSetName, sourceContent, cwd, verbose, abortController }),
             },
           });
         } catch (err) {
@@ -271,6 +278,7 @@ export class ForgeEngine {
       const modTracker = createToolTracker(modSpan);
       try {
         for await (const event of runModulePlanner({
+          backend: this.backend,
           cwd,
           planSetName,
           moduleId: mod.id,
@@ -346,6 +354,7 @@ export class ForgeEngine {
 
       // Per-plan runner closure — sequences implement → review → evaluate
       const config = this.config;
+      const backend = this.backend;
       const verbose = options.verbose;
       const abortController = options.abortController;
 
@@ -368,7 +377,7 @@ export class ForgeEngine {
         let implFailed = false;
 
         try {
-          for await (const event of builderImplement(planFile, { cwd: worktreePath, verbose, abortController })) {
+          for await (const event of builderImplement(planFile, { backend, cwd: worktreePath, verbose, abortController })) {
             implTracker.handleEvent(event);
             yield event;
             if (event.type === 'build:failed') {
@@ -398,6 +407,7 @@ export class ForgeEngine {
             role: 'reviewer',
             metadata: { planId },
             run: () => runReview({
+              backend,
               planContent: planFile.body,
               baseBranch: orchConfig.baseBranch,
               planId,
@@ -409,7 +419,7 @@ export class ForgeEngine {
           evaluator: {
             role: 'evaluator',
             metadata: { planId },
-            run: () => builderEvaluate(planFile, { cwd: worktreePath, verbose, abortController }),
+            run: () => builderEvaluate(planFile, { backend, cwd: worktreePath, verbose, abortController }),
           },
         });
 
@@ -480,6 +490,7 @@ export class ForgeEngine {
         try {
           const planFile = await parsePlanFile(resolve(planDir, `${plan.id}.md`));
           for await (const event of runReview({
+            backend: this.backend,
             planContent: planFile.body,
             baseBranch: orchConfig.baseBranch,
             planId: plan.id,

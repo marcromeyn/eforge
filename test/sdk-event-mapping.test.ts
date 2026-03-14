@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { ForgeEvent } from '../src/engine/events.js';
-import { mapSDKMessages, truncateOutput } from '../src/engine/agents/common.js';
+import { mapSDKMessages, truncateOutput } from '../src/engine/backends/claude-sdk.js';
 
 /**
  * Helper: collect all events from an async generator into an array.
