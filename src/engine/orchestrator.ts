@@ -414,7 +414,7 @@ export class Orchestrator {
 
     const existing = loadState(stateDir);
 
-    if (existing) {
+    if (existing && existing.setName === config.name) {
       if (isResumable(existing)) {
         resumeState(existing);
         saveState(stateDir, existing);
