@@ -97,7 +97,7 @@ src/
       plan-reviewer.md
       plan-evaluator.md
       validation-fixer.md
-    config.ts                 # eforge.yaml loading
+    config.ts                 # eforge.yaml + global config loading & merging
 
   monitor/                    # Web monitor (event persistence + dashboard)
     db.ts                     # SQLite: open, schema, CRUD (better-sqlite3)
@@ -139,6 +139,20 @@ Tests live in `test/` and use vitest. Organize by **logical unit**, not source f
 ## Evaluation
 
 `eval/` contains an end-to-end eval harness. `eval/scenarios.yaml` defines scenarios (fixture + PRD + validation commands). Fixtures in `eval/fixtures/` are plain project files copied into disposable git repos per run. Results are gitignored and auto-pruned. Run `./eval/run.sh --help` or read `eval/run.sh` for usage.
+
+## Configuration
+
+eforge loads config from two levels, merged together:
+
+1. **Global (user-level)**: `~/.config/eforge/config.yaml` (respects `$XDG_CONFIG_HOME`)
+2. **Project-level**: `eforge.yaml` found by walking up from cwd
+
+**Priority chain** (lowest → highest): defaults → global config → project config → env vars → CLI overrides
+
+**Merge strategy**:
+- Object sections (`langfuse`, `agents`, `build`, `plan`, `plugins`): shallow merge per-field — project overrides global, global fields survive if project doesn't define them
+- `hooks` array: **concatenate** (global hooks fire first, then project hooks)
+- Arrays inside objects (`postMergeCommands`, `plugins.include/exclude/paths`, `settingSources`): project replaces global
 
 ## Conventions
 

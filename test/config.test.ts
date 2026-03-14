@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { resolveConfig, DEFAULT_CONFIG } from '../src/engine/config.js';
+import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { resolveConfig, DEFAULT_CONFIG, getUserConfigPath, mergePartialConfigs } from '../src/engine/config.js';
+import type { PartialEforgeConfig, HookConfig } from '../src/engine/config.js';
 
 describe('resolveConfig', () => {
   it('returns defaults for empty inputs', () => {
@@ -101,5 +104,114 @@ describe('resolveConfig', () => {
   it('hooks is frozen in resolved config', () => {
     const config = resolveConfig({}, {});
     expect(Object.isFrozen(config.hooks)).toBe(true);
+  });
+});
+
+describe('getUserConfigPath', () => {
+  it('returns ~/.config/eforge/config.yaml by default', () => {
+    const path = getUserConfigPath({});
+    expect(path).toBe(resolve(homedir(), '.config', 'eforge', 'config.yaml'));
+  });
+
+  it('respects XDG_CONFIG_HOME override', () => {
+    const path = getUserConfigPath({ XDG_CONFIG_HOME: '/tmp/xdg-config' });
+    expect(path).toBe(resolve('/tmp/xdg-config', 'eforge', 'config.yaml'));
+  });
+});
+
+describe('mergePartialConfigs', () => {
+  it('empty + empty → empty', () => {
+    const merged = mergePartialConfigs({}, {});
+    expect(merged).toEqual({});
+  });
+
+  it('global-only fields survive when project is empty', () => {
+    const global: PartialEforgeConfig = {
+      agents: { maxTurns: 50 },
+      plan: { outputDir: 'global-plans' },
+    };
+    const merged = mergePartialConfigs(global, {});
+    expect(merged.agents?.maxTurns).toBe(50);
+    expect(merged.plan?.outputDir).toBe('global-plans');
+  });
+
+  it('project fields override global scalars', () => {
+    const global: PartialEforgeConfig = {
+      agents: { maxTurns: 50, permissionMode: 'bypass' },
+    };
+    const project: PartialEforgeConfig = {
+      agents: { maxTurns: 10 },
+    };
+    const merged = mergePartialConfigs(global, project);
+    expect(merged.agents?.maxTurns).toBe(10);
+    // project didn't set permissionMode, so global's survives via shallow merge
+    expect(merged.agents?.permissionMode).toBe('bypass');
+  });
+
+  it('object sections merge shallowly (global host + project publicKey)', () => {
+    const global: PartialEforgeConfig = {
+      langfuse: { enabled: false, host: 'https://global.host' },
+    };
+    const project: PartialEforgeConfig = {
+      langfuse: { enabled: false, publicKey: 'proj-pk' },
+    };
+    const merged = mergePartialConfigs(global, project);
+    expect(merged.langfuse?.host).toBe('https://global.host');
+    expect(merged.langfuse?.publicKey).toBe('proj-pk');
+  });
+
+  it('hooks concatenate (global first, then project)', () => {
+    const globalHook: HookConfig = { event: '*', command: 'global.sh', timeout: 5000 };
+    const projectHook: HookConfig = { event: 'build:*', command: 'project.sh', timeout: 3000 };
+    const global: PartialEforgeConfig = { hooks: [globalHook] };
+    const project: PartialEforgeConfig = { hooks: [projectHook] };
+    const merged = mergePartialConfigs(global, project);
+    expect(merged.hooks).toEqual([globalHook, projectHook]);
+  });
+
+  it('hooks from global only when project has none', () => {
+    const globalHook: HookConfig = { event: '*', command: 'global.sh', timeout: 5000 };
+    const merged = mergePartialConfigs({ hooks: [globalHook] }, {});
+    expect(merged.hooks).toEqual([globalHook]);
+  });
+
+  it('hooks from project only when global has none', () => {
+    const projectHook: HookConfig = { event: 'build:*', command: 'project.sh', timeout: 3000 };
+    const merged = mergePartialConfigs({}, { hooks: [projectHook] });
+    expect(merged.hooks).toEqual([projectHook]);
+  });
+
+  it('array fields inside objects replaced by project (postMergeCommands)', () => {
+    const global: PartialEforgeConfig = {
+      build: { postMergeCommands: ['global-cmd'] },
+    };
+    const project: PartialEforgeConfig = {
+      build: { postMergeCommands: ['project-cmd'] },
+    };
+    const merged = mergePartialConfigs(global, project);
+    expect(merged.build?.postMergeCommands).toEqual(['project-cmd']);
+  });
+
+  it('array fields inside objects replaced by project (plugins.include)', () => {
+    const global: PartialEforgeConfig = {
+      plugins: { enabled: true, include: ['a', 'b'] },
+    };
+    const project: PartialEforgeConfig = {
+      plugins: { enabled: true, include: ['c'] },
+    };
+    const merged = mergePartialConfigs(global, project);
+    expect(merged.plugins?.include).toEqual(['c']);
+  });
+
+  it('build sections merge shallowly', () => {
+    const global: PartialEforgeConfig = {
+      build: { parallelism: 8 },
+    };
+    const project: PartialEforgeConfig = {
+      build: { maxValidationRetries: 5 },
+    };
+    const merged = mergePartialConfigs(global, project);
+    expect(merged.build?.parallelism).toBe(8);
+    expect(merged.build?.maxValidationRetries).toBe(5);
   });
 });

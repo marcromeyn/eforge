@@ -1,6 +1,6 @@
 import { readFile, access } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
-import { availableParallelism } from 'node:os';
+import { availableParallelism, homedir } from 'node:os';
 import { parse as parseYaml } from 'yaml';
 
 export interface HookConfig {
@@ -27,6 +27,15 @@ export interface EforgeConfig {
   plugins: PluginConfig;
   hooks: readonly HookConfig[];
 }
+
+/** Deep-partial version of EforgeConfig used for parsing and merging. */
+export type PartialEforgeConfig = {
+  [K in keyof EforgeConfig]?: K extends 'hooks'
+    ? HookConfig[]
+    : EforgeConfig[K] extends object
+      ? Partial<EforgeConfig[K]>
+      : EforgeConfig[K];
+};
 
 export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   langfuse: Object.freeze({ enabled: false, host: 'https://cloud.langfuse.com' }),
@@ -66,7 +75,7 @@ export async function findConfigFile(startDir: string): Promise<string | null> {
  * Sets langfuse.enabled = true only when both keys are present.
  */
 export function resolveConfig(
-  fileConfig: Partial<EforgeConfig>,
+  fileConfig: PartialEforgeConfig,
   env: Record<string, string | undefined> = process.env,
 ): EforgeConfig {
   const langfusePublicKey = env.LANGFUSE_PUBLIC_KEY ?? fileConfig.langfuse?.publicKey;
@@ -107,18 +116,17 @@ export function resolveConfig(
 
 /**
  * Parse and validate a raw YAML object into a partial EforgeConfig.
- * Returns only the fields that are present and valid.
+ * Returns only the fields that are present and valid — no premature defaults.
  */
-function parseRawConfig(data: Record<string, unknown>): Partial<EforgeConfig> {
-  const result: Partial<EforgeConfig> = {};
+function parseRawConfig(data: Record<string, unknown>): PartialEforgeConfig {
+  const result: PartialEforgeConfig = {};
 
   if (data.langfuse && typeof data.langfuse === 'object') {
     const lf = data.langfuse as Record<string, unknown>;
     result.langfuse = {
-      enabled: false, // resolved later by resolveConfig
-      publicKey: typeof lf.publicKey === 'string' ? lf.publicKey : undefined,
-      secretKey: typeof lf.secretKey === 'string' ? lf.secretKey : undefined,
-      host: typeof lf.host === 'string' ? lf.host : DEFAULT_CONFIG.langfuse.host,
+      ...(typeof lf.publicKey === 'string' ? { publicKey: lf.publicKey } : {}),
+      ...(typeof lf.secretKey === 'string' ? { secretKey: lf.secretKey } : {}),
+      ...(typeof lf.host === 'string' ? { host: lf.host } : {}),
     };
   }
 
@@ -129,13 +137,14 @@ function parseRawConfig(data: Record<string, unknown>): Partial<EforgeConfig> {
       Array.isArray(ag.settingSources)
         ? ag.settingSources.filter((s: unknown) => typeof s === 'string' && VALID_SETTING_SOURCES.includes(s)) as string[]
         : undefined;
+    // Empty array after filtering means all entries were invalid — treat as absent so defaults apply
+    const hasSettingSources = settingSources && settingSources.length > 0;
     result.agents = {
-      maxTurns: typeof ag.maxTurns === 'number' && ag.maxTurns > 0 ? ag.maxTurns : DEFAULT_CONFIG.agents.maxTurns,
-      permissionMode:
-        ag.permissionMode === 'bypass' || ag.permissionMode === 'default'
-          ? ag.permissionMode
-          : DEFAULT_CONFIG.agents.permissionMode,
-      settingSources,
+      ...(typeof ag.maxTurns === 'number' && ag.maxTurns > 0 ? { maxTurns: ag.maxTurns } : {}),
+      ...(ag.permissionMode === 'bypass' || ag.permissionMode === 'default'
+        ? { permissionMode: ag.permissionMode }
+        : {}),
+      ...(hasSettingSources ? { settingSources } : {}),
     };
   }
 
@@ -146,23 +155,21 @@ function parseRawConfig(data: Record<string, unknown>): Partial<EforgeConfig> {
         ? (bd.postMergeCommands as string[])
         : undefined;
     result.build = {
-      parallelism:
-        typeof bd.parallelism === 'number' && bd.parallelism > 0
-          ? bd.parallelism
-          : DEFAULT_CONFIG.build.parallelism,
-      worktreeDir: typeof bd.worktreeDir === 'string' ? bd.worktreeDir : undefined,
-      postMergeCommands,
-      maxValidationRetries:
-        typeof bd.maxValidationRetries === 'number' && bd.maxValidationRetries >= 0
-          ? bd.maxValidationRetries
-          : DEFAULT_CONFIG.build.maxValidationRetries,
+      ...(typeof bd.parallelism === 'number' && bd.parallelism > 0
+        ? { parallelism: bd.parallelism }
+        : {}),
+      ...(typeof bd.worktreeDir === 'string' ? { worktreeDir: bd.worktreeDir } : {}),
+      ...(postMergeCommands ? { postMergeCommands } : {}),
+      ...(typeof bd.maxValidationRetries === 'number' && bd.maxValidationRetries >= 0
+        ? { maxValidationRetries: bd.maxValidationRetries }
+        : {}),
     };
   }
 
   if (data.plan && typeof data.plan === 'object') {
     const pl = data.plan as Record<string, unknown>;
     result.plan = {
-      outputDir: typeof pl.outputDir === 'string' ? pl.outputDir : DEFAULT_CONFIG.plan.outputDir,
+      ...(typeof pl.outputDir === 'string' ? { outputDir: pl.outputDir } : {}),
     };
   }
 
@@ -181,10 +188,10 @@ function parseRawConfig(data: Record<string, unknown>): Partial<EforgeConfig> {
         ? (pg.paths as string[])
         : undefined;
     result.plugins = {
-      enabled: typeof pg.enabled === 'boolean' ? pg.enabled : DEFAULT_CONFIG.plugins.enabled,
-      include,
-      exclude,
-      paths,
+      ...(typeof pg.enabled === 'boolean' ? { enabled: pg.enabled } : {}),
+      ...(include ? { include } : {}),
+      ...(exclude ? { exclude } : {}),
+      ...(paths ? { paths } : {}),
     };
   }
 
@@ -209,29 +216,98 @@ function parseRawConfig(data: Record<string, unknown>): Partial<EforgeConfig> {
 }
 
 /**
- * Load eforge.yaml config from the given directory (searching upward).
- * Returns DEFAULT_CONFIG when no eforge.yaml exists.
- * Logs a warning and returns defaults on malformed YAML.
+ * Return the path to the user-level (global) config file.
+ * Respects $XDG_CONFIG_HOME when set, else falls back to ~/.config.
  */
-export async function loadConfig(cwd?: string): Promise<EforgeConfig> {
-  const startDir = cwd ?? process.cwd();
-  const configPath = await findConfigFile(startDir);
+export function getUserConfigPath(
+  env: Record<string, string | undefined> = process.env,
+): string {
+  const base = env.XDG_CONFIG_HOME || resolve(homedir(), '.config');
+  return resolve(base, 'eforge', 'config.yaml');
+}
 
-  if (!configPath) {
-    return resolveConfig({});
+/**
+ * Merge two partial configs (global + project) into one.
+ * - Scalar fields: project wins over global
+ * - Object sections: shallow merge per-field, project overrides global
+ * - `hooks`: concatenate (global first, then project)
+ * - Other arrays (postMergeCommands, plugins.include/exclude/paths, settingSources): project replaces
+ */
+export function mergePartialConfigs(
+  global: PartialEforgeConfig,
+  project: PartialEforgeConfig,
+): PartialEforgeConfig {
+  const result: PartialEforgeConfig = {};
+
+  // Object sections: shallow merge
+  if (global.langfuse || project.langfuse) {
+    result.langfuse = { ...global.langfuse, ...project.langfuse };
+  }
+  if (global.agents || project.agents) {
+    result.agents = { ...global.agents, ...project.agents };
+  }
+  if (global.build || project.build) {
+    result.build = { ...global.build, ...project.build };
+  }
+  if (global.plan || project.plan) {
+    result.plan = { ...global.plan, ...project.plan };
+  }
+  if (global.plugins || project.plugins) {
+    result.plugins = { ...global.plugins, ...project.plugins };
   }
 
+  // hooks: concatenate (global first, then project)
+  if (global.hooks || project.hooks) {
+    result.hooks = [...(global.hooks ?? []), ...(project.hooks ?? [])];
+  }
+
+  return result;
+}
+
+/**
+ * Load the user-level (global) config file.
+ * Returns an empty partial on any failure (missing file, bad YAML, etc.).
+ */
+async function loadUserConfig(
+  env: Record<string, string | undefined> = process.env,
+): Promise<PartialEforgeConfig> {
+  const configPath = getUserConfigPath(env);
   try {
     const raw = await readFile(configPath, 'utf-8');
     const data = parseYaml(raw);
-
     if (!data || typeof data !== 'object') {
-      return resolveConfig({});
+      return {};
     }
-
-    const fileConfig = parseRawConfig(data as Record<string, unknown>);
-    return resolveConfig(fileConfig);
+    return parseRawConfig(data as Record<string, unknown>);
   } catch {
-    return resolveConfig({});
+    return {};
   }
+}
+
+/**
+ * Load eforge.yaml config from the given directory (searching upward),
+ * merged with user-level global config (~/.config/eforge/config.yaml).
+ * Returns DEFAULT_CONFIG when no config files exist.
+ */
+export async function loadConfig(cwd?: string): Promise<EforgeConfig> {
+  const globalConfig = await loadUserConfig();
+
+  const startDir = cwd ?? process.cwd();
+  const configPath = await findConfigFile(startDir);
+
+  let projectConfig: PartialEforgeConfig = {};
+  if (configPath) {
+    try {
+      const raw = await readFile(configPath, 'utf-8');
+      const data = parseYaml(raw);
+      if (data && typeof data === 'object') {
+        projectConfig = parseRawConfig(data as Record<string, unknown>);
+      }
+    } catch {
+      // malformed YAML — treat as empty
+    }
+  }
+
+  const merged = mergePartialConfigs(globalConfig, projectConfig);
+  return resolveConfig(merged);
 }
