@@ -85,6 +85,7 @@ src/
     concurrency.ts            # Semaphore + AsyncEventQueue for parallel plans
     worktree.ts               # Git worktree lifecycle
     compiler.ts               # Expedition compiler (modules → plan files + orchestration.yaml)
+    hooks.ts                  # Event hook middleware (withHooks, compilePattern, matchesPattern)
     tracing.ts                # Langfuse tracing (noop when disabled)
     prompts.ts                # Load/template .md prompt files
     prompts/                  # Agent prompt files
