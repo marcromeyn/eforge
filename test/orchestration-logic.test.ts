@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { propagateFailure, resumeState, shouldSkipMerge } from '../src/engine/orchestrator.js';
 import { AsyncEventQueue } from '../src/engine/concurrency.js';
-import type { ForgeState, ForgeEvent, OrchestrationConfig, PlanState } from '../src/engine/events.js';
+import type { EforgeState, EforgeEvent, OrchestrationConfig, PlanState } from '../src/engine/events.js';
 
 // --- Helpers ---
 
 function makeState(
   plans: Record<string, Partial<PlanState> & { status: PlanState['status'] }>,
-  overrides?: Partial<ForgeState>,
-): ForgeState {
+  overrides?: Partial<EforgeState>,
+): EforgeState {
   const fullPlans: Record<string, PlanState> = {};
   for (const [id, partial] of Object.entries(plans)) {
     fullPlans[id] = {
@@ -42,10 +42,10 @@ function makePlans(
   }));
 }
 
-async function drainEvents(queue: AsyncEventQueue<ForgeEvent>): Promise<ForgeEvent[]> {
+async function drainEvents(queue: AsyncEventQueue<EforgeEvent>): Promise<EforgeEvent[]> {
   queue.addProducer();
   queue.removeProducer();
-  const events: ForgeEvent[] = [];
+  const events: EforgeEvent[] = [];
   for await (const event of queue) {
     events.push(event);
   }
@@ -64,7 +64,7 @@ describe('propagateFailure', () => {
       { id: 'a' },
       { id: 'b' },
     ]);
-    const queue = new AsyncEventQueue<ForgeEvent>();
+    const queue = new AsyncEventQueue<EforgeEvent>();
 
     propagateFailure(state, 'a', plans, queue);
 
@@ -82,7 +82,7 @@ describe('propagateFailure', () => {
       { id: 'a' },
       { id: 'b', dependsOn: ['a'] },
     ]);
-    const queue = new AsyncEventQueue<ForgeEvent>();
+    const queue = new AsyncEventQueue<EforgeEvent>();
 
     propagateFailure(state, 'a', plans, queue);
 
@@ -104,7 +104,7 @@ describe('propagateFailure', () => {
       { id: 'b', dependsOn: ['a'] },
       { id: 'c', dependsOn: ['b'] },
     ]);
-    const queue = new AsyncEventQueue<ForgeEvent>();
+    const queue = new AsyncEventQueue<EforgeEvent>();
 
     propagateFailure(state, 'a', plans, queue);
 
@@ -127,7 +127,7 @@ describe('propagateFailure', () => {
       { id: 'c', dependsOn: ['a'] },
       { id: 'd', dependsOn: ['b', 'c'] },
     ]);
-    const queue = new AsyncEventQueue<ForgeEvent>();
+    const queue = new AsyncEventQueue<EforgeEvent>();
 
     propagateFailure(state, 'a', plans, queue);
 
@@ -148,7 +148,7 @@ describe('propagateFailure', () => {
       { id: 'a' },
       { id: 'b', dependsOn: ['a'] },
     ]);
-    const queue = new AsyncEventQueue<ForgeEvent>();
+    const queue = new AsyncEventQueue<EforgeEvent>();
 
     propagateFailure(state, 'a', plans, queue);
 
@@ -166,7 +166,7 @@ describe('propagateFailure', () => {
       { id: 'a' },
       { id: 'b', dependsOn: ['a'] },
     ]);
-    const queue = new AsyncEventQueue<ForgeEvent>();
+    const queue = new AsyncEventQueue<EforgeEvent>();
 
     propagateFailure(state, 'a', plans, queue);
 
@@ -188,7 +188,7 @@ describe('propagateFailure', () => {
       { id: 'c', dependsOn: ['a'] },
       { id: 'd', dependsOn: ['b'] },
     ]);
-    const queue = new AsyncEventQueue<ForgeEvent>();
+    const queue = new AsyncEventQueue<EforgeEvent>();
 
     propagateFailure(state, 'a', plans, queue);
 

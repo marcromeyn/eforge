@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What is this?
 
-forge is a standalone CLI tool that extracts plan-build-review workflows from the schaake-cc-marketplace Claude Code plugins into a portable TypeScript library + CLI built on `@anthropic-ai/claude-agent-sdk`. It runs outside Claude Code as an independent developer tool.
+eforge is a standalone CLI tool that extracts plan-build-review workflows from the schaake-cc-marketplace Claude Code plugins into a portable TypeScript library + CLI built on `@anthropic-ai/claude-agent-sdk`. It runs outside Claude Code as an independent developer tool.
 
-The architecture is **library-first**: a pure, event-driven engine (`src/engine/`) that yields typed `ForgeEvent`s via `AsyncGenerator`, consumed by thin surface layers (CLI today, Claude Code plugin and headless/CI in the future).
+The architecture is **library-first**: a pure, event-driven engine (`src/engine/`) that yields typed `EforgeEvent`s via `AsyncGenerator`, consumed by thin surface layers (CLI today, Claude Code plugin and headless/CI in the future).
 
 ## Commands
 
@@ -25,13 +25,13 @@ node --env-file=.env dist/cli.js plan docs/init-prd.md --verbose
 
 ## Architecture
 
-**Design principle**: Engine emits, consumers render. The engine never writes to stdout — all communication flows through `ForgeEvent`s.
+**Design principle**: Engine emits, consumers render. The engine never writes to stdout — all communication flows through `EforgeEvent`s.
 
 **Agent loop**: planner → plan-reviewer → plan-evaluator → builder → reviewer → evaluator, each consuming the `AgentBackend` interface. Planning and building both use a shared `runReviewCycle()` for the review→evaluate pattern.
 
 **Backend abstraction**: Agent runners never import the AI SDK directly. All LLM interaction goes through the `AgentBackend` interface (`src/engine/backend.ts`). The sole SDK adapter lives in `src/engine/backends/claude-sdk.ts`. New agents must accept an `AgentBackend` via their options — do not import `@anthropic-ai/claude-agent-sdk` outside of `src/engine/backends/`.
 
-**MCP server propagation**: The engine auto-loads MCP servers from `.mcp.json` in the project root (same file Claude Code uses). All agents get the same MCP servers — no per-role filtering. MCP config is backend-specific: `ClaudeSDKBackend` accepts optional `mcpServers` in its constructor, and `ForgeEngineOptions.mcpServers` lets callers inject servers programmatically (overrides auto-loading). The `AgentBackend` interface has no MCP concept. Note: SDK subprocesses do NOT auto-discover MCP servers from settings files — explicit propagation is required.
+**MCP server propagation**: The engine auto-loads MCP servers from `.mcp.json` in the project root (same file Claude Code uses). All agents get the same MCP servers — no per-role filtering. MCP config is backend-specific: `ClaudeSDKBackend` accepts optional `mcpServers` in its constructor, and `EforgeEngineOptions.mcpServers` lets callers inject servers programmatically (overrides auto-loading). The `AgentBackend` interface has no MCP concept. Note: SDK subprocesses do NOT auto-discover MCP servers from settings files — explicit propagation is required.
 
 - **Planner** — one-shot query. Explores codebase, assesses scope, writes plan files (YAML frontmatter format). Outputs `<clarification>` XML blocks for ambiguities. For expeditions, also generates architecture + module list.
 - **Plan Reviewer** — one-shot query. Blind review of plan files against PRD for cohesion, completeness, correctness. Leaves fixes unstaged.
@@ -44,9 +44,9 @@ node --env-file=.env dist/cli.js plan docs/init-prd.md --verbose
 
 **Orchestration**: `src/engine/orchestrator.ts` resolves a dependency graph from `orchestration.yaml`, computes execution waves, and runs plans in parallel via git worktrees (`src/engine/worktree.ts`). Worktrees live in a sibling directory (`../{project}-{set}-worktrees/`) to avoid CLAUDE.md context pollution. Branches merge in topological order after all plans complete.
 
-**State**: `.forge/state.json` (gitignored) tracks build progress for resume support.
+**State**: `.eforge/state.json` (gitignored) tracks build progress for resume support.
 
-**Monitor** (`src/monitor/`): Web-based real-time monitor. Records all `ForgeEvent`s to SQLite (`.forge/monitor.db`) via a transparent `withRecording()` async generator middleware. Serves a single-page dashboard over SSE at `http://localhost:4567`. Auto-starts with `plan`, `build`, `forge`, and `review` commands (disable with `--no-monitor`).
+**Monitor** (`src/monitor/`): Web-based real-time monitor. Records all `EforgeEvent`s to SQLite (`.eforge/monitor.db`) via a transparent `withRecording()` async generator middleware. Serves a single-page dashboard over SSE at `http://localhost:4567`. Auto-starts with `plan`, `build`, `run`, and `review` commands (disable with `--no-monitor`).
 
 **CLI** (`src/cli/`): Thin consumer that iterates the engine's event stream and renders to stdout. Handles interactive clarification prompts and approval gates via callbacks.
 
@@ -54,11 +54,11 @@ node --env-file=.env dist/cli.js plan docs/init-prd.md --verbose
 
 ```
 .mcp.json                           # MCP server config (gitignored, auto-loaded by engine)
-forge.yaml                          # Optional engine config (langfuse, parallelism, etc.)
+eforge.yaml                         # Optional engine config (langfuse, parallelism, etc.)
 src/
   engine/                     # Library (no stdout, events only)
-    forge.ts                  # ForgeEngine: plan(), build(), review(), status()
-    events.ts                 # ForgeEvent type definitions
+    eforge.ts                 # EforgeEngine: plan(), build(), review(), status()
+    events.ts                 # EforgeEvent type definitions
     index.ts                  # Barrel re-exports for engine public API
     backend.ts                # AgentBackend interface (provider abstraction)
     backends/
@@ -72,7 +72,7 @@ src/
       plan-evaluator.ts       # Plan fix evaluation (one-shot query)
       common.ts               # Provider-agnostic XML parsers for agent output
     plan.ts                   # Plan file parsing (YAML frontmatter)
-    state.ts                  # .forge/state.json read/write
+    state.ts                  # .eforge/state.json read/write
     orchestrator.ts           # Dependency graph, wave execution
     concurrency.ts            # Semaphore + AsyncEventQueue for parallel plans
     worktree.ts               # Git worktree lifecycle
@@ -87,7 +87,7 @@ src/
       evaluator.md
       plan-reviewer.md
       plan-evaluator.md
-    config.ts                 # forge.yaml loading
+    config.ts                 # eforge.yaml loading
 
   monitor/                    # Web monitor (event persistence + dashboard)
     db.ts                     # SQLite: open, schema, CRUD (better-sqlite3)
@@ -99,7 +99,7 @@ src/
 
   cli/                        # CLI consumer (thin)
     index.ts                  # Commander setup, wires engine → display
-    display.ts                # ForgeEvent → stdout rendering
+    display.ts                # EforgeEvent → stdout rendering
     interactive.ts            # Clarification prompts, approval gates
 
   cli.ts                      # Entry point (shebang, imports cli/index)
@@ -109,7 +109,7 @@ eval/                           # End-to-end evaluation harness
   run.sh                        # Main runner (bash)
   lib/
     run-scenario.sh             # Single-scenario runner (sourced by run.sh)
-    build-result.mjs            # Parse forge output → result.json
+    build-result.mjs            # Parse eforge output → result.json
   fixtures/                     # Embedded test projects (no .git)
     todo-api/                   # Express + TypeScript API with 2 PRDs
   results/                      # Gitignored — timestamped run output
@@ -123,8 +123,8 @@ Tests live in `test/` and use vitest. Organize by **logical unit**, not source f
 - **No mocks.** Test real code. For SDK types, hand-craft data objects cast through `unknown` rather than mocking.
 - **Fixtures for I/O tests only.** File-reading tests use `test/fixtures/`; everything else constructs inputs inline.
 - **Helpers colocated.** Test helpers (e.g., `makeState()`, `asyncIterableFrom()`) live in the test file that uses them. No shared test utils unless reuse spans 3+ files.
-- **Agent wiring tests use `StubBackend`** (`test/stub-backend.ts`). Test the logic between backend calls and ForgeEvents: clarification loops, XML parsing → event synthesis, error propagation. See `test/agent-wiring.test.ts`.
-- **Don't test backend implementations or infra.** `ClaudeSDKBackend`, `ForgeEngine` orchestration, worktree/git ops, and tracing are integration-level — don't unit test them.
+- **Agent wiring tests use `StubBackend`** (`test/stub-backend.ts`). Test the logic between backend calls and EforgeEvents: clarification loops, XML parsing → event synthesis, error propagation. See `test/agent-wiring.test.ts`.
+- **Don't test backend implementations or infra.** `ClaudeSDKBackend`, `EforgeEngine` orchestration, worktree/git ops, and tracing are integration-level — don't unit test them.
 
 ## Evaluation
 
@@ -140,19 +140,19 @@ Tests live in `test/` and use vitest. Organize by **logical unit**, not source f
 - ESM-only (`"type": "module"`), target Node.js 22+
 - `@anthropic-ai/claude-agent-sdk` is a runtime dependency (externalized from bundle so its `import.meta.url` resolves correctly). Chosen for Max subscription billing (zero API cost). Isolated behind `AgentBackend` interface for future provider swappability.
 - tsup bundles to `dist/cli.js` with shebang; SDK is externalized via `external` config to preserve subprocess resolution
-- Engine uses `AsyncGenerator<ForgeEvent>` pattern — consumers iterate, no callbacks except clarification/approval
+- Engine uses `AsyncGenerator<EforgeEvent>` pattern — consumers iterate, no callbacks except clarification/approval
 - Clarification uses engine-level events (parsed from agent XML output), not SDK's built-in `AskUserQuestion`
 - Langfuse tracing for all agent calls via `src/engine/tracing.ts` (env vars: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`)
-- MCP servers auto-loaded from `.mcp.json` (gitignored, same format as Claude Code). Agents get full tool access to configured servers (brain, langfuse, etc.). Programmatic callers can override via `ForgeEngineOptions.mcpServers`.
+- MCP servers auto-loaded from `.mcp.json` (gitignored, same format as Claude Code). Agents get full tool access to configured servers (brain, langfuse, etc.). Programmatic callers can override via `EforgeEngineOptions.mcpServers`.
 
 ## CLI commands
 
 ```
-forge plan <source>      # PRD file or prompt → plan files
-forge forge <source>     # Plan + build in one step
-forge build <planSet>    # Execute plans (implement + review)
-forge review <planSet>   # Review code against plans
-forge status             # Check running builds
+eforge plan <source>      # PRD file or prompt → plan files
+eforge run <source>       # Plan + build in one step
+eforge build <planSet>    # Execute plans (implement + review)
+eforge review <planSet>   # Review code against plans
+eforge status             # Check running builds
 ```
 
 Flags: `--auto` (bypass approval gates), `--verbose` (stream output), `--dry-run` (validate only), `--no-monitor` (disable web monitor)

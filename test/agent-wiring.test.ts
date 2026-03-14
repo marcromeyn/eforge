@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ForgeEvent } from '../src/engine/events.js';
+import type { EforgeEvent } from '../src/engine/events.js';
 import { StubBackend } from './stub-backend.js';
 import { runPlanner } from '../src/engine/agents/planner.js';
 import { runReview } from '../src/engine/agents/reviewer.js';
@@ -11,26 +11,26 @@ import { runPlanReview } from '../src/engine/agents/plan-reviewer.js';
 import { runPlanEvaluate } from '../src/engine/agents/plan-evaluator.js';
 import { runModulePlanner } from '../src/engine/agents/module-planner.js';
 
-async function collectEvents(gen: AsyncGenerator<ForgeEvent>): Promise<ForgeEvent[]> {
-  const events: ForgeEvent[] = [];
+async function collectEvents(gen: AsyncGenerator<EforgeEvent>): Promise<EforgeEvent[]> {
+  const events: EforgeEvent[] = [];
   for await (const event of gen) {
     events.push(event);
   }
   return events;
 }
 
-function findEvent<T extends ForgeEvent['type']>(
-  events: ForgeEvent[],
+function findEvent<T extends EforgeEvent['type']>(
+  events: EforgeEvent[],
   type: T,
-): Extract<ForgeEvent, { type: T }> | undefined {
-  return events.find((e) => e.type === type) as Extract<ForgeEvent, { type: T }> | undefined;
+): Extract<EforgeEvent, { type: T }> | undefined {
+  return events.find((e) => e.type === type) as Extract<EforgeEvent, { type: T }> | undefined;
 }
 
-function filterEvents<T extends ForgeEvent['type']>(
-  events: ForgeEvent[],
+function filterEvents<T extends EforgeEvent['type']>(
+  events: EforgeEvent[],
   type: T,
-): Array<Extract<ForgeEvent, { type: T }>> {
-  return events.filter((e) => e.type === type) as Array<Extract<ForgeEvent, { type: T }>>;
+): Array<Extract<EforgeEvent, { type: T }>> {
+  return events.filter((e) => e.type === type) as Array<Extract<EforgeEvent, { type: T }>>;
 }
 
 // --- Planner ---
@@ -39,7 +39,7 @@ describe('runPlanner wiring', () => {
   const tempDirs: string[] = [];
 
   function makeTempDir(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'forge-planner-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'eforge-planner-test-'));
     tempDirs.push(dir);
     return dir;
   }
@@ -412,7 +412,7 @@ describe('runPlanEvaluate wiring', () => {
     const backend = new StubBackend([{ error: new Error('Evaluate crash') }]);
 
     let thrown: Error | undefined;
-    const events: ForgeEvent[] = [];
+    const events: EforgeEvent[] = [];
     try {
       for await (const event of runPlanEvaluate({
         backend,

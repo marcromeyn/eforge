@@ -2,7 +2,7 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AgentBackend } from '../backend.js';
-import type { ForgeEvent, PlanOptions, ClarificationQuestion, PlanFile } from '../events.js';
+import type { EforgeEvent, PlanOptions, ClarificationQuestion, PlanFile } from '../events.js';
 import { parseClarificationBlocks, parseScopeBlock } from './common.js';
 import { loadPrompt } from '../prompts.js';
 import { parsePlanFile, deriveNameFromSource } from '../plan.js';
@@ -51,12 +51,12 @@ ${rows.join('\n')}`;
  *
  * @param source - PRD file path or inline prompt string
  * @param options - Planner configuration
- * @yields ForgeEvent stream
+ * @yields EforgeEvent stream
  */
 export async function* runPlanner(
   source: string,
   options: PlannerOptions,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   const cwd = options.cwd ?? process.cwd();
   const { backend } = options;
 

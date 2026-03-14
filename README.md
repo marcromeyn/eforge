@@ -1,23 +1,23 @@
-# forgeai
+# eforge
 
 Autonomous plan-build-review CLI for code generation, built on the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents-and-tools/claude-agent-sdk).
 
-forgeai extracts battle-tested workflows from Claude Code plugins into a standalone tool that runs independently — no Claude Code required.
+The name combines **E** from the [Expedition-Excursion-Errand (EEE) methodology](https://www.markschaake.com/posts/expedition-excursion-errand/) — a scope-aware planning framework that right-sizes AI workflows — with **forge**, reflecting the tool's role in shaping code from plans. eforge assesses your task's scope (errand, excursion, or expedition) and adapts its planning and execution strategy accordingly.
+
+eforge extracts battle-tested workflows from Claude Code plugins into a standalone tool that runs independently — no Claude Code required.
 
 ## Architecture
 
-**Library-first**: A pure, event-driven engine (`src/engine/`) yields typed `ForgeEvent`s via `AsyncGenerator`. Thin consumer layers render, persist, or stream events as appropriate.
+**Library-first**: A pure, event-driven engine (`src/engine/`) yields typed `EforgeEvent`s via `AsyncGenerator`. Thin consumer layers render, persist, or stream events as appropriate.
 
 ```mermaid
 graph TD
     subgraph Consumers
-        CLI["CLI (v1)"]
-        TUI["TUI"]
-        Headless
-        WebUI["Web UI"]
+        CLI["CLI"]
+        Monitor["Web Monitor"]
     end
 
-    CLI & TUI & Headless & WebUI -->|ForgeEvent| Core["Forge Core"]
+    CLI & Monitor -->|EforgeEvent| Core["Eforge Core"]
 
     subgraph Engine
         Core --> Planner
@@ -46,20 +46,20 @@ pnpm run build
 
 ```bash
 # Generate plans from a PRD or description
-forgeai plan docs/my-feature.md
-forgeai plan "Add a health check endpoint"
+eforge plan docs/my-feature.md
+eforge plan "Add a health check endpoint"
 
 # Plan + build in one step
-forgeai forge docs/my-feature.md
+eforge run docs/my-feature.md
 
 # Execute plans (implement + review loop)
-forgeai build my-plan-set
+eforge build my-plan-set
 
 # Review existing code against plans
-forgeai review my-plan-set
+eforge review my-plan-set
 
 # Check running builds
-forgeai status
+eforge status
 ```
 
 ### Flags
@@ -72,7 +72,7 @@ forgeai status
 
 ## Evaluation
 
-An end-to-end eval harness lives in `eval/`. It runs forgeai against embedded fixture projects and validates the output compiles and tests pass.
+An end-to-end eval harness lives in `eval/`. It runs eforge against embedded fixture projects and validates the output compiles and tests pass.
 
 ```bash
 ./eval/run.sh                        # Run all scenarios

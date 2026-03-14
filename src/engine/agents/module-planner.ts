@@ -1,5 +1,5 @@
 import type { AgentBackend } from '../backend.js';
-import type { ForgeEvent, ClarificationQuestion } from '../events.js';
+import type { EforgeEvent, ClarificationQuestion } from '../events.js';
 import { loadPrompt } from '../prompts.js';
 
 export interface ModulePlannerOptions {
@@ -23,7 +23,7 @@ export interface ModulePlannerOptions {
  */
 export async function* runModulePlanner(
   options: ModulePlannerOptions,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   yield { type: 'expedition:module:start', moduleId: options.moduleId };
 
   const prompt = await loadPrompt('module-planner', {

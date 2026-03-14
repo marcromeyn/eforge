@@ -1,27 +1,27 @@
 import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
-import type { ForgeState, PlanState } from './events.js';
+import type { EforgeState, PlanState } from './events.js';
 
-const STATE_FILENAME = '.forge/state.json';
+const STATE_FILENAME = '.eforge/state.json';
 
 /**
- * Load the forge state from a directory. Returns null if no state file exists.
+ * Load the eforge state from a directory. Returns null if no state file exists.
  */
-export function loadState(stateDir: string): ForgeState | null {
+export function loadState(stateDir: string): EforgeState | null {
   const filePath = resolve(stateDir, STATE_FILENAME);
   try {
     const raw = readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw) as ForgeState;
+    return JSON.parse(raw) as EforgeState;
   } catch {
     return null;
   }
 }
 
 /**
- * Save forge state to a directory. Uses write-to-temp-then-rename for
+ * Save eforge state to a directory. Uses write-to-temp-then-rename for
  * atomic writes on POSIX (safe against SIGINT mid-write).
  */
-export function saveState(stateDir: string, state: ForgeState): void {
+export function saveState(stateDir: string, state: EforgeState): void {
   const filePath = resolve(stateDir, STATE_FILENAME);
   const tmpPath = filePath + '.tmp';
   mkdirSync(dirname(filePath), { recursive: true });
@@ -34,10 +34,10 @@ export function saveState(stateDir: string, state: ForgeState): void {
  * Automatically updates completedPlans when a plan transitions to 'completed' or 'merged'.
  */
 export function updatePlanStatus(
-  state: ForgeState,
+  state: EforgeState,
   planId: string,
   status: PlanState['status'],
-): ForgeState {
+): EforgeState {
   const plan = state.plans[planId];
   if (!plan) {
     throw new Error(`Unknown plan ID: '${planId}'`);
@@ -55,7 +55,7 @@ export function updatePlanStatus(
 /**
  * Check if a state is resumable: status is 'running' and at least one plan is not completed/merged.
  */
-export function isResumable(state: ForgeState): boolean {
+export function isResumable(state: EforgeState): boolean {
   if (state.status !== 'running') return false;
 
   return Object.values(state.plans).some(

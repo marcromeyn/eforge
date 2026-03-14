@@ -7,7 +7,7 @@ import {
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ForgeEvent } from '../engine/events.js';
+import type { EforgeEvent } from '../engine/events.js';
 import type { MonitorDB } from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -16,7 +16,7 @@ const UI_DIR = resolve(__dirname, 'monitor-ui');
 export interface MonitorServer {
   readonly port: number;
   readonly url: string;
-  pushEvent(event: ForgeEvent, eventId: number): void;
+  pushEvent(event: EforgeEvent, eventId: number): void;
   stop(): Promise<void>;
 }
 
@@ -114,7 +114,7 @@ export async function startServer(
     port,
     url: `http://localhost:${port}`,
 
-    pushEvent(event: ForgeEvent, eventId: number): void {
+    pushEvent(event: EforgeEvent, eventId: number): void {
       const data = JSON.stringify(event);
       // Determine which runId this event belongs to
       const runId = 'runId' in event ? (event as { runId: string }).runId : undefined;

@@ -1,7 +1,7 @@
 /**
  * Concurrency primitives for orchestration.
  * Semaphore limits parallel plan execution; AsyncEventQueue multiplexes
- * ForgeEvents from concurrent producers into a single async iterable.
+ * EforgeEvents from concurrent producers into a single async iterable.
  */
 
 /**

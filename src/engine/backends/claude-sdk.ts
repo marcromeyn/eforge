@@ -12,7 +12,7 @@ import type {
   SDKToolUseSummaryMessage,
   McpServerConfig,
 } from '@anthropic-ai/claude-agent-sdk';
-import type { ForgeEvent, AgentRole, AgentResultData } from '../events.js';
+import type { EforgeEvent, AgentRole, AgentResultData } from '../events.js';
 import type { AgentBackend, AgentRunOptions } from '../backend.js';
 
 export interface ClaudeSDKBackendOptions {
@@ -27,7 +27,7 @@ export class ClaudeSDKBackend implements AgentBackend {
     this.mcpServers = options?.mcpServers;
   }
 
-  async *run(options: AgentRunOptions, agent: AgentRole, planId?: string): AsyncGenerator<ForgeEvent> {
+  async *run(options: AgentRunOptions, agent: AgentRole, planId?: string): AsyncGenerator<EforgeEvent> {
     const q = sdkQuery({
       prompt: options.prompt,
       options: {
@@ -64,7 +64,7 @@ function abortControllerFromSignal(signal: AbortSignal): AbortController {
 }
 
 /**
- * Map an async iterable of SDK messages to ForgeEvents.
+ * Map an async iterable of SDK messages to EforgeEvents.
  * Bridges the SDK's message stream to the engine's typed event system.
  * Yields an `agent:result` event with usage/cost/model data when the SDK query completes.
  */
@@ -72,7 +72,7 @@ export async function* mapSDKMessages(
   messages: AsyncIterable<SDKMessage>,
   agent: AgentRole,
   planId?: string,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   // Track toolUseId → toolName for resolving tool results
   const toolNameMap = new Map<string, string>();
 

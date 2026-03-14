@@ -9,7 +9,7 @@ import { validateRuntimeReadiness } from '../src/engine/plan.js';
 const exec = promisify(execFile);
 
 async function createTempGitRepo(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'forge-test-'));
+  const dir = await mkdtemp(join(tmpdir(), 'eforge-test-'));
   await exec('git', ['init', dir]);
   await exec('git', ['-C', dir, 'config', 'user.email', 'test@test.com']);
   await exec('git', ['-C', dir, 'config', 'user.name', 'Test']);

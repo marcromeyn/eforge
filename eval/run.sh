@@ -62,19 +62,19 @@ print_summary() {
   node -e "
     const s = JSON.parse(require('fs').readFileSync('$summary_file', 'utf8'));
     const pad = (str, len) => str.padEnd(len);
-    console.log('Forge Eval Results (' + s.timestamp + ')');
-    console.log('forgeai@' + s.forgeVersion + ' (' + s.forgeCommit + ')');
+    console.log('Eforge Eval Results (' + s.timestamp + ')');
+    console.log('eforge@' + s.eforgeVersion + ' (' + s.eforgeCommit + ')');
     console.log('');
-    console.log(pad('Scenario', 35) + pad('Forge', 10) + pad('Validate', 12) + 'Duration');
+    console.log(pad('Scenario', 35) + pad('Eforge', 10) + pad('Validate', 12) + 'Duration');
     console.log('-'.repeat(70));
     for (const r of s.scenarios) {
-      const forge = r.forgeExitCode === 0 ? 'PASS' : 'FAIL';
+      const eforge = r.eforgeExitCode === 0 ? 'PASS' : 'FAIL';
       const allValid = r.validation && Object.values(r.validation).every(v => v.passed);
-      const validate = r.forgeExitCode !== 0 ? '-' : (allValid ? 'PASS' : 'FAIL');
+      const validate = r.eforgeExitCode !== 0 ? '-' : (allValid ? 'PASS' : 'FAIL');
       const mins = Math.floor(r.durationSeconds / 60);
       const secs = r.durationSeconds % 60;
       const duration = mins + 'm ' + secs + 's';
-      console.log(pad(r.scenario, 35) + pad(forge, 10) + pad(validate, 12) + duration);
+      console.log(pad(r.scenario, 35) + pad(eforge, 10) + pad(validate, 12) + duration);
     }
     console.log('');
     console.log('Passed: ' + s.passed + '/' + s.totalScenarios);
@@ -99,7 +99,7 @@ main() {
   done
 
   # Source env file if provided (e.g. Langfuse credentials)
-  # Same as: LANGFUSE_PUBLIC_KEY=... forgeai forge ...
+  # Same as: LANGFUSE_PUBLIC_KEY=... eforge run ...
   if [[ -n "$ENV_FILE" ]]; then
     if [[ ! -f "$ENV_FILE" ]]; then
       echo "Error: env file not found: $ENV_FILE"
@@ -108,11 +108,11 @@ main() {
     set -a && source "$ENV_FILE" && set +a
   fi
 
-  # Resolve forgeai binary — use the repo's built version, not the global one,
+  # Resolve eforge binary — use the repo's built version, not the global one,
   # so we're always testing the version in this checkout
-  local forgeai_bin="$REPO_ROOT/dist/cli.js"
-  if [[ "$DRY_RUN" == "false" && ! -f "$forgeai_bin" ]]; then
-    echo "Error: forgeai not built. Run 'pnpm run build' first."
+  local eforge_bin="$REPO_ROOT/dist/cli.js"
+  if [[ "$DRY_RUN" == "false" && ! -f "$eforge_bin" ]]; then
+    echo "Error: eforge not built. Run 'pnpm run build' first."
     exit 1
   fi
 
@@ -125,13 +125,13 @@ main() {
   # Prune old runs before starting
   prune_old_runs
 
-  # Get forge version info
-  local forge_version forge_commit
-  forge_version="$(node -e "console.log(require('$REPO_ROOT/package.json').version)")"
-  forge_commit="$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
+  # Get eforge version info
+  local eforge_version eforge_commit
+  eforge_version="$(node -e "console.log(require('$REPO_ROOT/package.json').version)")"
+  eforge_commit="$(cd "$REPO_ROOT" && git rev-parse --short HEAD)"
 
-  echo "Forge AI Eval Run"
-  echo "  Version: $forge_version ($forge_commit)"
+  echo "Eforge Eval Run"
+  echo "  Version: $eforge_version ($eforge_commit)"
   echo "  Results: $run_dir"
   echo ""
 
@@ -158,12 +158,12 @@ main() {
 
     # Run the scenario
     local result_file="$scenario_dir/result.json"
-    if run_scenario "$id" "$fixture" "$prd" "$validate" "$scenario_dir" "$forgeai_bin" "$forge_version" "$forge_commit"; then
+    if run_scenario "$id" "$fixture" "$prd" "$validate" "$scenario_dir" "$eforge_bin" "$eforge_version" "$eforge_commit"; then
       # Check if all validations passed
       local all_passed
       all_passed=$(node -e "
         const r = JSON.parse(require('fs').readFileSync('$result_file', 'utf8'));
-        const ok = r.forgeExitCode === 0 && Object.values(r.validation || {}).every(v => v.passed);
+        const ok = r.eforgeExitCode === 0 && Object.values(r.validation || {}).every(v => v.passed);
         console.log(ok ? 'yes' : 'no');
       ")
       if [[ "$all_passed" == "yes" ]]; then
@@ -198,8 +198,8 @@ main() {
     }
     const summary = {
       timestamp: '$timestamp',
-      forgeVersion: '$forge_version',
-      forgeCommit: '$forge_commit',
+      eforgeVersion: '$eforge_version',
+      eforgeCommit: '$eforge_commit',
       totalScenarios: $total,
       passed: $passed,
       scenarios

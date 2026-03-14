@@ -1,4 +1,4 @@
-// ForgeEvent discriminated union and all supporting types
+// EforgeEvent discriminated union and all supporting types
 
 export const ORCHESTRATION_MODES = ['errand', 'excursion', 'expedition'] as const;
 export const SCOPE_ASSESSMENTS = ['complete', ...ORCHESTRATION_MODES] as const;
@@ -12,7 +12,7 @@ export interface ExpeditionModule {
   dependsOn: string[];
 }
 
-export type ForgeResult = { status: 'completed' | 'failed'; summary: string };
+export type EforgeResult = { status: 'completed' | 'failed'; summary: string };
 
 export interface ClarificationQuestion {
   id: string;
@@ -59,7 +59,7 @@ export interface PlanState {
   error?: string;
 }
 
-export interface ForgeState {
+export interface EforgeState {
   setName: string;
   status: 'running' | 'completed' | 'failed';
   startedAt: string;
@@ -105,17 +105,17 @@ export interface ReviewOptions {
   abortController?: AbortController;
 }
 
-export interface ForgeStatus {
+export interface EforgeStatus {
   running: boolean;
   setName?: string;
   plans: Record<string, PlanState['status']>;
   completedPlans: string[];
 }
 
-export type ForgeEvent =
+export type EforgeEvent =
   // Lifecycle
-  | { type: 'forge:start'; runId: string; planSet: string; command: 'plan' | 'build' | 'review'; timestamp: string }
-  | { type: 'forge:end'; runId: string; result: ForgeResult; timestamp: string }
+  | { type: 'eforge:start'; runId: string; planSet: string; command: 'plan' | 'build' | 'review'; timestamp: string }
+  | { type: 'eforge:end'; runId: string; result: EforgeResult; timestamp: string }
 
   // Planning
   | { type: 'plan:start'; source: string }

@@ -2,7 +2,7 @@
  * Orchestrator — dependency graph resolution, wave-based parallel execution,
  * git worktree lifecycle, and persistent state tracking.
  *
- * Yields ForgeEvents (wave:start, wave:complete, merge:start, merge:complete, build:*)
+ * Yields EforgeEvents (wave:start, wave:complete, merge:start, merge:complete, build:*)
  * as an AsyncGenerator. Agent execution is injected via PlanRunner callbacks.
  */
 
@@ -11,7 +11,7 @@ import { availableParallelism } from 'node:os';
 import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
-import type { ForgeEvent, OrchestrationConfig, ForgeState, PlanState } from './events.js';
+import type { EforgeEvent, OrchestrationConfig, EforgeState, PlanState } from './events.js';
 import { loadState, saveState, updatePlanStatus, isResumable } from './state.js';
 import { resolveDependencyGraph } from './plan.js';
 import {
@@ -31,7 +31,7 @@ export type PlanRunner = (
   planId: string,
   worktreePath: string,
   plan: OrchestrationConfig['plans'][0],
-) => AsyncGenerator<ForgeEvent>;
+) => AsyncGenerator<EforgeEvent>;
 
 export interface OrchestratorOptions {
   stateDir: string;
@@ -47,10 +47,10 @@ export interface OrchestratorOptions {
  * dependents as blocked. Emits build:failed for each blocked plan.
  */
 export function propagateFailure(
-  state: ForgeState,
+  state: EforgeState,
   failedPlanId: string,
   plans: OrchestrationConfig['plans'],
-  eventQueue: AsyncEventQueue<ForgeEvent>,
+  eventQueue: AsyncEventQueue<EforgeEvent>,
 ): void {
   // Build adjacency: planId → direct dependents
   const dependents = new Map<string, string[]>();
@@ -87,10 +87,10 @@ export function propagateFailure(
 }
 
 /**
- * Resume a ForgeState by resetting running plans to pending and
+ * Resume a EforgeState by resetting running plans to pending and
  * re-evaluating blocked plans whose dependencies have resolved.
  */
-export function resumeState(state: ForgeState): ForgeState {
+export function resumeState(state: EforgeState): EforgeState {
   // Reset running plans to pending for re-execution
   for (const [id, plan] of Object.entries(state.plans)) {
     if (plan.status === 'running') {
@@ -140,7 +140,7 @@ export class Orchestrator {
     this.options = options;
   }
 
-  async *execute(config: OrchestrationConfig): AsyncGenerator<ForgeEvent> {
+  async *execute(config: OrchestrationConfig): AsyncGenerator<EforgeEvent> {
     const { stateDir, repoRoot, planRunner, signal, postMergeCommands } = this.options;
     const parallelism = this.options.parallelism ?? availableParallelism();
 
@@ -150,7 +150,7 @@ export class Orchestrator {
     // Non-resumable existing state — emit end and return
     if (state.status !== 'running') {
       yield {
-        type: 'forge:end',
+        type: 'eforge:end',
         runId: '',
         result: { status: 'failed', summary: `Non-resumable state: ${state.status}` },
         timestamp: new Date().toISOString(),
@@ -194,7 +194,7 @@ export class Orchestrator {
 
           // Run plans concurrently via semaphore + event queue
           const semaphore = new Semaphore(parallelism);
-          const eventQueue = new AsyncEventQueue<ForgeEvent>();
+          const eventQueue = new AsyncEventQueue<EforgeEvent>();
 
           const planPromises = activePlans.map(async (planId) => {
             eventQueue.addProducer();
@@ -370,7 +370,7 @@ export class Orchestrator {
    * Load existing state or create fresh. On resume, resets running→pending
    * and re-evaluates blocked plans.
    */
-  private initializeState(config: OrchestrationConfig, repoRoot: string): ForgeState {
+  private initializeState(config: OrchestrationConfig, repoRoot: string): EforgeState {
     const { stateDir } = this.options;
 
     const existing = loadState(stateDir);
@@ -398,7 +398,7 @@ export class Orchestrator {
       };
     }
 
-    const state: ForgeState = {
+    const state: EforgeState = {
       setName: config.name,
       status: 'running',
       startedAt: new Date().toISOString(),

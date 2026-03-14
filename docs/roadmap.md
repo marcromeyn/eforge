@@ -1,4 +1,4 @@
-# ForgeAI Roadmap
+# Eforge Roadmap
 
 ## Why Plugin, Not TUI
 
@@ -14,25 +14,25 @@ The CLI with `--auto` covers headless/CI. The monitor dashboard covers visualiza
 
 **Engine** — Everything that runs without Claude Code: plan generation, review cycles, build execution, orchestration, state management, monitoring, tracing.
 
-**Plugin** — Thin orchestration: requirement refinement in conversation context, launching `forgeai` CLI as subprocess, status rendering, cross-plugin coordination. A **launcher and facilitator**, not a reimplementation.
+**Plugin** — Thin orchestration: requirement refinement in conversation context, launching `eforge` CLI as subprocess, status rendering, cross-plugin coordination. A **launcher and facilitator**, not a reimplementation.
 
 ## Relationship to Orchestrate & EEE Plugins
 
-Graduated replacement. Phase 5: forgeai plugin supersedes both for planning and execution. Phase 8: deprecate them entirely.
+Graduated replacement. Phase 5: eforge plugin supersedes both for planning and execution. Phase 8: deprecate them entirely.
 
 ---
 
 ## Claude Code Plugin (next)
 
-**Goal**: Make forgeai accessible within Claude Code with a focus on planning quality.
+**Goal**: Make eforge accessible within Claude Code with a focus on planning quality.
 
-Plugin lives in `schaake-cc-marketplace`, invokes `forgeai` CLI as subprocess.
+Plugin lives in `schaake-cc-marketplace`, invokes `eforge` CLI as subprocess.
 
 **Skills**:
-- `/forgeai:plan <source>` — The core skill. Helps refine requirements in-conversation using full Claude Code context, then kicks off `forgeai plan`.
-- `/forgeai:build <planSet>` — Validates plan set and delegates to `forgeai build`.
-- `/forgeai:review <planSet>` — Delegates to `forgeai review`.
-- `/forgeai:status` — Reads `.forge/state.json` and renders inline with monitor dashboard link.
+- `/eforge:plan <source>` — The core skill. Helps refine requirements in-conversation using full Claude Code context, then kicks off `eforge plan`.
+- `/eforge:build <planSet>` — Validates plan set and delegates to `eforge build`.
+- `/eforge:review <planSet>` — Delegates to `eforge review`.
+- `/eforge:status` — Reads `.eforge/state.json` and renders inline with monitor dashboard link.
 
 **Testing**: Engine/CLI correctness covered by eval system (`eval/`). Plugin UX tested via `claude --print` smoke tests, manual scenario checklist, and Langfuse observability.
 

@@ -2,19 +2,19 @@
 
 // --- events ---
 export type {
-  ForgeEvent,
+  EforgeEvent,
   AgentRole,
-  ForgeResult,
+  EforgeResult,
   ClarificationQuestion,
   ReviewIssue,
   PlanFile,
   OrchestrationConfig,
-  ForgeState,
+  EforgeState,
   PlanState,
   PlanOptions,
   BuildOptions,
   ReviewOptions,
-  ForgeStatus,
+  EforgeStatus,
   ScopeAssessment,
 } from './events.js';
 
@@ -75,11 +75,11 @@ export {
 export { Semaphore, AsyncEventQueue } from './concurrency.js';
 
 // --- config ---
-export type { ForgeConfig } from './config.js';
+export type { EforgeConfig } from './config.js';
 export { DEFAULT_CONFIG, findConfigFile, resolveConfig, loadConfig } from './config.js';
 export type { TracingContext, SpanHandle, ToolCallHandle } from './tracing.js';
 export { createTracingContext, createNoopTracingContext } from './tracing.js';
 
-// --- forge-core ---
-export { ForgeEngine } from './forge.js';
-export type { ForgeEngineOptions } from './forge.js';
+// --- eforge-core ---
+export { EforgeEngine } from './eforge.js';
+export type { EforgeEngineOptions } from './eforge.js';

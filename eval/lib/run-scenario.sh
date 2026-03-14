@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Single scenario runner — sourced by run.sh
-# Usage: run_scenario <id> <fixture> <prd> <validate> <scenario_dir> <forgeai_bin> <forge_version> <forge_commit>
+# Usage: run_scenario <id> <fixture> <prd> <validate> <scenario_dir> <eforge_bin> <eforge_version> <eforge_commit>
 #   validate is a ||| delimited list of commands
 
 run_scenario() {
@@ -9,9 +9,9 @@ run_scenario() {
   local prd="$3"
   local validate="$4"
   local scenario_dir="$5"
-  local forgeai_bin="$6"
-  local forge_version="$7"
-  local forge_commit="$8"
+  local eforge_bin="$6"
+  local eforge_version="$7"
+  local eforge_commit="$8"
 
   local fixture_dir="$FIXTURES_DIR/$fixture"
   local workspace="$scenario_dir/workspace"
@@ -22,7 +22,7 @@ run_scenario() {
   # Step 1: Verify fixture exists
   if [[ ! -d "$fixture_dir" ]]; then
     echo "  ERROR: Fixture not found: $fixture_dir"
-    write_error_result "$scenario_dir" "$id" "$forge_version" "$forge_commit" "$start_time" \
+    write_error_result "$scenario_dir" "$id" "$eforge_version" "$eforge_commit" "$start_time" \
       "Fixture directory not found: $fixture"
     return 1
   fi
@@ -37,42 +37,42 @@ run_scenario() {
     git init --quiet
     git add -A
     git commit --quiet -m "Initial commit (eval fixture)"
-    # Create eval branch so forge commits don't land on main
+    # Create eval branch so eforge commits don't land on main
     git checkout --quiet -b "eval/$id"
   )
 
-  # Step 3: Run forgeai (or skip in dry-run mode)
-  local forge_exit=0
+  # Step 3: Run eforge (or skip in dry-run mode)
+  local eforge_exit=0
   if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  [dry-run] Skipping forgeai forge (workspace ready at $workspace)"
-    echo "[dry-run] forge skipped" > "$scenario_dir/forge.log"
+    echo "  [dry-run] Skipping eforge run (workspace ready at $workspace)"
+    echo "[dry-run] eforge skipped" > "$scenario_dir/eforge.log"
   else
     # Tag Langfuse traces with eval metadata for filtering
-    export FORGE_TRACE_TAGS="eval,$id,$forge_commit"
+    export EFORGE_TRACE_TAGS="eval,$id,$eforge_commit"
 
     # Output goes to both terminal (for live monitoring URL) and log file
     # Env vars (e.g. LANGFUSE_*) are inherited from run.sh's --env-file sourcing
-    echo "  Running forgeai forge $prd --auto --verbose..."
+    echo "  Running eforge run $prd --auto --verbose..."
     set +e
     (
       cd "$workspace"
-      "$forgeai_bin" forge "$prd" --auto --verbose
-    ) 2>&1 | tee "$scenario_dir/forge.log"
-    forge_exit=${PIPESTATUS[0]}
+      "$eforge_bin" run "$prd" --auto --verbose
+    ) 2>&1 | tee "$scenario_dir/eforge.log"
+    eforge_exit=${PIPESTATUS[0]}
     set -e
   fi
 
-  if [[ $forge_exit -eq 0 ]]; then
-    echo "  Forge completed successfully."
+  if [[ $eforge_exit -eq 0 ]]; then
+    echo "  Eforge completed successfully."
   else
-    echo "  Forge FAILED (exit code: $forge_exit)"
+    echo "  Eforge FAILED (exit code: $eforge_exit)"
   fi
 
-  # Step 4: Run validation commands (only if forge succeeded; skip in dry-run)
+  # Step 4: Run validation commands (only if eforge succeeded; skip in dry-run)
   local validation_results="{}"
   if [[ "$DRY_RUN" == "true" ]]; then
     echo "  [dry-run] Skipping validation"
-  elif [[ $forge_exit -eq 0 && -n "$validate" ]]; then
+  elif [[ $eforge_exit -eq 0 && -n "$validate" ]]; then
     echo "  Running validation..."
     validation_results=$(run_validations "$workspace" "$validate" "$scenario_dir")
   fi
@@ -85,11 +85,11 @@ run_scenario() {
   node "$SCRIPT_DIR/lib/build-result.mjs" \
     "$scenario_dir/result.json" \
     "$id" \
-    "$forge_version" \
-    "$forge_commit" \
-    "$forge_exit" \
+    "$eforge_version" \
+    "$eforge_commit" \
+    "$eforge_exit" \
     "$duration" \
-    "$scenario_dir/forge.log" \
+    "$scenario_dir/eforge.log" \
     "$validation_results"
 
   echo "  Result: $scenario_dir/result.json"
@@ -153,12 +153,12 @@ run_validations() {
   echo "$results"
 }
 
-# Write an error result when the scenario fails before forge runs
+# Write an error result when the scenario fails before eforge runs
 write_error_result() {
   local scenario_dir="$1"
   local id="$2"
-  local forge_version="$3"
-  local forge_commit="$4"
+  local eforge_version="$3"
+  local eforge_commit="$4"
   local start_time="$5"
   local error_msg="$6"
 
@@ -170,9 +170,9 @@ write_error_result() {
 {
   "scenario": "$id",
   "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "forgeVersion": "$forge_version",
-  "forgeCommit": "$forge_commit",
-  "forgeExitCode": 1,
+  "eforgeVersion": "$eforge_version",
+  "eforgeCommit": "$eforge_commit",
+  "eforgeExitCode": 1,
   "validation": {},
   "durationSeconds": $duration,
   "error": "$error_msg"

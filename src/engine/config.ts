@@ -3,14 +3,14 @@ import { resolve, dirname } from 'node:path';
 import { availableParallelism } from 'node:os';
 import { parse as parseYaml } from 'yaml';
 
-export interface ForgeConfig {
+export interface EforgeConfig {
   langfuse: { enabled: boolean; publicKey?: string; secretKey?: string; host: string };
   agents: { maxTurns: number; permissionMode: 'bypass' | 'default' };
   build: { parallelism: number; worktreeDir?: string; postMergeCommands?: string[] };
   plan: { outputDir: string };
 }
 
-export const DEFAULT_CONFIG: ForgeConfig = Object.freeze({
+export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   langfuse: Object.freeze({ enabled: false, host: 'https://cloud.langfuse.com' }),
   agents: Object.freeze({ maxTurns: 30, permissionMode: 'bypass' as const }),
   build: Object.freeze({ parallelism: availableParallelism(), worktreeDir: undefined, postMergeCommands: undefined }),
@@ -18,14 +18,14 @@ export const DEFAULT_CONFIG: ForgeConfig = Object.freeze({
 });
 
 /**
- * Walk up the directory tree looking for forge.yaml.
+ * Walk up the directory tree looking for eforge.yaml.
  * Returns the absolute path if found, null otherwise.
  */
 export async function findConfigFile(startDir: string): Promise<string | null> {
   let dir = resolve(startDir);
 
   while (true) {
-    const candidate = resolve(dir, 'forge.yaml');
+    const candidate = resolve(dir, 'eforge.yaml');
     try {
       await access(candidate);
       return candidate;
@@ -46,9 +46,9 @@ export async function findConfigFile(startDir: string): Promise<string | null> {
  * Sets langfuse.enabled = true only when both keys are present.
  */
 export function resolveConfig(
-  fileConfig: Partial<ForgeConfig>,
+  fileConfig: Partial<EforgeConfig>,
   env: Record<string, string | undefined> = process.env,
-): ForgeConfig {
+): EforgeConfig {
   const langfusePublicKey = env.LANGFUSE_PUBLIC_KEY ?? fileConfig.langfuse?.publicKey;
   const langfuseSecretKey = env.LANGFUSE_SECRET_KEY ?? fileConfig.langfuse?.secretKey;
   const langfuseHost = env.LANGFUSE_BASE_URL ?? fileConfig.langfuse?.host ?? DEFAULT_CONFIG.langfuse.host;
@@ -77,11 +77,11 @@ export function resolveConfig(
 }
 
 /**
- * Parse and validate a raw YAML object into a partial ForgeConfig.
+ * Parse and validate a raw YAML object into a partial EforgeConfig.
  * Returns only the fields that are present and valid.
  */
-function parseRawConfig(data: Record<string, unknown>): Partial<ForgeConfig> {
-  const result: Partial<ForgeConfig> = {};
+function parseRawConfig(data: Record<string, unknown>): Partial<EforgeConfig> {
+  const result: Partial<EforgeConfig> = {};
 
   if (data.langfuse && typeof data.langfuse === 'object') {
     const lf = data.langfuse as Record<string, unknown>;
@@ -131,11 +131,11 @@ function parseRawConfig(data: Record<string, unknown>): Partial<ForgeConfig> {
 }
 
 /**
- * Load forge.yaml config from the given directory (searching upward).
- * Returns DEFAULT_CONFIG when no forge.yaml exists.
+ * Load eforge.yaml config from the given directory (searching upward).
+ * Returns DEFAULT_CONFIG when no eforge.yaml exists.
  * Logs a warning and returns defaults on malformed YAML.
  */
-export async function loadConfig(cwd?: string): Promise<ForgeConfig> {
+export async function loadConfig(cwd?: string): Promise<EforgeConfig> {
   const startDir = cwd ?? process.cwd();
   const configPath = await findConfigFile(startDir);
 

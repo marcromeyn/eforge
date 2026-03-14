@@ -1,6 +1,6 @@
 /**
- * ForgeEngine — the sole public API for plan-build-review workflows.
- * All methods return AsyncGenerator<ForgeEvent> (except status() which is synchronous).
+ * EforgeEngine — the sole public API for plan-build-review workflows.
+ * All methods return AsyncGenerator<EforgeEvent> (except status() which is synchronous).
  * Engine emits, consumers render — never writes to stdout.
  */
 
@@ -11,8 +11,8 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 import type {
-  ForgeEvent,
-  ForgeStatus,
+  EforgeEvent,
+  EforgeStatus,
   PlanOptions,
   BuildOptions,
   ReviewOptions,
@@ -23,7 +23,7 @@ import type {
   ExpeditionModule,
   ScopeAssessment,
 } from './events.js';
-import type { ForgeConfig } from './config.js';
+import type { EforgeConfig } from './config.js';
 import type { AgentBackend } from './backend.js';
 import type { ClaudeSDKBackendOptions } from './backends/claude-sdk.js';
 import type { PlannerOptions } from './agents/planner.js';
@@ -44,11 +44,11 @@ import { loadState } from './state.js';
 
 const exec = promisify(execFile);
 
-export interface ForgeEngineOptions {
+export interface EforgeEngineOptions {
   /** Working directory (defaults to process.cwd()) */
   cwd?: string;
   /** Config overrides (deep-merged with loaded config) */
-  config?: Partial<ForgeConfig>;
+  config?: Partial<EforgeConfig>;
   /** Agent backend (defaults to ClaudeSDKBackend) */
   backend?: AgentBackend;
   /** MCP servers to make available to agents (Claude SDK backend only, ignored if backend is provided) */
@@ -59,14 +59,14 @@ export interface ForgeEngineOptions {
   onApproval?: (action: string, details: string) => Promise<boolean>;
 }
 
-export class ForgeEngine {
-  private readonly config: ForgeConfig;
+export class EforgeEngine {
+  private readonly config: EforgeConfig;
   private readonly cwd: string;
   private readonly backend: AgentBackend;
-  private readonly onClarification?: ForgeEngineOptions['onClarification'];
-  private readonly onApproval?: ForgeEngineOptions['onApproval'];
+  private readonly onClarification?: EforgeEngineOptions['onClarification'];
+  private readonly onApproval?: EforgeEngineOptions['onApproval'];
 
-  private constructor(config: ForgeConfig, options: ForgeEngineOptions = {}) {
+  private constructor(config: EforgeConfig, options: EforgeEngineOptions = {}) {
     this.config = config;
     this.cwd = options.cwd ?? process.cwd();
     this.backend = options.backend ?? new ClaudeSDKBackend({
@@ -77,7 +77,7 @@ export class ForgeEngine {
   }
 
   /** Expose resolved config for CLI diagnostics. */
-  get resolvedConfig(): ForgeConfig {
+  get resolvedConfig(): EforgeConfig {
     return this.config;
   }
 
@@ -85,7 +85,7 @@ export class ForgeEngine {
    * Async factory — loads config, applies overrides, returns engine.
    * Auto-loads MCP servers from .mcp.json if not explicitly provided.
    */
-  static async create(options: ForgeEngineOptions = {}): Promise<ForgeEngine> {
+  static async create(options: EforgeEngineOptions = {}): Promise<EforgeEngine> {
     const cwd = options.cwd ?? process.cwd();
     let config = await loadConfig(cwd);
 
@@ -101,7 +101,7 @@ export class ForgeEngine {
       }
     }
 
-    return new ForgeEngine(config, options);
+    return new EforgeEngine(config, options);
   }
 
   /**
@@ -112,7 +112,7 @@ export class ForgeEngine {
    * - expedition: planner generates architecture.md + index.yaml + module list,
    *   then engine runs module planners and compiles plan files
    */
-  async *plan(source: string, options: Partial<PlanOptions> = {}): AsyncGenerator<ForgeEvent> {
+  async *plan(source: string, options: Partial<PlanOptions> = {}): AsyncGenerator<EforgeEvent> {
     const runId = randomUUID();
     const planSetName = options.name ?? deriveNameFromSource(source);
     validatePlanSetName(planSetName);
@@ -120,7 +120,7 @@ export class ForgeEngine {
     const cwd = options.cwd ?? this.cwd;
 
     yield {
-      type: 'forge:start',
+      type: 'eforge:start',
       runId,
       planSet: planSetName,
       command: 'plan',
@@ -254,7 +254,7 @@ export class ForgeEngine {
     } finally {
       tracing.setOutput({ status, summary });
       yield {
-        type: 'forge:end',
+        type: 'eforge:end',
         runId,
         result: { status, summary },
         timestamp: new Date().toISOString(),
@@ -271,7 +271,7 @@ export class ForgeEngine {
     modules: ExpeditionModule[],
     tracing: TracingContext,
     options: Partial<PlanOptions> & { cwd: string; sourceContent: string },
-  ): AsyncGenerator<ForgeEvent> {
+  ): AsyncGenerator<EforgeEvent> {
     const cwd = options.cwd;
     const sourceContent = options.sourceContent;
     const planDir = resolve(cwd, 'plans', planSetName);
@@ -326,14 +326,14 @@ export class ForgeEngine {
    * Build: validate plan set, orchestrate parallel execution.
    * Creates Orchestrator with PlanRunner closure for three-phase pipeline.
    */
-  async *build(planSet: string, options: Partial<BuildOptions> = {}): AsyncGenerator<ForgeEvent> {
+  async *build(planSet: string, options: Partial<BuildOptions> = {}): AsyncGenerator<EforgeEvent> {
     validatePlanSetName(planSet);
     const runId = randomUUID();
     const tracing = createTracingContext(this.config, runId, 'build', planSet);
     const cwd = options.cwd ?? this.cwd;
 
     yield {
-      type: 'forge:start',
+      type: 'eforge:start',
       runId,
       planSet,
       command: 'build',
@@ -375,7 +375,7 @@ export class ForgeEngine {
       const planRunner = async function* (
         planId: string,
         worktreePath: string,
-      ): AsyncGenerator<ForgeEvent> {
+      ): AsyncGenerator<EforgeEvent> {
         const planFile = planFileMap.get(planId);
         if (!planFile) {
           yield { type: 'build:failed', planId, error: `Plan file not found: ${planId}` };
@@ -461,7 +461,7 @@ export class ForgeEngine {
     } finally {
       tracing.setOutput({ status, summary });
       yield {
-        type: 'forge:end',
+        type: 'eforge:end',
         runId,
         result: { status, summary },
         timestamp: new Date().toISOString(),
@@ -473,14 +473,14 @@ export class ForgeEngine {
   /**
    * Review: run blind review sequentially per plan (no orchestrator).
    */
-  async *review(planSet: string, options: Partial<ReviewOptions> = {}): AsyncGenerator<ForgeEvent> {
+  async *review(planSet: string, options: Partial<ReviewOptions> = {}): AsyncGenerator<EforgeEvent> {
     validatePlanSetName(planSet);
     const runId = randomUUID();
     const tracing = createTracingContext(this.config, runId, 'review', planSet);
     const cwd = options.cwd ?? this.cwd;
 
     yield {
-      type: 'forge:start',
+      type: 'eforge:start',
       runId,
       planSet,
       command: 'review',
@@ -529,7 +529,7 @@ export class ForgeEngine {
     } finally {
       tracing.setOutput({ status, summary });
       yield {
-        type: 'forge:end',
+        type: 'eforge:end',
         runId,
         result: { status, summary },
         timestamp: new Date().toISOString(),
@@ -541,7 +541,7 @@ export class ForgeEngine {
   /**
    * Status: synchronous state file read.
    */
-  status(): ForgeStatus {
+  status(): EforgeStatus {
     const state = loadState(this.cwd);
     if (!state) {
       return {
@@ -551,7 +551,7 @@ export class ForgeEngine {
       };
     }
 
-    const plans: Record<string, ForgeStatus['plans'][string]> = {};
+    const plans: Record<string, EforgeStatus['plans'][string]> = {};
     for (const [id, planState] of Object.entries(state.plans)) {
       plans[id] = planState.status;
     }
@@ -575,12 +575,12 @@ interface ReviewCycleConfig {
   reviewer: {
     role: AgentRole;
     metadata: Record<string, unknown>;
-    run: () => AsyncGenerator<ForgeEvent>;
+    run: () => AsyncGenerator<EforgeEvent>;
   };
   evaluator: {
     role: AgentRole;
     metadata: Record<string, unknown>;
-    run: () => AsyncGenerator<ForgeEvent>;
+    run: () => AsyncGenerator<EforgeEvent>;
   };
 }
 
@@ -589,7 +589,7 @@ interface ReviewCycleConfig {
  * If the reviewer left unstaged changes, the evaluator runs to accept/reject them.
  * Both phases are traced with Langfuse spans.
  */
-async function* runReviewCycle(config: ReviewCycleConfig): AsyncGenerator<ForgeEvent> {
+async function* runReviewCycle(config: ReviewCycleConfig): AsyncGenerator<EforgeEvent> {
   // Phase: Review (non-fatal on error)
   const reviewSpan = config.tracing.createSpan(config.reviewer.role, config.reviewer.metadata);
   reviewSpan.setInput(config.reviewer.metadata);
@@ -641,7 +641,7 @@ async function hasUnstagedChanges(cwd: string): Promise<boolean> {
 /**
  * Deep-merge config overrides onto base config.
  */
-function mergeConfig(base: ForgeConfig, overrides: Partial<ForgeConfig>): ForgeConfig {
+function mergeConfig(base: EforgeConfig, overrides: Partial<EforgeConfig>): EforgeConfig {
   return {
     langfuse: overrides.langfuse ? { ...base.langfuse, ...overrides.langfuse } : base.langfuse,
     agents: overrides.agents ? { ...base.agents, ...overrides.agents } : base.agents,
@@ -658,7 +658,7 @@ function createToolTracker(span: SpanHandle) {
   const activeTools = new Map<string, ToolCallHandle>();
 
   return {
-    handleEvent(event: ForgeEvent): void {
+    handleEvent(event: EforgeEvent): void {
       if (event.type === 'agent:tool_use') {
         const handle = span.addToolCall(event.toolUseId, event.tool, event.input);
         activeTools.set(event.toolUseId, handle);

@@ -1,4 +1,4 @@
-import type { ForgeEvent, AgentRole } from './events.js';
+import type { EforgeEvent, AgentRole } from './events.js';
 
 export type ToolPreset = 'coding' | 'none';
 
@@ -15,6 +15,6 @@ export interface AgentRunOptions {
  * Agent runners consume this interface — they never import the AI SDK directly.
  */
 export interface AgentBackend {
-  /** Run an agent with the given prompt and yield ForgeEvents. */
-  run(options: AgentRunOptions, agent: AgentRole, planId?: string): AsyncGenerator<ForgeEvent>;
+  /** Run an agent with the given prompt and yield EforgeEvents. */
+  run(options: AgentRunOptions, agent: AgentRole, planId?: string): AsyncGenerator<EforgeEvent>;
 }

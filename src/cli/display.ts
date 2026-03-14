@@ -1,7 +1,7 @@
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
-import type { ForgeEvent, ForgeStatus, OrchestrationConfig } from '../engine/events.js';
-import type { ForgeConfig } from '../engine/config.js';
+import type { EforgeEvent, EforgeStatus, OrchestrationConfig } from '../engine/events.js';
+import type { EforgeConfig } from '../engine/config.js';
 
 // Module-scoped display state
 const spinners = new Map<string, Ora>();
@@ -13,7 +13,7 @@ export function initDisplay(opts: { verbose?: boolean } = {}): void {
   startTime = Date.now();
 }
 
-export function renderLangfuseStatus(config: ForgeConfig): void {
+export function renderLangfuseStatus(config: EforgeConfig): void {
   if (config.langfuse.enabled) {
     console.log(chalk.dim(`  Langfuse: enabled → ${config.langfuse.host}`));
   } else {
@@ -67,21 +67,21 @@ function elapsed(): string {
 }
 
 /**
- * Render a single ForgeEvent to stdout.
+ * Render a single EforgeEvent to stdout.
  * Exhaustive switch with `never` default ensures all event types handled.
  */
-export function renderEvent(event: ForgeEvent): void {
+export function renderEvent(event: EforgeEvent): void {
   switch (event.type) {
     // Lifecycle
-    case 'forge:start':
+    case 'eforge:start':
       console.log('');
-      console.log(chalk.bold(`\u2692 forge ${event.command}`));
+      console.log(chalk.bold(`\u2692 eforge ${event.command}`));
       console.log(chalk.dim(`  Run: ${event.runId}`));
       if (event.planSet) console.log(chalk.dim(`  Plan set: ${chalk.cyan(event.planSet)}`));
       console.log('');
       break;
 
-    case 'forge:end': {
+    case 'eforge:end': {
       stopAllSpinners();
       const icon = event.result.status === 'completed' ? chalk.green('\u2713') : chalk.red('\u2717');
       console.log('');
@@ -374,9 +374,9 @@ export function renderEvent(event: ForgeEvent): void {
 }
 
 /**
- * Render the current forge status as a formatted table.
+ * Render the current eforge status as a formatted table.
  */
-export function renderStatus(status: ForgeStatus): void {
+export function renderStatus(status: EforgeStatus): void {
   if (!status.running && Object.keys(status.plans).length === 0) {
     console.log(chalk.dim('No active builds.'));
     return;

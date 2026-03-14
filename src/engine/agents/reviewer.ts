@@ -1,5 +1,5 @@
 import type { AgentBackend } from '../backend.js';
-import type { ForgeEvent, ReviewIssue } from '../events.js';
+import type { EforgeEvent, ReviewIssue } from '../events.js';
 import { loadPrompt } from '../prompts.js';
 
 /**
@@ -136,7 +136,7 @@ function mapSeverity(raw: string): ReviewIssue['severity'] | undefined {
  */
 export async function* runReview(
   options: ReviewerOptions,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   const { backend, planContent, baseBranch, planId, cwd, verbose, abortController } = options;
 
   yield { type: 'build:review:start', planId };

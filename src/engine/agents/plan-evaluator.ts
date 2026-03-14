@@ -1,5 +1,5 @@
 import type { AgentBackend } from '../backend.js';
-import type { ForgeEvent } from '../events.js';
+import type { EforgeEvent } from '../events.js';
 import { loadPrompt } from '../prompts.js';
 import { parseEvaluationBlock } from './builder.js';
 
@@ -33,7 +33,7 @@ export interface PlanEvaluatorOptions {
  */
 export async function* runPlanEvaluate(
   options: PlanEvaluatorOptions,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   const { backend, planSetName, sourceContent, cwd, verbose, abortController } = options;
 
   yield { type: 'plan:evaluate:start' };

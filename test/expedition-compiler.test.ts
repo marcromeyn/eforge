@@ -9,7 +9,7 @@ describe('parseExpeditionIndex', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'forge-test-'));
+    tmpDir = await mkdtemp(join(tmpdir(), 'eforge-test-'));
   });
 
   afterEach(async () => {
@@ -68,7 +68,7 @@ describe('compileExpedition', () => {
   let planDir: string;
 
   beforeEach(async () => {
-    tmpDir = await mkdtemp(join(tmpdir(), 'forge-test-'));
+    tmpDir = await mkdtemp(join(tmpdir(), 'eforge-test-'));
     planDir = resolve(tmpDir, 'plans', 'test-exp');
     await mkdir(resolve(planDir, 'modules'), { recursive: true });
   });

@@ -2,14 +2,14 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { resolve } from 'node:path';
 
-import { ForgeEngine } from '../engine/forge.js';
+import { EforgeEngine } from '../engine/eforge.js';
 import {
   validatePlanSet,
   parseOrchestrationConfig,
   resolveDependencyGraph,
   validateRuntimeReadiness,
 } from '../engine/plan.js';
-import type { ForgeEvent, PlanFile } from '../engine/events.js';
+import type { EforgeEvent, PlanFile } from '../engine/events.js';
 import { initDisplay, renderEvent, renderStatus, renderDryRun, renderLangfuseStatus, stopAllSpinners } from './display.js';
 import { createClarificationHandler, createApprovalHandler } from './interactive.js';
 import { createMonitor, type Monitor } from '../monitor/index.js';
@@ -59,23 +59,23 @@ async function withMonitor<T>(
 }
 
 function wrapEvents(
-  events: AsyncGenerator<ForgeEvent>,
+  events: AsyncGenerator<EforgeEvent>,
   monitor: Monitor | undefined,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   return monitor ? monitor.wrapEvents(events) : events;
 }
 
 async function consumeEvents(
-  events: AsyncGenerator<ForgeEvent>,
+  events: AsyncGenerator<EforgeEvent>,
   opts?: { afterStart?: () => void },
 ): Promise<'completed' | 'failed'> {
   let result: 'completed' | 'failed' = 'completed';
   for await (const event of events) {
     renderEvent(event);
-    if (event.type === 'forge:start' && opts?.afterStart) {
+    if (event.type === 'eforge:start' && opts?.afterStart) {
       opts.afterStart();
     }
-    if (event.type === 'forge:end') {
+    if (event.type === 'eforge:end') {
       result = event.result.status;
     }
   }
@@ -113,7 +113,7 @@ export function createProgram(abortController?: AbortController): Command {
   const program = new Command();
 
   program
-    .name('forgeai')
+    .name('eforge')
     .description('Autonomous plan-build-review CLI for code generation')
     .version('0.1.0');
 
@@ -128,7 +128,7 @@ export function createProgram(abortController?: AbortController): Command {
       async (source: string, options: { auto?: boolean; verbose?: boolean; name?: string; monitor?: boolean }) => {
         initDisplay({ verbose: options.verbose });
 
-        const engine = await ForgeEngine.create({
+        const engine = await EforgeEngine.create({
           onClarification: createClarificationHandler(options.auto ?? false),
           onApproval: createApprovalHandler(options.auto ?? false),
         });
@@ -150,7 +150,7 @@ export function createProgram(abortController?: AbortController): Command {
     );
 
   program
-    .command('forge <source>')
+    .command('run <source>')
     .description('Plan and build in one step')
     .option('--auto', 'Run without approval gates')
     .option('--verbose', 'Stream agent output')
@@ -176,7 +176,7 @@ export function createProgram(abortController?: AbortController): Command {
           ? { build: { parallelism: options.parallelism } }
           : undefined;
 
-        const engine = await ForgeEngine.create({
+        const engine = await EforgeEngine.create({
           onClarification: createClarificationHandler(options.auto ?? false),
           onApproval: createApprovalHandler(options.auto ?? false),
           config: configOverrides,
@@ -195,14 +195,14 @@ export function createProgram(abortController?: AbortController): Command {
             abortController,
           }), monitor)) {
             renderEvent(event);
-            if (event.type === 'forge:start') {
+            if (event.type === 'eforge:start') {
               renderLangfuseStatus(engine.resolvedConfig);
               planSetName = event.planSet;
             }
             if (event.type === 'plan:complete') {
               planFiles = event.plans;
             }
-            if (event.type === 'forge:end') {
+            if (event.type === 'eforge:end') {
               planResult = event.result.status;
             }
           }
@@ -254,7 +254,7 @@ export function createProgram(abortController?: AbortController): Command {
           ? { build: { parallelism: options.parallelism } }
           : undefined;
 
-        const engine = await ForgeEngine.create({
+        const engine = await EforgeEngine.create({
           onClarification: createClarificationHandler(options.auto ?? false),
           onApproval: createApprovalHandler(options.auto ?? false),
           config: configOverrides,
@@ -284,7 +284,7 @@ export function createProgram(abortController?: AbortController): Command {
     .action(async (planSet: string, options: { auto?: boolean; verbose?: boolean; monitor?: boolean }) => {
       initDisplay({ verbose: options.verbose });
 
-      const engine = await ForgeEngine.create({
+      const engine = await EforgeEngine.create({
         onClarification: createClarificationHandler(options.auto ?? false),
         onApproval: createApprovalHandler(options.auto ?? false),
       });
@@ -307,7 +307,7 @@ export function createProgram(abortController?: AbortController): Command {
     .command('status')
     .description('Check running builds')
     .action(async () => {
-      const engine = await ForgeEngine.create();
+      const engine = await EforgeEngine.create();
       renderStatus(engine.status());
     });
 

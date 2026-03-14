@@ -1,5 +1,5 @@
 import type { AgentBackend } from '../backend.js';
-import type { ForgeEvent, PlanFile } from '../events.js';
+import type { EforgeEvent, PlanFile } from '../events.js';
 import { loadPrompt } from '../prompts.js';
 
 /**
@@ -32,7 +32,7 @@ export interface EvaluationVerdict {
 export async function* builderImplement(
   plan: PlanFile,
   options: BuilderOptions,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   yield { type: 'build:implement:start', planId: plan.id };
 
   const prompt = await loadPrompt('builder', {
@@ -69,7 +69,7 @@ export async function* builderImplement(
 export async function* builderEvaluate(
   plan: PlanFile,
   options: BuilderOptions,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   yield { type: 'build:evaluate:start', planId: plan.id };
 
   const prompt = await loadPrompt('evaluator', {

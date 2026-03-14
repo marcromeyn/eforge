@@ -1,5 +1,5 @@
 import type { AgentBackend } from '../backend.js';
-import type { ForgeEvent } from '../events.js';
+import type { EforgeEvent } from '../events.js';
 import { loadPrompt } from '../prompts.js';
 import { parseReviewIssues } from './reviewer.js';
 
@@ -35,7 +35,7 @@ export interface PlanReviewerOptions {
  */
 export async function* runPlanReview(
   options: PlanReviewerOptions,
-): AsyncGenerator<ForgeEvent> {
+): AsyncGenerator<EforgeEvent> {
   const { backend, sourceContent, planSetName, cwd, verbose, abortController } = options;
 
   yield { type: 'plan:review:start' };

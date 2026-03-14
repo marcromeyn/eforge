@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>forge monitor</title>
+<title>eforge monitor</title>
 <style>
   :root {
     --bg: #0d1117;
@@ -357,7 +357,7 @@
 <body>
 <div class="layout">
   <header>
-    <h1>forge monitor</h1>
+    <h1>eforge monitor</h1>
     <div class="connection-status">
       <div class="connection-dot" id="connDot"></div>
       <span id="connText">disconnected</span>
@@ -493,7 +493,7 @@
   }
 
   function processEvent(event) {
-    if (event.type === 'forge:start' && event.timestamp) {
+    if (event.type === 'eforge:start' && event.timestamp) {
       startTime = new Date(event.timestamp);
     }
 
@@ -522,9 +522,9 @@
     }
 
     // Auto-select new runs
-    if (event.type === 'forge:start') {
+    if (event.type === 'eforge:start') {
       loadRuns();
-    } else if (event.type === 'forge:end') {
+    } else if (event.type === 'eforge:end') {
       loadRuns();
     }
   }
@@ -533,7 +533,7 @@
     const hasPipeline = Object.keys(planStatuses).length > 0;
     const duration = startTime ? formatDuration(Date.now() - startTime.getTime()) : '--';
     const lastEvent = events[events.length - 1];
-    const isComplete = lastEvent && lastEvent.type === 'forge:end';
+    const isComplete = lastEvent && lastEvent.type === 'eforge:end';
 
     let html = '';
 
@@ -638,8 +638,8 @@
   }
 
   function classifyEvent(type, event) {
-    if (type === 'forge:start') return { cls: 'start', label: type };
-    if (type === 'forge:end') {
+    if (type === 'eforge:start') return { cls: 'start', label: type };
+    if (type === 'eforge:end') {
       const status = event?.result?.status;
       return { cls: status === 'failed' ? 'failed' : 'complete', label: type };
     }
@@ -654,8 +654,8 @@
 
   function eventSummary(event) {
     switch (event.type) {
-      case 'forge:start': return `Run started: ${event.command} "${event.planSet}"`;
-      case 'forge:end': return `Run ${event.result?.status}: ${event.result?.summary || ''}`;
+      case 'eforge:start': return `Run started: ${event.command} "${event.planSet}"`;
+      case 'eforge:end': return `Run ${event.result?.status}: ${event.result?.summary || ''}`;
       case 'plan:start': return `Planning from: ${event.source}`;
       case 'plan:scope': return `Scope: ${event.assessment} — ${event.justification}`;
       case 'plan:clarification': return `${event.questions?.length || 0} clarification question(s)`;
@@ -723,7 +723,7 @@
         return detail;
       case 'build:failed':
         return event.error;
-      case 'forge:end':
+      case 'eforge:end':
         return event.result?.summary;
       case 'expedition:architecture:complete':
         return event.modules?.map(m => `${m.id}: ${m.description}${m.dependsOn?.length ? ' (depends: ' + m.dependsOn.join(', ') + ')' : ''}`).join('\n');

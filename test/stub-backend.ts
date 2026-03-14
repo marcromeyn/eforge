@@ -3,7 +3,7 @@
  * Lives in test/ (not src/) since it's only for testing.
  */
 import type { AgentBackend, AgentRunOptions } from '../src/engine/backend.js';
-import type { ForgeEvent, AgentRole, AgentResultData } from '../src/engine/events.js';
+import type { EforgeEvent, AgentRole, AgentResultData } from '../src/engine/events.js';
 
 export interface StubToolCall {
   tool: string;
@@ -31,7 +31,7 @@ const STUB_RESULT: AgentResultData = {
 };
 
 /**
- * A test backend that yields scripted ForgeEvents.
+ * A test backend that yields scripted EforgeEvents.
  *
  * Responses are consumed sequentially across multiple `run()` calls.
  * This enables testing multi-iteration flows (e.g., planner clarification
@@ -60,7 +60,7 @@ export class StubBackend implements AgentBackend {
     options: AgentRunOptions,
     agent: AgentRole,
     planId?: string,
-  ): AsyncGenerator<ForgeEvent> {
+  ): AsyncGenerator<EforgeEvent> {
     this.prompts.push(options.prompt);
     this.calls.push(options);
 

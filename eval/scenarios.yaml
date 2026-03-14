@@ -1,5 +1,5 @@
-# Forge AI evaluation scenarios
-# Each scenario defines a fixture + PRD to run forgeai against.
+# Eforge evaluation scenarios
+# Each scenario defines a fixture + PRD to run eforge against.
 # Fixtures live in eval/fixtures/<fixture>/ as plain project files (no .git).
 
 scenarios:

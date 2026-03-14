@@ -1,11 +1,11 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { updatePlanStatus, isResumable, loadState, saveState } from '../src/engine/state.js';
-import type { ForgeState } from '../src/engine/events.js';
+import type { EforgeState } from '../src/engine/events.js';
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-function makeState(overrides?: Partial<ForgeState>): ForgeState {
+function makeState(overrides?: Partial<EforgeState>): EforgeState {
   return {
     setName: 'test-set',
     status: 'running',
@@ -98,7 +98,7 @@ describe('loadState / saveState', () => {
   const tempDirs: string[] = [];
 
   function makeTempDir(): string {
-    const dir = mkdtempSync(join(tmpdir(), 'forge-state-test-'));
+    const dir = mkdtempSync(join(tmpdir(), 'eforge-state-test-'));
     tempDirs.push(dir);
     return dir;
   }
@@ -120,16 +120,16 @@ describe('loadState / saveState', () => {
 
   it('returns null for corrupt JSON', () => {
     const dir = makeTempDir();
-    const filePath = join(dir, '.forge', 'state.json');
-    mkdirSync(join(dir, '.forge'), { recursive: true });
+    const filePath = join(dir, '.eforge', 'state.json');
+    mkdirSync(join(dir, '.eforge'), { recursive: true });
     writeFileSync(filePath, '{ broken', 'utf-8');
     expect(loadState(dir)).toBeNull();
   });
 
   it('returns null for empty file', () => {
     const dir = makeTempDir();
-    const filePath = join(dir, '.forge', 'state.json');
-    mkdirSync(join(dir, '.forge'), { recursive: true });
+    const filePath = join(dir, '.eforge', 'state.json');
+    mkdirSync(join(dir, '.eforge'), { recursive: true });
     writeFileSync(filePath, '', 'utf-8');
     expect(loadState(dir)).toBeNull();
   });
@@ -143,12 +143,12 @@ describe('loadState / saveState', () => {
     const dir = makeTempDir();
     const state = makeState();
     saveState(dir, state);
-    expect(existsSync(join(dir, '.forge', 'state.json'))).toBe(true);
+    expect(existsSync(join(dir, '.eforge', 'state.json'))).toBe(true);
   });
 
   it('leaves no .tmp file after save', () => {
     const dir = makeTempDir();
     saveState(dir, makeState());
-    expect(existsSync(join(dir, '.forge', 'state.json.tmp'))).toBe(false);
+    expect(existsSync(join(dir, '.eforge', 'state.json.tmp'))).toBe(false);
   });
 });

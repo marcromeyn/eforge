@@ -1,6 +1,6 @@
 import Langfuse from 'langfuse';
 import type { AgentRole } from './events.js';
-import type { ForgeConfig } from './config.js';
+import type { EforgeConfig } from './config.js';
 
 export interface ToolCallHandle {
   end(output?: string): void;
@@ -63,7 +63,7 @@ export function createNoopTracingContext(): TracingContext {
  * Create a tracing context backed by Langfuse when enabled, or a no-op when disabled.
  */
 export function createTracingContext(
-  config: ForgeConfig,
+  config: EforgeConfig,
   runId: string,
   command: string,
   sessionId?: string,
@@ -78,11 +78,11 @@ export function createTracingContext(
     baseUrl: config.langfuse.host,
   });
 
-  const tags = (process.env.FORGE_TRACE_TAGS ?? '').split(',').filter(Boolean);
+  const tags = (process.env.EFORGE_TRACE_TAGS ?? '').split(',').filter(Boolean);
 
   const trace = langfuse.trace({
     id: runId,
-    name: `forge:${command}`,
+    name: `eforge:${command}`,
     sessionId,
     metadata: { command },
     tags: tags.length > 0 ? tags : undefined,
