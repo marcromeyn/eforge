@@ -9,8 +9,9 @@ import {
   resolveDependencyGraph,
   validateRuntimeReadiness,
 } from '../engine/plan.js';
-import type { EforgeConfig } from '../engine/config.js';
+import type { EforgeConfig, HookConfig } from '../engine/config.js';
 import type { EforgeEvent, PlanFile } from '../engine/events.js';
+import { withHooks } from '../engine/hooks.js';
 import { initDisplay, renderEvent, renderStatus, renderDryRun, renderLangfuseStatus, stopAllSpinners } from './display.js';
 import { createClarificationHandler, createApprovalHandler } from './interactive.js';
 import { createMonitor, type Monitor } from '../monitor/index.js';
@@ -69,8 +70,13 @@ async function withMonitor<T>(
 function wrapEvents(
   events: AsyncGenerator<EforgeEvent>,
   monitor: Monitor | undefined,
+  hooks: readonly HookConfig[],
 ): AsyncGenerator<EforgeEvent> {
-  return monitor ? monitor.wrapEvents(events) : events;
+  let wrapped = events;
+  if (hooks.length > 0) {
+    wrapped = withHooks(wrapped, hooks, process.cwd());
+  }
+  return monitor ? monitor.wrapEvents(wrapped) : wrapped;
 }
 
 async function consumeEvents(
@@ -150,7 +156,7 @@ export function createProgram(abortController?: AbortController): Command {
               verbose: options.verbose,
               name: options.name,
               abortController,
-            }), monitor),
+            }), monitor, engine.resolvedConfig.hooks),
             { afterStart: () => renderLangfuseStatus(engine.resolvedConfig) },
           );
 
@@ -203,7 +209,7 @@ export function createProgram(abortController?: AbortController): Command {
             verbose: options.verbose,
             name: options.name,
             abortController,
-          }), monitor)) {
+          }), monitor, engine.resolvedConfig.hooks)) {
             renderEvent(event);
             if (event.type === 'eforge:start') {
               renderLangfuseStatus(engine.resolvedConfig);
@@ -232,7 +238,7 @@ export function createProgram(abortController?: AbortController): Command {
               auto: options.auto,
               verbose: options.verbose,
               abortController,
-            }), monitor),
+            }), monitor, engine.resolvedConfig.hooks),
             { afterStart: () => renderLangfuseStatus(engine.resolvedConfig) },
           );
 
@@ -275,7 +281,7 @@ export function createProgram(abortController?: AbortController): Command {
               auto: options.auto,
               verbose: options.verbose,
               abortController,
-            }), monitor),
+            }), monitor, engine.resolvedConfig.hooks),
             { afterStart: () => renderLangfuseStatus(engine.resolvedConfig) },
           );
 

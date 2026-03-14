@@ -3,6 +3,12 @@ import { resolve, dirname } from 'node:path';
 import { availableParallelism } from 'node:os';
 import { parse as parseYaml } from 'yaml';
 
+export interface HookConfig {
+  event: string;   // glob pattern on EforgeEvent.type (e.g. "build:*", "*")
+  command: string; // shell command or script path
+  timeout: number; // ms, default 5000
+}
+
 export interface PluginConfig {
   enabled: boolean;
   /** Plugin identifiers to include (e.g. "git@schaake-cc-marketplace"). If set, only these load. */
@@ -19,6 +25,7 @@ export interface EforgeConfig {
   build: { parallelism: number; worktreeDir?: string; postMergeCommands?: string[]; maxValidationRetries: number };
   plan: { outputDir: string };
   plugins: PluginConfig;
+  hooks: readonly HookConfig[];
 }
 
 export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
@@ -27,6 +34,7 @@ export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   build: Object.freeze({ parallelism: availableParallelism(), worktreeDir: undefined, postMergeCommands: undefined, maxValidationRetries: 2 }),
   plan: Object.freeze({ outputDir: 'plans' }),
   plugins: Object.freeze({ enabled: true }),
+  hooks: Object.freeze([]),
 });
 
 /**
@@ -93,6 +101,7 @@ export function resolveConfig(
       exclude: fileConfig.plugins?.exclude,
       paths: fileConfig.plugins?.paths,
     }),
+    hooks: Object.freeze(fileConfig.hooks ?? DEFAULT_CONFIG.hooks) as HookConfig[],
   });
 }
 
@@ -177,6 +186,23 @@ function parseRawConfig(data: Record<string, unknown>): Partial<EforgeConfig> {
       exclude,
       paths,
     };
+  }
+
+  if (Array.isArray(data.hooks)) {
+    const validHooks: HookConfig[] = [];
+    for (const entry of data.hooks) {
+      if (
+        entry &&
+        typeof entry === 'object' &&
+        typeof (entry as Record<string, unknown>).event === 'string' &&
+        typeof (entry as Record<string, unknown>).command === 'string'
+      ) {
+        const e = entry as Record<string, unknown>;
+        const timeout = typeof e.timeout === 'number' && e.timeout > 0 ? e.timeout : 5000;
+        validHooks.push({ event: e.event as string, command: e.command as string, timeout });
+      }
+    }
+    result.hooks = validHooks;
   }
 
   return result;

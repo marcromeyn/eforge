@@ -77,6 +77,10 @@ export {
 } from './worktree.js';
 export { Semaphore, AsyncEventQueue } from './concurrency.js';
 
+// --- hooks ---
+export type { HookConfig } from './config.js';
+export { withHooks, matchesPattern } from './hooks.js';
+
 // --- config ---
 export type { EforgeConfig, PluginConfig } from './config.js';
 export { DEFAULT_CONFIG, findConfigFile, resolveConfig, loadConfig } from './config.js';

@@ -83,4 +83,23 @@ describe('resolveConfig', () => {
     expect(Object.isFrozen(config.build)).toBe(true);
     expect(Object.isFrozen(config.plan)).toBe(true);
   });
+
+  it('hooks defaults to empty array when not set', () => {
+    const config = resolveConfig({}, {});
+    expect(config.hooks).toEqual([]);
+  });
+
+  it('hooks propagated from file config', () => {
+    const hooks = [
+      { event: 'build:*', command: 'echo hello', timeout: 5000 },
+      { event: '*', command: './notify.sh', timeout: 10000 },
+    ];
+    const config = resolveConfig({ hooks }, {});
+    expect(config.hooks).toEqual(hooks);
+  });
+
+  it('hooks is frozen in resolved config', () => {
+    const config = resolveConfig({}, {});
+    expect(Object.isFrozen(config.hooks)).toBe(true);
+  });
 });
