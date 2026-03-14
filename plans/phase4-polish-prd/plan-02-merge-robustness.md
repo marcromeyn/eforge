@@ -3,9 +3,12 @@ id: plan-02-merge-robustness
 name: Merge Failure Propagation & Conflict Cleanup
 depends_on: []
 branch: phase4-polish-prd/merge-robustness
+status: superseded
 ---
 
 # Merge Failure Propagation & Conflict Cleanup
+
+> **Superseded**: This plan's scope (`shouldSkipMerge`, `failedMerges`, `git merge --abort`) was implemented as part of the inter-wave merge refactor, which moved merging inline into the wave loop. The post-loop merge phase this plan targeted no longer exists.
 
 ## Architecture Context
 

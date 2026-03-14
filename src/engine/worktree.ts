@@ -66,7 +66,7 @@ export async function removeWorktree(repoRoot: string, worktreePath: string): Pr
 
 /**
  * Merge a branch into the base branch using --no-ff.
- * Caller must handle merge conflicts (thrown as errors).
+ * On conflict, aborts the merge to leave the repo clean, then re-throws.
  */
 export async function mergeWorktree(
   repoRoot: string,
@@ -74,11 +74,20 @@ export async function mergeWorktree(
   baseBranch: string,
 ): Promise<void> {
   await exec('git', ['checkout', baseBranch], { cwd: repoRoot });
-  await exec(
-    'git',
-    ['merge', '--no-ff', branch, '-m', `Merge ${branch} into ${baseBranch}`],
-    { cwd: repoRoot },
-  );
+  try {
+    await exec(
+      'git',
+      ['merge', '--no-ff', branch, '-m', `Merge ${branch} into ${baseBranch}`],
+      { cwd: repoRoot },
+    );
+  } catch (err) {
+    try {
+      await exec('git', ['merge', '--abort'], { cwd: repoRoot });
+    } catch {
+      // Best-effort abort
+    }
+    throw err;
+  }
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { propagateFailure, resumeState } from '../src/engine/orchestrator.js';
+import { propagateFailure, resumeState, shouldSkipMerge } from '../src/engine/orchestrator.js';
 import { AsyncEventQueue } from '../src/engine/concurrency.js';
 import type { ForgeState, ForgeEvent, OrchestrationConfig, PlanState } from '../src/engine/events.js';
 
@@ -265,5 +265,64 @@ describe('resumeState', () => {
     resumeState(state);
 
     expect(state.plans['c'].status).toBe('blocked');
+  });
+
+  it('leaves completed-but-unmerged plans as completed for re-merge on resume', () => {
+    const state = makeState({
+      a: { status: 'merged', merged: true },
+      b: { status: 'completed', dependsOn: [] },
+      c: { status: 'running', dependsOn: ['a', 'b'] },
+    });
+
+    resumeState(state);
+
+    expect(state.plans['b'].status).toBe('completed');
+    expect(state.plans['c'].status).toBe('pending');
+  });
+});
+
+describe('shouldSkipMerge', () => {
+  it('returns null when no dependencies failed', () => {
+    const plans = makePlans([{ id: 'a' }, { id: 'b', dependsOn: ['a'] }]);
+    expect(shouldSkipMerge('b', plans, new Set())).toBeNull();
+  });
+
+  it('returns skip reason when a direct dependency failed', () => {
+    const plans = makePlans([{ id: 'a' }, { id: 'b', dependsOn: ['a'] }]);
+    const result = shouldSkipMerge('b', plans, new Set(['a']));
+    expect(result).toBeTypeOf('string');
+    expect(result).toContain('a');
+  });
+
+  it('returns null when dependencies exist but none are in the failed set', () => {
+    const plans = makePlans([{ id: 'a' }, { id: 'b' }, { id: 'c', dependsOn: ['a', 'b'] }]);
+    expect(shouldSkipMerge('c', plans, new Set())).toBeNull();
+  });
+
+  it('cascades through transitive dependencies via accumulated failedMerges', () => {
+    const plans = makePlans([
+      { id: 'a' },
+      { id: 'b', dependsOn: ['a'] },
+      { id: 'c', dependsOn: ['b'] },
+    ]);
+    const failedMerges = new Set<string>();
+
+    // a fails to merge
+    failedMerges.add('a');
+
+    // b is skipped because a failed — caller adds b to failedMerges
+    const skipB = shouldSkipMerge('b', plans, failedMerges);
+    expect(skipB).toBeTypeOf('string');
+    failedMerges.add('b');
+
+    // c is skipped because b is now in failedMerges
+    const skipC = shouldSkipMerge('c', plans, failedMerges);
+    expect(skipC).toBeTypeOf('string');
+    expect(skipC).toContain('b');
+  });
+
+  it('returns null for unknown plan ID', () => {
+    const plans = makePlans([{ id: 'a' }]);
+    expect(shouldSkipMerge('nonexistent', plans, new Set(['a']))).toBeNull();
   });
 });
