@@ -22,28 +22,13 @@ Graduated replacement. Phase 5: eforge plugin supersedes both for planning and e
 
 ---
 
-## Claude Code Plugin (next)
-
-**Goal**: Make eforge accessible within Claude Code with a focus on planning quality.
-
-Plugin lives in `schaake-cc-marketplace`, invokes `eforge` CLI as subprocess.
-
-**Skills**:
-- `/eforge:plan <source>` — The core skill. Helps refine requirements in-conversation using full Claude Code context, then kicks off `eforge plan`.
-- `/eforge:build <planSet>` — Validates plan set and delegates to `eforge build`.
-- `/eforge:status` — Reads `.eforge/state.json` and renders inline with monitor dashboard link.
-
-**Testing**: Engine/CLI correctness covered by eval system (`eval/`). Plugin UX tested via `claude --print` smoke tests, manual scenario checklist, and Langfuse observability.
-
----
-
 ## Monitor Dashboard Enhancements
 
 **Goal**: Richer visualization in the existing web monitor.
 
 - Dependency graph view (plan execution order and wave assignment)
 - Plan file preview with syntax highlighting
-- Wave progress visualization
+- Wave-level grouping in timeline (currently shows per-plan pipeline only)
 - File change heatmap (merge conflict risk)
 
 ---
@@ -52,7 +37,6 @@ Plugin lives in `schaake-cc-marketplace`, invokes `eforge` CLI as subprocess.
 
 **Goal**: Go from rough idea to refined, reviewed plans entirely within Claude Code.
 
-- **Conversational planning** — Multi-turn requirement refinement producing a structured PRD
 - **Plan iteration** — Review and refine generated plans in-conversation, re-run review cycle
 - **Plan templates** — Common patterns (API endpoint, migration, refactor, feature flag)
 
@@ -62,6 +46,6 @@ Plugin lives in `schaake-cc-marketplace`, invokes `eforge` CLI as subprocess.
 
 **Goal**: Full lifecycle coverage, CI support, provider flexibility.
 
-- **Headless/CI** — JSON event output, GitHub Actions integration, webhooks
+- **Headless/CI** — `--json` CLI output flag, webhook notifications
 - **Provider abstraction** — Second `AgentBackend` implementation for non-SDK environments
 - **Plugin consolidation** — Deprecate orchestrate + EEE plugins, migration guide
