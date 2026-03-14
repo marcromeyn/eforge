@@ -7,6 +7,11 @@ export interface StoredEvent {
   eventId: string;
 }
 
+export interface WaveInfo {
+  wave: number;
+  planIds: string[];
+}
+
 export interface RunState {
   events: StoredEvent[];
   startTime: number | null;
@@ -15,6 +20,8 @@ export interface RunState {
   tokensOut: number;
   totalCost: number;
   isComplete: boolean;
+  fileChanges: Map<string, string[]>;
+  waves: WaveInfo[];
 }
 
 export const initialRunState: RunState = {
@@ -25,6 +32,8 @@ export const initialRunState: RunState = {
   tokensOut: 0,
   totalCost: 0,
   isComplete: false,
+  fileChanges: new Map(),
+  waves: [],
 };
 
 export type RunAction =
@@ -34,7 +43,7 @@ export type RunAction =
 export function eforgeReducer(state: RunState, action: RunAction): RunState {
   switch (action.type) {
     case 'RESET':
-      return { ...initialRunState };
+      return { ...initialRunState, fileChanges: new Map(), waves: [] };
 
     case 'ADD_EVENT': {
       const { event, eventId } = action;
@@ -85,6 +94,21 @@ export function eforgeReducer(state: RunState, action: RunAction): RunState {
             break;
         }
         newState.planStatuses = planStatuses;
+      }
+
+      // Track file changes per plan
+      if (event.type === 'build:files_changed' && 'files' in event) {
+        const fileChanges = new Map(state.fileChanges);
+        fileChanges.set(event.planId, event.files);
+        newState.fileChanges = fileChanges;
+      }
+
+      // Track wave assignments
+      if (event.type === 'wave:start' && 'wave' in event && 'planIds' in event) {
+        const existing = state.waves.find((w) => w.wave === event.wave);
+        if (!existing) {
+          newState.waves = [...state.waves, { wave: event.wave, planIds: event.planIds }];
+        }
       }
 
       return newState;
