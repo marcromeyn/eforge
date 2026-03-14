@@ -25,6 +25,7 @@ import type {
 } from './events.js';
 import type { ForgeConfig } from './config.js';
 import type { AgentBackend } from './backend.js';
+import type { ClaudeSDKBackendOptions } from './backends/claude-sdk.js';
 import type { PlannerOptions } from './agents/planner.js';
 import { loadConfig } from './config.js';
 import { ClaudeSDKBackend } from './backends/claude-sdk.js';
@@ -50,6 +51,8 @@ export interface ForgeEngineOptions {
   config?: Partial<ForgeConfig>;
   /** Agent backend (defaults to ClaudeSDKBackend) */
   backend?: AgentBackend;
+  /** MCP servers to make available to agents (Claude SDK backend only, ignored if backend is provided) */
+  mcpServers?: ClaudeSDKBackendOptions['mcpServers'];
   /** Clarification callback for interactive planning */
   onClarification?: (questions: ClarificationQuestion[]) => Promise<Record<string, string>>;
   /** Approval callback for build gates */
@@ -66,7 +69,9 @@ export class ForgeEngine {
   private constructor(config: ForgeConfig, options: ForgeEngineOptions = {}) {
     this.config = config;
     this.cwd = options.cwd ?? process.cwd();
-    this.backend = options.backend ?? new ClaudeSDKBackend();
+    this.backend = options.backend ?? new ClaudeSDKBackend({
+      mcpServers: options.mcpServers,
+    });
     this.onClarification = options.onClarification;
     this.onApproval = options.onApproval;
   }
@@ -78,6 +83,7 @@ export class ForgeEngine {
 
   /**
    * Async factory — loads config, applies overrides, returns engine.
+   * Auto-loads MCP servers from .mcp.json if not explicitly provided.
    */
   static async create(options: ForgeEngineOptions = {}): Promise<ForgeEngine> {
     const cwd = options.cwd ?? process.cwd();
@@ -85,6 +91,14 @@ export class ForgeEngine {
 
     if (options.config) {
       config = mergeConfig(config, options.config);
+    }
+
+    // Auto-load MCP servers from .mcp.json if not explicitly provided
+    if (!options.mcpServers && !options.backend) {
+      const discovered = await loadMcpServers(cwd);
+      if (discovered) {
+        options = { ...options, mcpServers: discovered };
+      }
     }
 
     return new ForgeEngine(config, options);
@@ -711,4 +725,30 @@ function populateSpan(span: SpanHandle, data: AgentResultData): void {
     durationApiMs: data.durationApiMs,
     numTurns: data.numTurns,
   });
+}
+
+/**
+ * Load MCP server configs from .mcp.json in the given directory.
+ * Returns the mcpServers record, or undefined if no .mcp.json exists.
+ */
+async function loadMcpServers(cwd: string): Promise<ClaudeSDKBackendOptions['mcpServers'] | undefined> {
+  const mcpPath = resolve(cwd, '.mcp.json');
+  let content: string;
+  try {
+    content = await readFile(mcpPath, 'utf-8');
+  } catch {
+    // No .mcp.json — fine, MCP is optional
+    return undefined;
+  }
+
+  try {
+    const raw = JSON.parse(content);
+    if (raw?.mcpServers && typeof raw.mcpServers === 'object' && !Array.isArray(raw.mcpServers)) {
+      return raw.mcpServers;
+    }
+  } catch {
+    // Malformed .mcp.json — warn but don't crash
+    process.stderr.write(`Warning: failed to parse ${mcpPath}, MCP servers not loaded\n`);
+  }
+  return undefined;
 }

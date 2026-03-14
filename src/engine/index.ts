@@ -34,6 +34,7 @@ export { loadPrompt } from './prompts.js';
 // --- backend ---
 export type { AgentBackend, AgentRunOptions, ToolPreset } from './backend.js';
 export { ClaudeSDKBackend } from './backends/claude-sdk.js';
+export type { ClaudeSDKBackendOptions } from './backends/claude-sdk.js';
 
 // --- agents/common ---
 export { parseClarificationBlocks } from './agents/common.js';

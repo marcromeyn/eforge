@@ -31,6 +31,8 @@ node --env-file=.env dist/cli.js plan docs/init-prd.md --verbose
 
 **Backend abstraction**: Agent runners never import the AI SDK directly. All LLM interaction goes through the `AgentBackend` interface (`src/engine/backend.ts`). The sole SDK adapter lives in `src/engine/backends/claude-sdk.ts`. New agents must accept an `AgentBackend` via their options — do not import `@anthropic-ai/claude-agent-sdk` outside of `src/engine/backends/`.
 
+**MCP server propagation**: The engine auto-loads MCP servers from `.mcp.json` in the project root (same file Claude Code uses). All agents get the same MCP servers — no per-role filtering. MCP config is backend-specific: `ClaudeSDKBackend` accepts optional `mcpServers` in its constructor, and `ForgeEngineOptions.mcpServers` lets callers inject servers programmatically (overrides auto-loading). The `AgentBackend` interface has no MCP concept. Note: SDK subprocesses do NOT auto-discover MCP servers from settings files — explicit propagation is required.
+
 - **Planner** — one-shot query. Explores codebase, assesses scope, writes plan files (YAML frontmatter format). Outputs `<clarification>` XML blocks for ambiguities. For expeditions, also generates architecture + module list.
 - **Plan Reviewer** — one-shot query. Blind review of plan files against PRD for cohesion, completeness, correctness. Leaves fixes unstaged.
 - **Plan Evaluator** — one-shot query. Evaluates plan reviewer's unstaged fixes against planner's intent. Accepts/rejects.
@@ -51,6 +53,8 @@ node --env-file=.env dist/cli.js plan docs/init-prd.md --verbose
 ## Project structure
 
 ```
+.mcp.json                           # MCP server config (gitignored, auto-loaded by engine)
+forge.yaml                          # Optional engine config (langfuse, parallelism, etc.)
 src/
   engine/                     # Library (no stdout, events only)
     forge.ts                  # ForgeEngine: plan(), build(), review(), status()
@@ -139,6 +143,7 @@ Tests live in `test/` and use vitest. Organize by **logical unit**, not source f
 - Engine uses `AsyncGenerator<ForgeEvent>` pattern — consumers iterate, no callbacks except clarification/approval
 - Clarification uses engine-level events (parsed from agent XML output), not SDK's built-in `AskUserQuestion`
 - Langfuse tracing for all agent calls via `src/engine/tracing.ts` (env vars: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`)
+- MCP servers auto-loaded from `.mcp.json` (gitignored, same format as Claude Code). Agents get full tool access to configured servers (brain, langfuse, etc.). Programmatic callers can override via `ForgeEngineOptions.mcpServers`.
 
 ## CLI commands
 

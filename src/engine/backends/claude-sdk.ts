@@ -10,11 +10,23 @@ import type {
   SDKResultMessage,
   SDKUserMessage,
   SDKToolUseSummaryMessage,
+  McpServerConfig,
 } from '@anthropic-ai/claude-agent-sdk';
 import type { ForgeEvent, AgentRole, AgentResultData } from '../events.js';
 import type { AgentBackend, AgentRunOptions } from '../backend.js';
 
+export interface ClaudeSDKBackendOptions {
+  /** MCP servers to make available to all agent runs. */
+  mcpServers?: Record<string, McpServerConfig>;
+}
+
 export class ClaudeSDKBackend implements AgentBackend {
+  private readonly mcpServers?: Record<string, McpServerConfig>;
+
+  constructor(options?: ClaudeSDKBackendOptions) {
+    this.mcpServers = options?.mcpServers;
+  }
+
   async *run(options: AgentRunOptions, agent: AgentRole, planId?: string): AsyncGenerator<ForgeEvent> {
     const q = sdkQuery({
       prompt: options.prompt,
@@ -26,6 +38,7 @@ export class ClaudeSDKBackend implements AgentBackend {
         tools: options.tools === 'coding'
           ? { type: 'preset', preset: 'claude_code' }
           : undefined,
+        mcpServers: this.mcpServers,
         abortController: options.abortSignal
           ? abortControllerFromSignal(options.abortSignal)
           : undefined,
