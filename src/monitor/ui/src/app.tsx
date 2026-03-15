@@ -193,7 +193,12 @@ export function App() {
               ) : activeTab === 'heatmap' && isMultiPlan ? (
                 <FileHeatmap runState={runState} />
               ) : (
-                <Timeline events={runState.events} startTime={runState.startTime} />
+                <Timeline
+                  events={runState.events}
+                  startTime={runState.startTime}
+                  waves={runState.waves}
+                  planStatuses={runState.planStatuses}
+                />
               )}
             </>
           )}
