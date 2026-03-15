@@ -56,20 +56,17 @@ When you identify an issue that has a clear, unambiguous fix:
 1. Write the fix directly to the file using your editing tools.
 2. **Do NOT stage the fix.** Do not run `git add` on any file.
 3. **Do NOT commit.** Do not run `git commit`.
-4. Only write fixes for issues where the correct change is obvious and uncontroversial.
-5. For ambiguous issues, describe the problem and possible fixes in the issue description but do not modify files.
+4. For issues where a fix would fundamentally change the architecture or require understanding builder intent you cannot infer, describe the problem and possible approaches in the issue description instead of modifying files.
 
 # Fix Criteria
 
-A fix is appropriate when:
-- The correct change is unambiguous (e.g., missing null check, typo, wrong variable name)
-- The fix does not alter the implementation's design or architecture
-- The fix is minimal — only changes what is necessary to resolve the issue
+**Always attempt a fix for every issue you report**, regardless of severity. The evaluator will decide whether to accept or reject your fix — your job is to provide the best fix you can. Pick the simplest, most minimal approach and write it.
 
-A fix is NOT appropriate when:
-- Multiple valid approaches exist
-- The fix would change architectural decisions
-- The fix requires understanding builder intent
+A fix should be minimal — only change what is necessary to resolve the issue. Do not alter the implementation's design or architecture.
+
+Skip the fix only when:
+- The fix would require understanding builder intent that you cannot infer from the code
+- The fix would fundamentally change the architectural approach
 
 # Output Format
 
@@ -89,7 +86,7 @@ Rules:
 - The `category` attribute must be one of: `bugs`, `security`, `error-handling`, `edge-cases`, `types`, `dry`, `performance`, `maintainability`
 - The `file` attribute is the relative path from the repository root
 - The `line` attribute is optional — include it when you can identify a specific line
-- The `<fix>` element is optional — include it only when you wrote a fix to the file
+- The `<fix>` element should be included for every issue where you wrote a fix (which should be most issues)
 - If you find no issues, output an empty block: `<review-issues></review-issues>`
 - Always output exactly one `<review-issues>` block at the end of your response
 

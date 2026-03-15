@@ -675,9 +675,7 @@ export class EforgeEngine {
 
       const shouldCleanup = options.cleanup ?? this.config.build.cleanupPlanFiles;
       if (status === 'completed' && shouldCleanup) {
-        try {
-          yield* cleanupPlanFiles(cwd, planSet);
-        } catch { /* non-fatal */ }
+        yield* cleanupPlanFiles(cwd, planSet);
       }
     } catch (err) {
       status = 'failed';
@@ -799,22 +797,28 @@ async function hasUnstagedChanges(cwd: string): Promise<boolean> {
  */
 async function* cleanupPlanFiles(cwd: string, planSet: string): AsyncGenerator<EforgeEvent> {
   yield { type: 'cleanup:start', planSet };
-  const planDir = resolve(cwd, 'plans', planSet);
-  await exec('git', ['rm', '-r', planDir], { cwd });
 
-  // Remove empty plans/ directory
-  const plansDir = resolve(cwd, 'plans');
   try {
-    const remaining = await readdir(plansDir);
-    if (remaining.length === 0) {
-      await rm(plansDir, { recursive: true });
-    }
-  } catch { /* may already be gone */ }
+    const planDir = resolve(cwd, 'plans', planSet);
+    await exec('git', ['rm', '-r', '--', planDir], { cwd });
 
-  await exec('git', ['commit', '-m', `cleanup(${planSet}): remove plan files after successful build`], { cwd });
+    // Remove empty plans/ directory
+    const plansDir = resolve(cwd, 'plans');
+    try {
+      const remaining = await readdir(plansDir);
+      if (remaining.length === 0) {
+        await rm(plansDir, { recursive: true });
+      }
+    } catch { /* may already be gone */ }
 
-  // Clean up state file (gitignored)
-  try { await rm(resolve(cwd, '.eforge', 'state.json')); } catch {}
+    await exec('git', ['commit', '-m', `cleanup(${planSet}): remove plan files after successful build`], { cwd });
+
+    // Clean up state file (gitignored)
+    try { await rm(resolve(cwd, '.eforge', 'state.json')); } catch {}
+  } catch (err) {
+    // Non-fatal — ensure cleanup:complete always pairs with cleanup:start
+    yield { type: 'plan:progress', message: `Cleanup failed (non-fatal): ${(err as Error).message}` };
+  }
 
   yield { type: 'cleanup:complete', planSet };
 }
