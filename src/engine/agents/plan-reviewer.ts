@@ -48,7 +48,7 @@ export async function* runPlanReview(
   let fullText = '';
 
   for await (const event of backend.run(
-    { prompt, cwd, maxTurns: 30, tools: 'none', abortSignal: abortController?.signal },
+    { prompt, cwd, maxTurns: 30, tools: 'coding', abortSignal: abortController?.signal },
     'plan-reviewer',
   )) {
     if (event.type === 'agent:result' || event.type === 'agent:tool_use' || event.type === 'agent:tool_result' || verbose) {

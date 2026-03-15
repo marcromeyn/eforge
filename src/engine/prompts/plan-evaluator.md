@@ -113,18 +113,28 @@ For each file with unstaged changes, apply your verdict:
 
 ## Output
 
-After inspecting all files, output your verdicts in an `<evaluation>` XML block:
+After inspecting all files, output your verdicts in an `<evaluation>` XML block. Each verdict must include structured evidence as child elements:
 
 ```xml
 <evaluation>
   <verdict file="path/to/plan.md" action="accept">
-    What the staged plan says — what the fix does — why this is a strict improvement
+    <original>What the planner's original artifact says</original>
+    <fix>What the reviewer's fix changes</fix>
+    <rationale>Why this is a strict improvement — the objective issue being fixed</rationale>
+    <if-accepted>What happens if this fix is accepted</if-accepted>
+    <if-rejected>What happens if this fix is rejected</if-rejected>
   </verdict>
   <verdict file="path/to/other.md" action="reject">
-    What the staged plan says — what the fix does — why this alters planner intent
+    <original>What the planner's original artifact says</original>
+    <fix>What the reviewer's fix changes</fix>
+    <rationale>Why this alters the planner's intent</rationale>
+    <if-accepted>What would change if accepted</if-accepted>
+    <if-rejected>Plan remains as the planner intended</if-rejected>
   </verdict>
 </evaluation>
 ```
+
+Every `<verdict>` must contain all five child elements: `<original>`, `<fix>`, `<rationale>`, `<if-accepted>`, `<if-rejected>`. This structured format ensures each verdict is grounded in explicit evidence rather than summary assertions.
 
 ## Final Commit
 

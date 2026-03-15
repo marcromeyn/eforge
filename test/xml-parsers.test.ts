@@ -474,4 +474,86 @@ describe('parseEvaluationBlock', () => {
     const result = parseEvaluationBlock(text);
     expect(result).toHaveLength(2);
   });
+
+  it('parses verdict with all 5 structured evidence elements', () => {
+    const text = `
+<evaluation>
+  <verdict file="src/app.ts" action="accept">
+    <staged>Implements the handler with string concatenation</staged>
+    <fix>Replaces string concat with template literal</fix>
+    <rationale>Template literal prevents injection when input contains special chars</rationale>
+    <if-accepted>Handler safely interpolates user input</if-accepted>
+    <if-rejected>String concat remains vulnerable to format-breaking input</if-rejected>
+  </verdict>
+</evaluation>`;
+
+    const result = parseEvaluationBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].file).toBe('src/app.ts');
+    expect(result[0].action).toBe('accept');
+    expect(result[0].evidence).toBeDefined();
+    expect(result[0].evidence!.staged).toBe('Implements the handler with string concatenation');
+    expect(result[0].evidence!.fix).toBe('Replaces string concat with template literal');
+    expect(result[0].evidence!.rationale).toBe('Template literal prevents injection when input contains special chars');
+    expect(result[0].evidence!.ifAccepted).toBe('Handler safely interpolates user input');
+    expect(result[0].evidence!.ifRejected).toBe('String concat remains vulnerable to format-breaking input');
+  });
+
+  it('parses verdict with <original> tag (plan-evaluator format)', () => {
+    const text = `
+<evaluation>
+  <verdict file="plans/v1/plan-01.md" action="reject">
+    <original>Plan specifies Prisma as ORM</original>
+    <fix>Reviewer changed ORM to Drizzle</fix>
+    <rationale>This alters the planner's architectural decision</rationale>
+    <if-accepted>ORM choice changes from Prisma to Drizzle</if-accepted>
+    <if-rejected>Plan retains Prisma as originally chosen</if-rejected>
+  </verdict>
+</evaluation>`;
+
+    const result = parseEvaluationBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].evidence).toBeDefined();
+    expect(result[0].evidence!.staged).toBe('Plan specifies Prisma as ORM');
+  });
+
+  it('returns undefined evidence and populated reason for plain-text verdict', () => {
+    const text = `
+<evaluation>
+  <verdict file="src/utils.ts" action="accept">Simple plain text reason</verdict>
+</evaluation>`;
+
+    const result = parseEvaluationBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].reason).toBe('Simple plain text reason');
+    expect(result[0].evidence).toBeUndefined();
+  });
+
+  it('extracts hunk attribute from verdict', () => {
+    const text = `
+<evaluation>
+  <verdict file="src/handler.ts" hunk="2" action="reject">
+    <staged>Handler processes input in hunk 2</staged>
+    <fix>Reviewer refactored error handling</fix>
+    <rationale>Changes the error handling strategy</rationale>
+    <if-accepted>Error handling changes</if-accepted>
+    <if-rejected>Original error handling preserved</if-rejected>
+  </verdict>
+</evaluation>`;
+
+    const result = parseEvaluationBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].hunk).toBe(2);
+  });
+
+  it('returns undefined hunk for verdicts without hunk attribute', () => {
+    const text = `
+<evaluation>
+  <verdict file="src/app.ts" action="accept">No hunk here</verdict>
+</evaluation>`;
+
+    const result = parseEvaluationBlock(text);
+    expect(result).toHaveLength(1);
+    expect(result[0].hunk).toBeUndefined();
+  });
 });
