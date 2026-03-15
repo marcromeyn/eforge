@@ -1,9 +1,9 @@
-import { readFile, access as fsAccess } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { readFile, writeFile, mkdir, access as fsAccess } from 'node:fs/promises';
+import { constants, existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
 import { promisify } from 'node:util';
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 import type { PlanFile, OrchestrationConfig, ExpeditionModule } from './events.js';
 
 const execAsync = promisify(execFile);
@@ -365,4 +365,106 @@ export async function validateRuntimeReadiness(
   }
 
   return warnings;
+}
+
+/**
+ * Extract the first H1 heading from markdown content.
+ * Returns the heading text, or undefined if no H1 is found.
+ */
+export function extractPlanTitle(markdown: string): string | undefined {
+  const match = markdown.match(/^#\s+(.+)$/m);
+  return match ? match[1].trim() : undefined;
+}
+
+/**
+ * Detect validation commands from package.json scripts and lockfile.
+ * Returns an array of runnable commands (e.g., ['pnpm type-check', 'pnpm test']).
+ */
+export async function detectValidationCommands(cwd: string): Promise<string[]> {
+  // Detect package manager from lockfile
+  let runner = 'npm run';
+  if (existsSync(resolve(cwd, 'pnpm-lock.yaml'))) {
+    runner = 'pnpm';
+  } else if (existsSync(resolve(cwd, 'yarn.lock'))) {
+    runner = 'yarn';
+  } else if (existsSync(resolve(cwd, 'package-lock.json'))) {
+    runner = 'npm run';
+  }
+
+  // Read package.json scripts
+  let scripts: Record<string, string> = {};
+  try {
+    const pkg = JSON.parse(await readFile(resolve(cwd, 'package.json'), 'utf-8'));
+    scripts = pkg.scripts ?? {};
+  } catch {
+    return [];
+  }
+
+  const commands: string[] = [];
+  if (scripts['type-check']) commands.push(`${runner} type-check`);
+  else if (scripts['typecheck']) commands.push(`${runner} typecheck`);
+  if (scripts['test']) commands.push(`${runner} test`);
+
+  return commands;
+}
+
+/**
+ * Write plan file + orchestration.yaml for an adopted plan.
+ * Returns the created PlanFile.
+ */
+export interface WritePlanArtifactsOptions {
+  cwd: string;
+  planSetName: string;
+  sourceContent: string;
+  planName: string;
+  baseBranch: string;
+  validate?: string[];
+}
+
+export async function writePlanArtifacts(options: WritePlanArtifactsOptions): Promise<PlanFile> {
+  const { cwd, planSetName, sourceContent, planName, baseBranch, validate } = options;
+  const planDir = resolve(cwd, 'plans', planSetName);
+  await mkdir(planDir, { recursive: true });
+
+  const planId = `plan-01-${planSetName}`;
+  const branch = `${planSetName}/main`;
+
+  // Write plan file with YAML frontmatter
+  const frontmatter = {
+    id: planId,
+    name: planName,
+    depends_on: [] as string[],
+    branch,
+  };
+
+  const planContent = `---\n${stringifyYaml(frontmatter).trim()}\n---\n\n${sourceContent}`;
+  const planPath = resolve(planDir, `${planId}.md`);
+  await writeFile(planPath, planContent, 'utf-8');
+
+  // Write orchestration.yaml
+  const orchConfig: Record<string, unknown> = {
+    name: planSetName,
+    description: planName,
+    created: new Date().toISOString().split('T')[0],
+    mode: 'errand',
+    base_branch: baseBranch,
+    ...(validate && validate.length > 0 && { validate }),
+    plans: [{
+      id: planId,
+      name: planName,
+      depends_on: [] as string[],
+      branch,
+    }],
+  };
+
+  await writeFile(resolve(planDir, 'orchestration.yaml'), stringifyYaml(orchConfig), 'utf-8');
+
+  return {
+    id: planId,
+    name: planName,
+    dependsOn: [],
+    branch,
+    body: sourceContent,
+    filePath: planPath,
+  };
 }

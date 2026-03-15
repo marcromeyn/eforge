@@ -13,6 +13,7 @@ export type {
   PlanState,
   PlanOptions,
   BuildOptions,
+  AdoptOptions,
   EforgeStatus,
   ScopeAssessment,
 } from './events.js';
@@ -25,7 +26,11 @@ export {
   resolveDependencyGraph,
   validatePlanSet,
   validatePlanSetName,
+  extractPlanTitle,
+  detectValidationCommands,
+  writePlanArtifacts,
 } from './plan.js';
+export type { WritePlanArtifactsOptions } from './plan.js';
 
 // --- prompts ---
 export { loadPrompt } from './prompts.js';

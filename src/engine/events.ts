@@ -99,6 +99,17 @@ export interface BuildOptions {
   abortController?: AbortController;
 }
 
+export interface AdoptOptions {
+  verbose?: boolean;
+  name?: string;
+  cwd?: string;
+  abortController?: AbortController;
+  /** Skip the plan review cycle after adoption */
+  skipReview?: boolean;
+  /** Explicit validation commands for orchestration.yaml */
+  validate?: string[];
+}
+
 export interface EforgeStatus {
   running: boolean;
   setName?: string;
@@ -108,7 +119,7 @@ export interface EforgeStatus {
 
 export type EforgeEvent =
   // Lifecycle
-  | { type: 'eforge:start'; runId: string; planSet: string; command: 'plan' | 'build'; timestamp: string }
+  | { type: 'eforge:start'; runId: string; planSet: string; command: 'plan' | 'build' | 'adopt'; timestamp: string }
   | { type: 'eforge:end'; runId: string; result: EforgeResult; timestamp: string }
 
   // Planning

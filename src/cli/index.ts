@@ -171,6 +171,8 @@ export function createProgram(abortController?: AbortController): Command {
     .option('--auto', 'Run without approval gates')
     .option('--verbose', 'Stream agent output')
     .option('--name <name>', 'Plan set name (inferred from source if omitted)')
+    .option('--adopt', 'Adopt source as an existing plan (skip planner agent)')
+    .option('--no-review', 'Skip plan review (only applies with --adopt)')
     .option('--parallelism <n>', 'Max parallel plans', parseInt)
     .option('--dry-run', 'Plan only, then show execution plan without building')
     .option('--no-monitor', 'Disable web monitor')
@@ -182,6 +184,8 @@ export function createProgram(abortController?: AbortController): Command {
           auto?: boolean;
           verbose?: boolean;
           name?: string;
+          adopt?: boolean;
+          review?: boolean;
           parallelism?: number;
           dryRun?: boolean;
           monitor?: boolean;
@@ -199,17 +203,26 @@ export function createProgram(abortController?: AbortController): Command {
         });
 
         await withMonitor(options.monitor === false, async (monitor) => {
-          // Phase 1: Plan
+          // Phase 1: Plan or Adopt
           let planSetName: string | undefined;
           let planFiles: PlanFile[] = [];
           let planResult: 'completed' | 'failed' = 'completed';
 
-          for await (const event of wrapEvents(engine.plan(source, {
-            auto: options.auto,
-            verbose: options.verbose,
-            name: options.name,
-            abortController,
-          }), monitor, engine.resolvedConfig.hooks)) {
+          const phase1Events = options.adopt
+            ? engine.adopt(source, {
+                verbose: options.verbose,
+                name: options.name,
+                skipReview: options.review === false,
+                abortController,
+              })
+            : engine.plan(source, {
+                auto: options.auto,
+                verbose: options.verbose,
+                name: options.name,
+                abortController,
+              });
+
+          for await (const event of wrapEvents(phase1Events, monitor, engine.resolvedConfig.hooks)) {
             renderEvent(event);
             if (event.type === 'eforge:start') {
               renderLangfuseStatus(engine.resolvedConfig);

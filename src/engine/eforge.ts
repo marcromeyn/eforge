@@ -16,6 +16,7 @@ import type {
   EforgeStatus,
   PlanOptions,
   BuildOptions,
+  AdoptOptions,
   PlanFile,
   ClarificationQuestion,
   AgentResultData,
@@ -41,7 +42,7 @@ import { runCohesionReview } from './agents/cohesion-reviewer.js';
 import { runCohesionEvaluate } from './agents/cohesion-evaluator.js';
 import { runValidationFixer } from './agents/validation-fixer.js';
 import { Orchestrator, type ValidationFixer } from './orchestrator.js';
-import { deriveNameFromSource, parseOrchestrationConfig, parsePlanFile, validatePlanSet, validatePlanSetName } from './plan.js';
+import { deriveNameFromSource, parseOrchestrationConfig, parsePlanFile, validatePlanSet, validatePlanSetName, extractPlanTitle, detectValidationCommands, writePlanArtifacts } from './plan.js';
 import { compileExpedition } from './compiler.js';
 import { parseModulesBlock } from './agents/common.js';
 import { loadState } from './state.js';
@@ -300,6 +301,124 @@ export class EforgeEngine {
           yield { type: 'plan:progress', message: `Plan review skipped: ${(err as Error).message}` };
         }
       }
+    } finally {
+      tracing.setOutput({ status, summary });
+      yield {
+        type: 'eforge:end',
+        runId,
+        result: { status, summary },
+        timestamp: new Date().toISOString(),
+      };
+      await tracing.flush();
+    }
+  }
+
+  /**
+   * Adopt: wrap an existing implementation plan (e.g., from Claude Code plan mode)
+   * into eforge plan format and optionally run plan review.
+   *
+   * Skips the planner agent entirely — this is a deterministic transformation.
+   */
+  async *adopt(source: string, options: Partial<AdoptOptions> = {}): AsyncGenerator<EforgeEvent> {
+    const cwd = options.cwd ?? this.cwd;
+    const runId = randomUUID();
+
+    // Resolve source content
+    let sourceContent: string;
+    try {
+      const sourcePath = resolve(cwd, source);
+      const stats = await stat(sourcePath);
+      sourceContent = stats.isFile() ? await readFile(sourcePath, 'utf-8') : source;
+    } catch {
+      sourceContent = source;
+    }
+
+    const planSetName = options.name ?? deriveNameFromSource(source);
+    validatePlanSetName(planSetName);
+    const tracing = createTracingContext(this.config, runId, 'adopt', planSetName);
+
+    yield {
+      type: 'eforge:start',
+      runId,
+      planSet: planSetName,
+      command: 'adopt',
+      timestamp: new Date().toISOString(),
+    };
+
+    let status: 'completed' | 'failed' = 'completed';
+    let summary = 'Adoption complete';
+
+    tracing.setInput({ source, planSet: planSetName });
+
+    try {
+      // Derive plan title from first H1 heading
+      const planName = extractPlanTitle(sourceContent)
+        ?? planSetName.replace(/-/g, ' ').replace(/\b\w/, (c) => c.toUpperCase());
+
+      // Detect base branch
+      let baseBranch = 'main';
+      try {
+        const { stdout } = await exec('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd });
+        baseBranch = stdout.trim();
+      } catch {
+        // Fall back to main
+      }
+
+      // Resolve validation commands
+      let validate = options.validate;
+      if (!validate || validate.length === 0) {
+        validate = this.config.build.postMergeCommands;
+      }
+      if (!validate || validate.length === 0) {
+        validate = await detectValidationCommands(cwd);
+      }
+
+      yield { type: 'plan:start', source };
+      yield { type: 'plan:progress', message: `Adopting plan as ${planSetName}...` };
+
+      // Write plan artifacts
+      const planFile = await writePlanArtifacts({
+        cwd,
+        planSetName,
+        sourceContent,
+        planName,
+        baseBranch,
+        validate,
+      });
+
+      // Commit plan artifacts
+      const planDir = resolve(cwd, 'plans', planSetName);
+      await exec('git', ['add', planDir], { cwd });
+      await exec('git', ['commit', '-m', `plan(${planSetName}): adopt existing implementation plan`], { cwd });
+
+      yield { type: 'plan:complete', plans: [planFile] };
+
+      // Plan review cycle (non-fatal, skippable)
+      if (!options.skipReview) {
+        const verbose = options.verbose;
+        const abortController = options.abortController;
+        try {
+          yield* runReviewCycle({
+            tracing,
+            cwd,
+            reviewer: {
+              role: 'plan-reviewer',
+              metadata: { planSet: planSetName },
+              run: () => runPlanReview({ backend: this.backend, sourceContent, planSetName, cwd, verbose, abortController }),
+            },
+            evaluator: {
+              role: 'plan-evaluator',
+              metadata: { planSet: planSetName },
+              run: () => runPlanEvaluate({ backend: this.backend, planSetName, sourceContent, cwd, verbose, abortController }),
+            },
+          });
+        } catch (err) {
+          yield { type: 'plan:progress', message: `Plan review skipped: ${(err as Error).message}` };
+        }
+      }
+    } catch (err) {
+      status = 'failed';
+      summary = (err as Error).message;
     } finally {
       tracing.setOutput({ status, summary });
       yield {

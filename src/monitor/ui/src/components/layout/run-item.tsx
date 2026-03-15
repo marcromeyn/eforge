@@ -44,7 +44,7 @@ export function RunItem({ run, isActive, onSelect }: RunItemProps) {
             <span
               className={cn(
                 'text-[11px] font-medium px-1.5 py-0.5 rounded-sm',
-                run.command === 'plan' && 'bg-purple/15 text-purple',
+                (run.command === 'plan' || run.command === 'adopt') && 'bg-purple/15 text-purple',
                 run.command === 'build' && 'bg-blue/15 text-blue',
                 run.command === 'run' && 'bg-cyan/15 text-cyan',
               )}

@@ -23,7 +23,7 @@ function groupByPlanSet(runs: RunInfo[]): PlanSetGroup[] {
     groups.get(key)!.push(run);
   }
   // Sort runs within each group: plan before build, then chronological (newest first)
-  const commandOrder: Record<string, number> = { plan: 0, run: 1, build: 2 };
+  const commandOrder: Record<string, number> = { plan: 0, adopt: 0, run: 1, build: 2 };
   for (const groupRuns of groups.values()) {
     groupRuns.sort((a, b) => {
       const ta = new Date(a.startedAt).getTime();
