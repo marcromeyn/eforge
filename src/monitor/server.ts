@@ -37,7 +37,7 @@ export interface MonitorServer {
 
 interface SSESubscriber {
   res: ServerResponse;
-  runId: string;
+  sessionId: string;
   lastSeenId: number;
 }
 
@@ -47,6 +47,11 @@ export async function startServer(
   options?: { strictPort?: boolean },
 ): Promise<MonitorServer> {
   const subscribers = new Set<SSESubscriber>();
+
+  function resolveSessionId(id: string): string {
+    const run = db.getRun(id);
+    return run?.sessionId ?? id;
+  }
 
   async function serveStaticFile(req: IncomingMessage, res: ServerResponse, urlPath: string): Promise<void> {
     // Determine the file path
@@ -103,7 +108,9 @@ export async function startServer(
     res.end(JSON.stringify(runs));
   }
 
-  function serveSSE(req: IncomingMessage, res: ServerResponse, runId: string): void {
+  function serveSSE(req: IncomingMessage, res: ServerResponse, id: string): void {
+    const sessionId = resolveSessionId(id);
+
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
@@ -115,7 +122,7 @@ export async function startServer(
     const lastEventId = req.headers['last-event-id']
       ? parseInt(req.headers['last-event-id'] as string, 10)
       : undefined;
-    const historicalEvents = db.getEvents(runId, lastEventId);
+    const historicalEvents = db.getEventsBySession(sessionId, lastEventId);
     let lastSeenId = lastEventId ?? 0;
     for (const event of historicalEvents) {
       const dataLines = event.data.split('\n').map((l: string) => `data: ${l}`).join('\n');
@@ -126,7 +133,7 @@ export async function startServer(
     }
 
     // Register for poll-based live updates
-    const subscriber: SSESubscriber = { res, runId, lastSeenId };
+    const subscriber: SSESubscriber = { res, sessionId, lastSeenId };
     subscribers.add(subscriber);
 
     req.on('close', () => {
@@ -147,7 +154,7 @@ export async function startServer(
   const pollTimer = setInterval(() => {
     for (const subscriber of subscribers) {
       try {
-        const newEvents = db.getEvents(subscriber.runId, subscriber.lastSeenId);
+        const newEvents = db.getEventsBySession(subscriber.sessionId, subscriber.lastSeenId);
         for (const event of newEvents) {
           const dataLines = event.data.split('\n').map((l: string) => `data: ${l}`).join('\n');
           subscriber.res.write(`id: ${event.id}\n${dataLines}\n\n`);
@@ -163,16 +170,18 @@ export async function startServer(
   pollTimer.unref();
 
   function serveLatestRunId(_req: IncomingMessage, res: ServerResponse): void {
+    const sessionId = db.getLatestSessionId();
     const runId = db.getLatestRunId();
     res.writeHead(200, {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
     });
-    res.end(JSON.stringify({ runId: runId ?? null }));
+    res.end(JSON.stringify({ sessionId: sessionId ?? null, runId: runId ?? null }));
   }
 
-  function serveOrchestration(_req: IncomingMessage, res: ServerResponse, runId: string): void {
-    const events = db.getEventsByType(runId, 'plan:complete');
+  function serveOrchestration(_req: IncomingMessage, res: ServerResponse, id: string): void {
+    const sessionId = resolveSessionId(id);
+    const events = db.getEventsByTypeForSession(sessionId, 'plan:complete');
     if (events.length === 0) {
       res.writeHead(200, {
         'Content-Type': 'application/json',
@@ -209,8 +218,9 @@ export async function startServer(
     }
   }
 
-  function servePlans(_req: IncomingMessage, res: ServerResponse, runId: string): void {
-    const events = db.getEventsByType(runId, 'plan:complete');
+  function servePlans(_req: IncomingMessage, res: ServerResponse, id: string): void {
+    const sessionId = resolveSessionId(id);
+    const events = db.getEventsByTypeForSession(sessionId, 'plan:complete');
     if (events.length === 0) {
       res.writeHead(200, {
         'Content-Type': 'application/json',
@@ -269,19 +279,31 @@ export async function startServer(
       }
       serveOrchestration(req, res, runId);
     } else if (url.startsWith('/api/run-state/')) {
-      const runId = url.slice('/api/run-state/'.length);
-      if (!runId || !/^[\w-]+$/.test(runId)) {
+      const id = url.slice('/api/run-state/'.length);
+      if (!id || !/^[\w-]+$/.test(id)) {
         res.writeHead(400, { 'Content-Type': 'text/plain' });
-        res.end('Invalid runId');
+        res.end('Invalid id');
         return;
       }
-      const run = db.getRun(runId);
-      const events = db.getEvents(runId);
+      const sessionId = resolveSessionId(id);
+      const events = db.getEventsBySession(sessionId);
+      const sessionRuns = db.getSessionRuns(sessionId);
+      // Compute session-level status
+      let status: string;
+      if (sessionRuns.length === 0) {
+        status = 'unknown';
+      } else if (sessionRuns.some((r) => r.status === 'running')) {
+        status = 'running';
+      } else if (sessionRuns.some((r) => r.status === 'failed')) {
+        status = 'failed';
+      } else {
+        status = 'completed';
+      }
       res.writeHead(200, {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
       });
-      res.end(JSON.stringify({ run: run ?? null, events }));
+      res.end(JSON.stringify({ status, events }));
     } else if (url.startsWith('/api/plans/')) {
       const runId = url.slice('/api/plans/'.length);
       if (!runId || !/^[\w-]+$/.test(runId)) {

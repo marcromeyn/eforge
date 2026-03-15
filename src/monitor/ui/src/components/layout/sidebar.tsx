@@ -6,8 +6,8 @@ import { groupRunsBySessions, type SessionGroup } from '@/lib/session-utils';
 import { RunItem } from './run-item';
 
 interface SidebarProps {
-  currentRunId: string | null;
-  onSelectRun: (runId: string) => void;
+  currentSessionId: string | null;
+  onSelectSession: (sessionId: string) => void;
   refreshTrigger: number;
 }
 
@@ -45,7 +45,7 @@ function GroupHeader({ group, isExpanded, onToggle }: {
   );
 }
 
-export function Sidebar({ currentRunId, onSelectRun, refreshTrigger }: SidebarProps) {
+export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger }: SidebarProps) {
   const { data: runs, refetch } = useApi<RunInfo[]>('/api/runs');
 
   // Refetch when trigger changes
@@ -65,15 +65,17 @@ export function Sidebar({ currentRunId, onSelectRun, refreshTrigger }: SidebarPr
     }
   }, [groups]);
 
-  // Also expand the group containing the current run
+  // Also expand the group containing the current session
   useEffect(() => {
-    if (currentRunId && groups.length > 0) {
-      const group = groups.find((g) => g.runs.some((r) => r.id === currentRunId));
+    if (currentSessionId && groups.length > 0) {
+      const group = groups.find((g) =>
+        g.runs.some((r) => r.sessionId === currentSessionId || r.id === currentSessionId),
+      );
       if (group && !expandedGroups.has(group.key)) {
         setExpandedGroups((prev) => new Set([...prev, group.key]));
       }
     }
-  }, [currentRunId, groups]);
+  }, [currentSessionId, groups]);
 
   const toggleGroup = (key: string) => {
     setExpandedGroups((prev) => {
@@ -105,8 +107,8 @@ export function Sidebar({ currentRunId, onSelectRun, refreshTrigger }: SidebarPr
                 <RunItem
                   key={run.id}
                   run={run}
-                  isActive={run.id === currentRunId}
-                  onSelect={onSelectRun}
+                  isActive={run.sessionId === currentSessionId || run.id === currentSessionId}
+                  onSelect={() => onSelectSession(run.sessionId || run.id)}
                   compact={group.isSession}
                 />
               ))}

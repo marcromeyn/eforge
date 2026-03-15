@@ -13,14 +13,14 @@ interface PlanData {
 }
 
 interface PlanPreviewPanelProps {
-  runId: string | null;
+  sessionId: string | null;
 }
 
-export function PlanPreviewPanel({ runId }: PlanPreviewPanelProps) {
+export function PlanPreviewPanel({ sessionId }: PlanPreviewPanelProps) {
   const { selectedPlanId, closePreview } = usePlanPreview();
   const isOpen = selectedPlanId !== null;
   const { data: plans, loading, error } = useApi<PlanData[]>(
-    runId ? `/api/plans/${runId}` : null,
+    sessionId ? `/api/plans/${sessionId}` : null,
   );
 
   // Find selected plan
