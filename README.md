@@ -70,9 +70,8 @@ flowchart TD
 git clone https://github.com/eforge-run/eforge.git
 cd eforge
 pnpm install && pnpm build
+pnpm link --global
 ```
-
-Make sure `eforge` is on your PATH - the Claude Code plugin and CLI both require the built binary.
 
 ### Claude Code Plugin (recommended)
 
@@ -85,11 +84,10 @@ Add the marketplace and install from within Claude Code:
 /plugin install eforge@eforge
 ```
 
-Once installed, eforge skills are available directly:
+Once installed, the primary entrypoint is `/eforge:run` - it takes a PRD or prompt and handles planning, building, review, and validation end-to-end.
 
 | Skill | Description |
 |-------|-------------|
-| `/eforge:plan` | Generate plans from a PRD or prompt |
 | `/eforge:run` | Plan + build + validate in one step |
 | `/eforge:status` | Check build progress |
 
