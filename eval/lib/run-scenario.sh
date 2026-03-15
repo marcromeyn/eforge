@@ -14,7 +14,6 @@ run_scenario() {
   local eforge_commit="$8"
 
   local fixture_dir="$FIXTURES_DIR/$fixture"
-  local workspace="$scenario_dir/workspace"
 
   local start_time
   start_time=$(date +%s)
@@ -28,8 +27,14 @@ run_scenario() {
   fi
 
   # Step 2: Copy fixture to workspace and init git
+  # Create workspace in a temp directory OUTSIDE the eforge repo so pnpm doesn't
+  # resolve to eforge's pnpm-workspace.yaml when installing fixture dependencies.
+  local workspace
+  workspace="$(mktemp -d -t "eforge-eval-${id}-XXXXXX")"
   echo "  Copying fixture '$fixture' to workspace..."
   cp -r "$fixture_dir" "$workspace"
+  # Record workspace path for debugging
+  echo "$workspace" > "$scenario_dir/workspace-path.txt"
 
   echo "  Initializing git repo..."
   (
@@ -94,6 +99,11 @@ run_scenario() {
 
   echo "  Result: $scenario_dir/result.json"
   echo "  Duration: $((duration / 60))m $((duration % 60))s"
+
+  # Clean up temp workspace (logs and results are already in scenario_dir)
+  if [[ -d "$workspace" && "$workspace" == /tmp/* ]]; then
+    rm -rf "$workspace"
+  fi
   return 0
 }
 

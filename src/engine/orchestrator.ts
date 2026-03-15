@@ -329,10 +329,10 @@ export class Orchestrator {
       const { validateCommands, validationFixer } = this.options;
       const maxRetries = this.options.maxValidationRetries ?? 2;
 
-      // Merge planner-generated validate commands with config postMergeCommands
+      // Config postMergeCommands run first (e.g., pnpm install), then planner-generated
+      // validate commands (e.g., pnpm type-check, pnpm test). Deduplicate exact matches.
       const allValidationCommands = [
-        ...(validateCommands ?? []),
-        ...(postMergeCommands ?? []),
+        ...new Set([...(postMergeCommands ?? []), ...(validateCommands ?? [])]),
       ];
 
       if (allMerged && allValidationCommands.length > 0 && !signal?.aborted) {

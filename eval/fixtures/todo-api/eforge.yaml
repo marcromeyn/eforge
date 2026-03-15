@@ -5,5 +5,5 @@ postMergeCommands:
 
 hooks:
   - event: "eforge:*"
-    command: 'echo "{\"event\":\"$EFORGE_EVENT_TYPE\",\"cwd\":\"$EFORGE_CWD\",\"git_remote\":\"$EFORGE_GIT_REMOTE\"}" >> .eforge/hook-events.log'
+    command: 'echo "{\"event\":\"$EFORGE_EVENT_TYPE\",\"EFORGE_CWD\":\"$EFORGE_CWD\",\"EFORGE_GIT_REMOTE\":\"$EFORGE_GIT_REMOTE\"}" >> .eforge/hook-events.log'
     timeout: 5000
