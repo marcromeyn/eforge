@@ -469,8 +469,14 @@ export class EforgeEngine {
           verbose,
           abortController,
         })) {
-          // Suppress duplicate plan:start and plan:scope (adopt already emitted these)
-          if (event.type === 'plan:start' || event.type === 'plan:scope') continue;
+          // Suppress duplicate plan:start (adopt already emitted one)
+          if (event.type === 'plan:start') continue;
+          // Suppress duplicate plan:scope yield, but track the planner's assessment
+          // (planner may upgrade scope, e.g., assessor says excursion → planner determines expedition)
+          if (event.type === 'plan:scope') {
+            scopeAssessment = event.assessment;
+            continue;
+          }
 
           // Detect <modules> block in agent messages (expedition mode, first match only)
           if (event.type === 'agent:message' && event.agent === 'planner' && expeditionModules.length === 0) {
