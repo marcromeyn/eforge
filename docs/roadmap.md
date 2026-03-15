@@ -1,25 +1,11 @@
 # Eforge Roadmap
 
-## Monitor Dashboard Enhancements
+## Plugin Colocation
 
-**Goal**: Richer visualization in the existing web monitor.
+**Goal**: Keep the eforge Claude Code plugin in-repo so it stays in sync with engine changes.
 
-- Dependency graph view (plan execution order and wave assignment)
-- Plan file preview with syntax highlighting
-- Wave-level grouping in timeline (currently shows per-plan pipeline only)
-- File change heatmap (merge conflict risk)
-
----
-
-## Event Hooks
-
-**Goal**: Let users run shell commands in response to engine events — notifications, webhooks, cost logging — without modifying engine internals.
-
-- `hooks` section in `eforge.yaml` with glob patterns on event types
-- `withHooks()` async generator middleware (fire-and-forget, never blocks pipeline)
-- Hooks receive full `EforgeEvent` as JSON on stdin (same pattern as Claude Code hooks)
-
-See [GitHub issue #1](https://github.com/schaakesolutionsllc/eforge/issues/1).
+- Move eforge plugin from `schaake-cc-marketplace` into `claude-marketplace/` in this repo
+- Eforge is going open source — no need for a separate private/public split anymore
 
 ---
 
