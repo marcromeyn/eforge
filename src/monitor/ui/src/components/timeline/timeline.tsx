@@ -29,7 +29,7 @@ export function Timeline({ events, startTime, waves, planStatuses }: TimelinePro
           showVerbose={showVerbose}
         />
       ) : (
-        <div className="flex flex-col gap-0.5 flex-1">
+        <div className="flex flex-col gap-1 flex-1">
           {events.map((storedEvent, i) => (
             <EventCard
               key={storedEvent.eventId || i}

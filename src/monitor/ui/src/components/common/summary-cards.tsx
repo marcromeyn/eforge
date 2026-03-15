@@ -13,9 +13,9 @@ interface SummaryCardsProps {
 
 function SummaryCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-card border border-border rounded-lg px-4 py-3 min-w-[140px]">
+    <div className="bg-card border border-border rounded-lg px-4 py-3 min-w-[140px] shadow-sm shadow-black/20">
       <div className="text-[11px] text-text-dim uppercase tracking-wide">{label}</div>
-      <div className="text-lg font-bold text-text-bright mt-0.5">{value}</div>
+      <div className="text-xl font-bold text-text-bright mt-1">{value}</div>
     </div>
   );
 }

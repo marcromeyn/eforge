@@ -151,8 +151,8 @@ export function EventCard({ event, startTime, showVerbose }: EventCardProps) {
   return (
     <div
       className={cn(
-        'bg-card border border-border rounded-md px-3 py-2 flex items-start gap-2.5',
-        isVerbose && 'opacity-60 border-transparent bg-transparent',
+        'bg-card border border-border rounded-md px-3 py-2 flex items-start gap-2.5 shadow-sm shadow-black/10',
+        isVerbose && 'opacity-50 border-border/50 bg-card/50 shadow-none',
       )}
     >
       <span

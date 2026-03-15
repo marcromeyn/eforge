@@ -24,6 +24,7 @@ export function App() {
   const [orchestration, setOrchestration] = useState<OrchestrationConfig | null>(null);
   const [mergedPlanIds, setMergedPlanIds] = useState<Set<string>>(new Set());
   const knownLatestRef = useRef<string | null>(null);
+  const userSelectedRunRef = useRef<string | null>(null);
   const { runState, connectionStatus, resetState } = useEforgeEvents(currentRunId);
   const { containerRef, autoScroll, enableAutoScroll } = useAutoScroll([runState.events.length]);
 
@@ -31,14 +32,22 @@ export function App() {
   const hasEvents = runState.events.length > 0;
   const isMultiPlan = Object.keys(runState.planStatuses).length > 1;
 
-  // Select run handler
+  // Select run handler — marks as user-selected to prevent auto-switch
   const handleSelectRun = useCallback((runId: string) => {
+    userSelectedRunRef.current = runId;
     setCurrentRunId(runId);
     resetState();
     setSidebarRefresh((c) => c + 1);
   }, [resetState]);
 
-  // Poll for new runs — only auto-switch when a genuinely new run appears
+  // Clear user selection when the watched run completes
+  useEffect(() => {
+    if (runState.isComplete && userSelectedRunRef.current === currentRunId) {
+      userSelectedRunRef.current = null;
+    }
+  }, [runState.isComplete, currentRunId]);
+
+  // Poll for new runs — only auto-switch when no user selection is active
   useEffect(() => {
     // Auto-select latest run on mount
     fetchLatestRunId().then((id) => {
@@ -54,10 +63,12 @@ export function App() {
       try {
         const latestId = await fetchLatestRunId();
         if (latestId && latestId !== knownLatestRef.current) {
-          // A genuinely new run appeared — auto-switch to it
           knownLatestRef.current = latestId;
-          setCurrentRunId(latestId);
+          // Refresh sidebar to show new run, but only auto-switch if user hasn't manually selected
           setSidebarRefresh((c) => c + 1);
+          if (!userSelectedRunRef.current) {
+            setCurrentRunId(latestId);
+          }
         }
       } catch {
         // ignore
@@ -105,7 +116,14 @@ export function App() {
   }, [runState.events.length]);
 
   const hasOrchestration = orchestration !== null && orchestration.plans.length > 0;
-  const showTabs = hasOrchestration || isMultiPlan;
+  const graphEnabled = hasOrchestration;
+  const heatmapEnabled = isMultiPlan;
+
+  // Reset active tab if its feature becomes unavailable
+  useEffect(() => {
+    if (activeTab === 'graph' && !graphEnabled) setActiveTab('timeline');
+    if (activeTab === 'heatmap' && !heatmapEnabled) setActiveTab('timeline');
+  }, [graphEnabled, heatmapEnabled, activeTab]);
 
   // Update duration every second while running
   const [, setTick] = useState(0);
@@ -130,7 +148,7 @@ export function App() {
       >
         <main
           ref={containerRef}
-          className="overflow-y-auto p-4 flex flex-col gap-4 flex-1"
+          className="overflow-y-auto p-5 flex flex-col gap-5 flex-1"
         >
           {!hasEvents ? (
             <div className="flex items-center justify-center h-full text-text-dim text-sm">
@@ -142,8 +160,8 @@ export function App() {
               <Pipeline planStatuses={runState.planStatuses} />
 
               {/* Content tabs */}
-              {showTabs && (
-                <div className="flex gap-1 border-b border-border">
+              {/* Always show tabs — disabled tabs hint at features available for multi-plan runs */}
+              <div className="flex gap-1 border-b border-border">
                   <button
                     onClick={() => setActiveTab('timeline')}
                     className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
@@ -154,35 +172,38 @@ export function App() {
                   >
                     Timeline
                   </button>
-                  {hasOrchestration && (
-                    <button
-                      onClick={() => setActiveTab('graph')}
-                      className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
-                        activeTab === 'graph'
-                          ? 'border-primary text-foreground'
-                          : 'border-transparent text-text-dim hover:text-foreground'
-                      }`}
-                    >
-                      Graph
-                    </button>
-                  )}
-                  {isMultiPlan && (
-                    <button
-                      onClick={() => setActiveTab('heatmap')}
-                      className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
-                        activeTab === 'heatmap'
-                          ? 'border-primary text-foreground'
-                          : 'border-transparent text-text-dim hover:text-foreground'
-                      }`}
-                    >
-                      Heatmap
-                    </button>
-                  )}
-                </div>
-              )}
+                  <button
+                    onClick={() => setActiveTab('graph')}
+                    disabled={!graphEnabled}
+                    className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
+                      activeTab === 'graph'
+                        ? 'border-primary text-foreground'
+                        : graphEnabled
+                          ? 'border-transparent text-text-dim hover:text-foreground'
+                          : 'border-transparent text-text-dim/40 cursor-default'
+                    }`}
+                    title={graphEnabled ? undefined : 'Available for multi-plan runs with orchestration'}
+                  >
+                    Graph
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('heatmap')}
+                    disabled={!heatmapEnabled}
+                    className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
+                      activeTab === 'heatmap'
+                        ? 'border-primary text-foreground'
+                        : heatmapEnabled
+                          ? 'border-transparent text-text-dim hover:text-foreground'
+                          : 'border-transparent text-text-dim/40 cursor-default'
+                    }`}
+                    title={heatmapEnabled ? undefined : 'Available for multi-plan runs'}
+                  >
+                    Heatmap
+                  </button>
+              </div>
 
               {/* Tab content */}
-              {activeTab === 'graph' && hasOrchestration ? (
+              {activeTab === 'graph' && graphEnabled ? (
                 <div className="flex-1" style={{ minHeight: 400 }}>
                   <DependencyGraph
                     orchestration={orchestration}
@@ -190,7 +211,7 @@ export function App() {
                     mergedPlanIds={mergedPlanIds}
                   />
                 </div>
-              ) : activeTab === 'heatmap' && isMultiPlan ? (
+              ) : activeTab === 'heatmap' && heatmapEnabled ? (
                 <FileHeatmap runState={runState} />
               ) : (
                 <Timeline

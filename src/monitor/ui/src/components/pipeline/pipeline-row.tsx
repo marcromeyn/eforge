@@ -13,7 +13,7 @@ export function PipelineRow({ planId, currentStage }: PipelineRowProps) {
   const { openPreview } = usePlanPreview();
 
   return (
-    <div className="flex items-center gap-1 mb-1 text-[11px]">
+    <div className="flex items-center gap-1.5 text-[11px]">
       <span
         className="w-[120px] text-text-dim overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer hover:text-foreground hover:underline"
         title={planId}
