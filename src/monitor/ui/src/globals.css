@@ -43,6 +43,26 @@
     padding: 0;
     box-sizing: border-box;
     border-color: var(--color-border);
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-bg-tertiary) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-bg-tertiary);
+    border-radius: 3px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: var(--color-border);
   }
 
   body {
