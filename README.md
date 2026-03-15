@@ -4,6 +4,10 @@ Autonomous plan-build-review CLI for code generation.
 
 The name combines **E** from the [Expedition-Excursion-Errand (EEE) methodology](https://www.markschaake.com/posts/expedition-excursion-errand/) - a scope-aware planning framework that right-sizes AI workflows - with **forge**, reflecting the tool's role in shaping code from plans. eforge assesses your task's scope (errand, excursion, or expedition) and adapts its planning and execution strategy accordingly.
 
+## Status
+
+I built eforge for my professional work and use it daily. The source is public so others can learn from it, adapt it, or fork it. I don't accept pull requests. Issues are welcome for bug reports and questions — I read them, but may not respond or act on them. If you want to take it in a different direction, please fork freely.
+
 ## Why eforge?
 
 AI coding tools can produce code fast, but without structure the quality is unpredictable. A single agent that writes and reviews its own work is like a developer merging their own PRs without review - it works sometimes, but there's no systemic quality guarantee.
