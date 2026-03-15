@@ -24,13 +24,12 @@ This workflow was battle-tested as Claude Code plugins before being packaged int
 
 ```mermaid
 flowchart TD
-    PRD["PRD / prompt"]
+    Start["PRD, prompt, or plan file"]
 
-    PRD --> Planner
+    Start --> Planner
 
     subgraph plan ["Planning"]
-        Planner["Planner"]
-        Planner --> PC["Commit plans"]
+        Planner["Planner"] --> PC["Commit plans"]
         PC --> PR["Plan Reviewer (blind)"]
         PR --> PE["Plan Evaluator"]
         PE --> PF["Final plan commit"]
@@ -38,9 +37,8 @@ flowchart TD
 
     PF --> Orch
 
-    subgraph build ["Build (per plan, parallelized via worktrees)"]
-        Orch["Orchestrator"]
-        Orch --> Builder["Builder"]
+    subgraph build ["Build"]
+        Orch["Orchestrator"] --> Builder["Builder"]
         Builder --> BC["Commit implementation"]
         BC --> CR["Code Reviewer (blind)"]
         CR --> CE["Evaluator"]
