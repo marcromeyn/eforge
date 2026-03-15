@@ -7,13 +7,14 @@ import { SummaryCards } from '@/components/common/summary-cards';
 import { Pipeline } from '@/components/pipeline/pipeline';
 import { Timeline } from '@/components/timeline/timeline';
 import { DependencyGraph } from '@/components/graph';
+import { FileHeatmap } from '@/components/heatmap';
 import { useEforgeEvents } from '@/hooks/use-eforge-events';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { getSummaryStats } from '@/lib/reducer';
 import { fetchLatestRunId, fetchOrchestration } from '@/lib/api';
 import type { OrchestrationConfig } from '@/lib/types';
 
-type ContentTab = 'timeline' | 'graph';
+type ContentTab = 'timeline' | 'graph' | 'heatmap';
 
 export function App() {
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -27,6 +28,7 @@ export function App() {
 
   const stats = getSummaryStats(runState);
   const hasEvents = runState.events.length > 0;
+  const isMultiPlan = Object.keys(runState.planStatuses).length > 1;
 
   // Select run handler
   const handleSelectRun = useCallback((runId: string) => {
@@ -102,6 +104,7 @@ export function App() {
   }, [runState.events.length]);
 
   const hasOrchestration = orchestration !== null && orchestration.plans.length > 0;
+  const showTabs = hasOrchestration || isMultiPlan;
 
   // Update duration every second while running
   const [, setTick] = useState(0);
@@ -137,7 +140,7 @@ export function App() {
             <Pipeline planStatuses={runState.planStatuses} />
 
             {/* Content tabs */}
-            {hasOrchestration && (
+            {showTabs && (
               <div className="flex gap-1 border-b border-border">
                 <button
                   onClick={() => setActiveTab('timeline')}
@@ -149,16 +152,30 @@ export function App() {
                 >
                   Timeline
                 </button>
-                <button
-                  onClick={() => setActiveTab('graph')}
-                  className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
-                    activeTab === 'graph'
-                      ? 'border-primary text-foreground'
-                      : 'border-transparent text-text-dim hover:text-foreground'
-                  }`}
-                >
-                  Graph
-                </button>
+                {hasOrchestration && (
+                  <button
+                    onClick={() => setActiveTab('graph')}
+                    className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
+                      activeTab === 'graph'
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-text-dim hover:text-foreground'
+                    }`}
+                  >
+                    Graph
+                  </button>
+                )}
+                {isMultiPlan && (
+                  <button
+                    onClick={() => setActiveTab('heatmap')}
+                    className={`px-3 py-1.5 text-[11px] font-medium border-b-2 transition-colors ${
+                      activeTab === 'heatmap'
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-text-dim hover:text-foreground'
+                    }`}
+                  >
+                    Heatmap
+                  </button>
+                )}
               </div>
             )}
 
@@ -171,6 +188,8 @@ export function App() {
                   mergedPlanIds={mergedPlanIds}
                 />
               </div>
+            ) : activeTab === 'heatmap' && isMultiPlan ? (
+              <FileHeatmap runState={runState} />
             ) : (
               <Timeline events={runState.events} startTime={runState.startTime} />
             )}

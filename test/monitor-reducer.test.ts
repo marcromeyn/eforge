@@ -162,6 +162,77 @@ describe('eforgeReducer', () => {
     });
     expect(state.events).toHaveLength(1);
   });
+
+  it('populates fileChanges on build:files_changed', () => {
+    const state = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event: { type: 'build:files_changed', planId: 'plan-01', files: ['src/a.ts', 'src/b.ts'] },
+      eventId: '1',
+    });
+    expect(state.fileChanges.get('plan-01')).toEqual(['src/a.ts', 'src/b.ts']);
+  });
+
+  it('handles multiple build:files_changed for different plans', () => {
+    let state = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event: { type: 'build:files_changed', planId: 'plan-01', files: ['src/a.ts'] },
+      eventId: '1',
+    });
+    state = eforgeReducer(state, {
+      type: 'ADD_EVENT',
+      event: { type: 'build:files_changed', planId: 'plan-02', files: ['src/b.ts'] },
+      eventId: '2',
+    });
+    expect(state.fileChanges.get('plan-01')).toEqual(['src/a.ts']);
+    expect(state.fileChanges.get('plan-02')).toEqual(['src/b.ts']);
+  });
+
+  it('is idempotent for duplicate build:files_changed events', () => {
+    let state = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event: { type: 'build:files_changed', planId: 'plan-01', files: ['src/a.ts'] },
+      eventId: '1',
+    });
+    state = eforgeReducer(state, {
+      type: 'ADD_EVENT',
+      event: { type: 'build:files_changed', planId: 'plan-01', files: ['src/a.ts', 'src/b.ts'] },
+      eventId: '2',
+    });
+    // Latest event overwrites
+    expect(state.fileChanges.get('plan-01')).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(state.fileChanges.size).toBe(1);
+  });
+
+  it('tracks wave assignments from wave:start events', () => {
+    let state = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event: { type: 'wave:start', wave: 1, planIds: ['plan-01', 'plan-02'] },
+      eventId: '1',
+    });
+    expect(state.waves).toEqual([{ wave: 1, planIds: ['plan-01', 'plan-02'] }]);
+
+    state = eforgeReducer(state, {
+      type: 'ADD_EVENT',
+      event: { type: 'wave:start', wave: 2, planIds: ['plan-03'] },
+      eventId: '2',
+    });
+    expect(state.waves).toHaveLength(2);
+    expect(state.waves[1]).toEqual({ wave: 2, planIds: ['plan-03'] });
+  });
+
+  it('does not duplicate waves on repeated wave:start', () => {
+    let state = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event: { type: 'wave:start', wave: 1, planIds: ['plan-01'] },
+      eventId: '1',
+    });
+    state = eforgeReducer(state, {
+      type: 'ADD_EVENT',
+      event: { type: 'wave:start', wave: 1, planIds: ['plan-01'] },
+      eventId: '2',
+    });
+    expect(state.waves).toHaveLength(1);
+  });
 });
 
 describe('getSummaryStats', () => {
