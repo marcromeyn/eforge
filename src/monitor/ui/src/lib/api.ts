@@ -13,6 +13,13 @@ export async function fetchLatestRunId(): Promise<string | null> {
   return data.runId ?? null;
 }
 
+export async function fetchLatestSessionId(): Promise<string | null> {
+  const res = await fetch('/api/latest-run');
+  if (!res.ok) throw new Error(`Failed to fetch latest session: ${res.status}`);
+  const data = await res.json();
+  return data.sessionId ?? data.runId ?? null;
+}
+
 export async function fetchOrchestration(runId: string): Promise<unknown> {
   const res = await fetch(`/api/orchestration/${runId}`);
   if (!res.ok) throw new Error(`Failed to fetch orchestration: ${res.status}`);

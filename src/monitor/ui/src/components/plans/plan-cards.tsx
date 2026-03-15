@@ -10,14 +10,14 @@ interface PlanData {
 }
 
 interface PlanCardsProps {
-  runId: string | null;
+  sessionId: string | null;
   planStatuses: Record<string, PipelineStage>;
   fileChanges: Map<string, string[]>;
 }
 
-export function PlanCards({ runId, planStatuses, fileChanges }: PlanCardsProps) {
+export function PlanCards({ sessionId, planStatuses, fileChanges }: PlanCardsProps) {
   const { data: plans, loading, error } = useApi<PlanData[]>(
-    runId ? `/api/plans/${runId}` : null,
+    sessionId ? `/api/plans/${sessionId}` : null,
   );
 
   if (loading) {

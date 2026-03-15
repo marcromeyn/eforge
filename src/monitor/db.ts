@@ -51,6 +51,10 @@ export interface MonitorDB {
   getEventsByType(runId: string, type: string): EventRecord[];
   getLatestRunId(): string | undefined;
   getRunsBySession(sessionId: string): RunRecord[];
+  getEventsBySession(sessionId: string, afterId?: number): EventRecord[];
+  getEventsByTypeForSession(sessionId: string, type: string): EventRecord[];
+  getLatestSessionId(): string | undefined;
+  getSessionRuns(sessionId: string): RunRecord[];
   getLatestEventTimestamp(): string | undefined;
   close(): void;
 }
@@ -80,6 +84,7 @@ const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_events_run_id ON events(run_id);
   CREATE INDEX IF NOT EXISTS idx_events_type ON events(type);
+  CREATE INDEX IF NOT EXISTS idx_runs_session_id ON runs(session_id);
 `;
 
 export function openDatabase(dbPath: string): MonitorDB {
@@ -97,6 +102,8 @@ export function openDatabase(dbPath: string): MonitorDB {
   if (!columns.some((c) => c.name === 'session_id')) {
     db.exec('ALTER TABLE runs ADD COLUMN session_id TEXT');
   }
+  // Backfill session_id for pre-existing runs so session-scoped queries work
+  db.exec('UPDATE runs SET session_id = id WHERE session_id IS NULL');
 
   const stmts = {
     insertRun: db.prepare(
@@ -137,6 +144,18 @@ export function openDatabase(dbPath: string): MonitorDB {
     ),
     getRunsBySession: db.prepare(
       `SELECT id, session_id as sessionId, plan_set as planSet, command, status, started_at as startedAt, completed_at as completedAt, cwd, pid FROM runs WHERE session_id = ? ORDER BY started_at`,
+    ),
+    getEventsBySessionAll: db.prepare(
+      `SELECT e.id, e.run_id as runId, e.type, e.plan_id as planId, e.agent, e.data, e.timestamp FROM events e JOIN runs r ON e.run_id = r.id WHERE r.session_id = ? ORDER BY e.id`,
+    ),
+    getEventsBySessionAfter: db.prepare(
+      `SELECT e.id, e.run_id as runId, e.type, e.plan_id as planId, e.agent, e.data, e.timestamp FROM events e JOIN runs r ON e.run_id = r.id WHERE r.session_id = ? AND e.id > ? ORDER BY e.id`,
+    ),
+    getEventsByTypeForSession: db.prepare(
+      `SELECT e.id, e.run_id as runId, e.type, e.plan_id as planId, e.agent, e.data, e.timestamp FROM events e JOIN runs r ON e.run_id = r.id WHERE r.session_id = ? AND e.type = ? ORDER BY e.id`,
+    ),
+    getLatestSessionId: db.prepare(
+      `SELECT session_id as sessionId FROM runs ORDER BY started_at DESC LIMIT 1`,
     ),
   };
 
@@ -189,6 +208,26 @@ export function openDatabase(dbPath: string): MonitorDB {
     },
 
     getRunsBySession(sessionId) {
+      return stmts.getRunsBySession.all(sessionId) as RunRecord[];
+    },
+
+    getEventsBySession(sessionId, afterId) {
+      if (afterId !== undefined) {
+        return stmts.getEventsBySessionAfter.all(sessionId, afterId) as EventRecord[];
+      }
+      return stmts.getEventsBySessionAll.all(sessionId) as EventRecord[];
+    },
+
+    getEventsByTypeForSession(sessionId, type) {
+      return stmts.getEventsByTypeForSession.all(sessionId, type) as EventRecord[];
+    },
+
+    getLatestSessionId() {
+      const row = stmts.getLatestSessionId.get() as { sessionId: string | null } | undefined;
+      return row?.sessionId ?? undefined;
+    },
+
+    getSessionRuns(sessionId) {
       return stmts.getRunsBySession.all(sessionId) as RunRecord[];
     },
 

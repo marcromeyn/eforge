@@ -8,25 +8,25 @@ interface UseEforgeEventsResult {
 }
 
 interface RunStateResponse {
-  run: { status: string } | null;
+  status: string;
   events: Array<{ id: number; data: string }>;
 }
 
-export function useEforgeEvents(runId: string | null): UseEforgeEventsResult {
+export function useEforgeEvents(sessionId: string | null): UseEforgeEventsResult {
   const [runState, dispatch] = useReducer(eforgeReducer, initialRunState);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const eventSourceRef = useRef<EventSource | null>(null);
   const cacheRef = useRef<Map<string, RunState>>(new Map());
 
   useEffect(() => {
-    if (!runId) {
+    if (!sessionId) {
       dispatch({ type: 'RESET' });
       setConnectionStatus('disconnected');
       return;
     }
 
-    // Check client-side cache first (completed runs only)
-    const cached = cacheRef.current.get(runId);
+    // Check client-side cache first (completed sessions only)
+    const cached = cacheRef.current.get(sessionId);
     if (cached) {
       dispatch({ type: 'BATCH_LOAD', events: cached.events });
       setConnectionStatus('connected');
@@ -43,7 +43,7 @@ export function useEforgeEvents(runId: string | null): UseEforgeEventsResult {
     setConnectionStatus('connecting');
 
     // Batch-fetch all events via HTTP
-    fetch(`/api/run-state/${runId}`)
+    fetch(`/api/run-state/${sessionId}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<RunStateResponse>;
@@ -62,25 +62,21 @@ export function useEforgeEvents(runId: string | null): UseEforgeEventsResult {
         dispatch({ type: 'BATCH_LOAD', events: parsed });
         setConnectionStatus('connected');
 
-        const runStatus = data.run?.status;
+        const sessionStatus = data.status;
         const lastEventId = data.events.length > 0 ? data.events[data.events.length - 1].id : 0;
 
-        if (runStatus === 'completed' || runStatus === 'failed') {
-          // Run is done — cache it and skip SSE
-          // We need the state after batch load; build it from the parsed events
+        if (sessionStatus === 'completed' || sessionStatus === 'failed') {
+          // Session is done — cache it and skip SSE
           const finalState = parsed.reduce(
             (st, ev) => eforgeReducer(st, { type: 'ADD_EVENT', ...ev }),
             { ...initialRunState, fileChanges: new Map(), waves: [] } as RunState,
           );
-          cacheRef.current.set(runId, finalState);
+          cacheRef.current.set(sessionId, finalState);
           return;
         }
 
-        // Run is still active — open SSE for live events only
-        const es = new EventSource(`/api/events/${runId}`, {
-          // Use last-event-id to only get new events
-          // Note: EventSource doesn't support custom headers, so we pass via URL
-        });
+        // Session is still active — open SSE for live events only
+        const es = new EventSource(`/api/events/${sessionId}`);
         eventSourceRef.current = es;
 
         // Track which events we already have from batch load
@@ -110,7 +106,7 @@ export function useEforgeEvents(runId: string | null): UseEforgeEventsResult {
         setConnectionStatus('disconnected');
         // Fallback to SSE-only for backward compat
         dispatch({ type: 'RESET' });
-        const es = new EventSource(`/api/events/${runId}`);
+        const es = new EventSource(`/api/events/${sessionId}`);
         eventSourceRef.current = es;
         es.onopen = () => { if (!cancelled) setConnectionStatus('connected'); };
         es.onmessage = (msg) => {
@@ -132,7 +128,7 @@ export function useEforgeEvents(runId: string | null): UseEforgeEventsResult {
         eventSourceRef.current = null;
       }
     };
-  }, [runId]);
+  }, [sessionId]);
 
   return { runState, connectionStatus };
 }

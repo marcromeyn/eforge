@@ -14,20 +14,20 @@ import { PlanPreviewProvider, PlanPreviewPanel } from '@/components/preview';
 import { useEforgeEvents } from '@/hooks/use-eforge-events';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { getSummaryStats } from '@/lib/reducer';
-import { fetchLatestRunId, fetchOrchestration } from '@/lib/api';
+import { fetchLatestSessionId, fetchOrchestration } from '@/lib/api';
 import type { OrchestrationConfig } from '@/lib/types';
 
 type ContentTab = 'plans' | 'timeline' | 'graph' | 'heatmap';
 
 export function App() {
-  const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
   const [activeTab, setActiveTab] = useState<ContentTab>('plans');
   const [orchestration, setOrchestration] = useState<OrchestrationConfig | null>(null);
   const [mergedPlanIds, setMergedPlanIds] = useState<Set<string>>(new Set());
   const knownLatestRef = useRef<string | null>(null);
-  const userSelectedRunRef = useRef<string | null>(null);
-  const { runState, connectionStatus } = useEforgeEvents(currentRunId);
+  const userSelectedRef = useRef<string | null>(null);
+  const { runState, connectionStatus } = useEforgeEvents(currentSessionId);
   const { containerRef, autoScroll, enableAutoScroll } = useAutoScroll([runState.events.length]);
 
   const stats = getSummaryStats(runState);
@@ -35,41 +35,41 @@ export function App() {
   const isMultiPlan = Object.keys(runState.planStatuses).length > 1;
   const hasPlans = runState.events.some((e) => e.event.type === 'plan:complete');
 
-  // Select run handler — marks as user-selected to prevent auto-switch
-  const handleSelectRun = useCallback((runId: string) => {
-    userSelectedRunRef.current = runId;
-    setCurrentRunId(runId);
+  // Select session handler — marks as user-selected to prevent auto-switch
+  const handleSelectSession = useCallback((sessionId: string) => {
+    userSelectedRef.current = sessionId;
+    setCurrentSessionId(sessionId);
     setSidebarRefresh((c) => c + 1);
   }, []);
 
-  // Clear user selection when the watched run completes
+  // Clear user selection when the watched session completes
   useEffect(() => {
-    if (runState.isComplete && userSelectedRunRef.current === currentRunId) {
-      userSelectedRunRef.current = null;
+    if (runState.isComplete && userSelectedRef.current === currentSessionId) {
+      userSelectedRef.current = null;
     }
-  }, [runState.isComplete, currentRunId]);
+  }, [runState.isComplete, currentSessionId]);
 
-  // Poll for new runs — only auto-switch when no user selection is active
+  // Poll for new sessions — only auto-switch when no user selection is active
   useEffect(() => {
-    // Auto-select latest run on mount
-    fetchLatestRunId().then((id) => {
+    // Auto-select latest session on mount
+    fetchLatestSessionId().then((id) => {
       if (id) {
         knownLatestRef.current = id;
-        if (!currentRunId) {
-          setCurrentRunId(id);
+        if (!currentSessionId) {
+          setCurrentSessionId(id);
         }
       }
     }).catch(() => {});
 
     const interval = setInterval(async () => {
       try {
-        const latestId = await fetchLatestRunId();
+        const latestId = await fetchLatestSessionId();
         if (latestId && latestId !== knownLatestRef.current) {
           knownLatestRef.current = latestId;
           // Refresh sidebar to show new run, but only auto-switch if user hasn't manually selected
           setSidebarRefresh((c) => c + 1);
-          if (!userSelectedRunRef.current) {
-            setCurrentRunId(latestId);
+          if (!userSelectedRef.current) {
+            setCurrentSessionId(latestId);
           }
         }
       } catch {
@@ -78,7 +78,7 @@ export function App() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, []); // Run once on mount — no dependency on currentRunId
+  }, []); // Run once on mount — no dependency on currentSessionId
 
   // Refresh sidebar when phase:start or phase:end events arrive
   useEffect(() => {
@@ -91,16 +91,16 @@ export function App() {
     }
   }, [runState.events.length]);
 
-  // Fetch orchestration data when run changes
+  // Fetch orchestration data when session changes
   useEffect(() => {
-    if (!currentRunId) {
+    if (!currentSessionId) {
       setOrchestration(null);
       return;
     }
-    fetchOrchestration(currentRunId)
+    fetchOrchestration(currentSessionId)
       .then((data) => setOrchestration(data as OrchestrationConfig))
       .catch(() => setOrchestration(null));
-  }, [currentRunId]);
+  }, [currentSessionId]);
 
   // Track merged plan IDs from events
   useEffect(() => {
@@ -151,8 +151,8 @@ export function App() {
         header={<Header connectionStatus={connectionStatus} />}
         sidebar={
           <Sidebar
-            currentRunId={currentRunId}
-            onSelectRun={handleSelectRun}
+            currentSessionId={currentSessionId}
+            onSelectSession={handleSelectSession}
             refreshTrigger={sidebarRefresh}
           />
         }
@@ -201,7 +201,7 @@ export function App() {
               {activeTab === 'plans' ? (
                 hasPlans ? (
                   <PlanCards
-                    runId={currentRunId}
+                    sessionId={currentSessionId}
                     planStatuses={runState.planStatuses}
                     fileChanges={runState.fileChanges}
                   />
@@ -242,7 +242,7 @@ export function App() {
           </button>
         )}
 
-        <PlanPreviewPanel runId={currentRunId} />
+        <PlanPreviewPanel sessionId={currentSessionId} />
       </AppLayout>
     </PlanPreviewProvider>
   );

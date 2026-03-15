@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 interface RunItemProps {
   run: RunInfo;
   isActive: boolean;
-  onSelect: (runId: string) => void;
+  onSelect: () => void;
   compact?: boolean;
 }
 
@@ -34,7 +34,7 @@ export function RunItem({ run, isActive, onSelect, compact }: RunItemProps) {
         'hover:bg-bg-tertiary',
         isActive && 'bg-bg-tertiary ring-1 ring-cyan/40',
       )}
-      onClick={() => onSelect(run.id)}
+      onClick={onSelect}
     >
       <div className="flex items-start gap-2.5">
         <div className="mt-0.5">
