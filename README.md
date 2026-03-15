@@ -1,6 +1,6 @@
 # eforge
 
-Autonomous plan-build-review CLI for code generation, built on the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents-and-tools/claude-agent-sdk).
+Autonomous plan-build-review CLI for code generation.
 
 The name combines **E** from the [Expedition-Excursion-Errand (EEE) methodology](https://www.markschaake.com/posts/expedition-excursion-errand/) - a scope-aware planning framework that right-sizes AI workflows - with **forge**, reflecting the tool's role in shaping code from plans. eforge assesses your task's scope (errand, excursion, or expedition) and adapts its planning and execution strategy accordingly.
 
@@ -18,7 +18,7 @@ Through extensive real-world use with Claude Code, a methodology evolved organic
 
 The core idea: **you focus on intent and planning; eforge handles the engineering methodology.** You bring the "what" and "why." eforge handles the "how" - structured, independent review cycles that produce consistently high-quality results.
 
-This workflow was battle-tested as Claude Code plugins before being packaged into eforge - a standalone engine that codifies the methodology. eforge ships as both a CLI and a Claude Code plugin, and is designed to work especially well within Claude Code: plan interactively, then hand off to eforge for build, review, and validation. Agents inherit your project's plugins, skills, and MCP servers automatically, and git worktree isolation makes it safe to run multiple eforge builds in parallel on the same project. The engine is backend-flexible - the sole implementation today uses the Claude Agent SDK, but the `AgentBackend` abstraction means it can be extended to support other systems.
+This workflow was battle-tested as Claude Code plugins before being packaged into eforge - a standalone engine and CLI that codifies the methodology. A Claude Code plugin provides integration on top of the CLI, and eforge is designed to work especially well in that context: plan interactively, then hand off to eforge for build, review, and validation. Agents inherit your project's plugins, skills, and MCP servers automatically, and git worktree isolation makes it safe to run multiple eforge builds in parallel on the same project. The engine is backend-flexible - the sole implementation today uses the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents-and-tools/claude-agent-sdk), but the `AgentBackend` abstraction means it can be extended to support other systems.
 
 ## How It Works
 
