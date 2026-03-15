@@ -41,20 +41,7 @@ When adopting, the confirmation message should say:
 
 > Found implementation plan from your planning session. Will adopt it into eforge format and run build + review + validate (planner agent skipped).
 
-### Step 2: Preview (optional)
-
-Offer to show what eforge would do:
-
-```bash
-eforge run $SOURCE --dry-run          # normal mode
-eforge run $SOURCE --adopt --dry-run  # adopt mode
-```
-
-Display the output so the user can see the execution plan before committing. If the user wants changes, suggest refining the source with `/eforge:plan`.
-
-If the user wants to skip the preview, proceed directly to Step 3.
-
-### Step 3: Launch
+### Step 2: Launch
 
 Run eforge as a background task:
 
@@ -72,7 +59,7 @@ Use `run_in_background: true` on the Bash tool call so the user gets notified wh
 - `--verbose` streams detailed output for the completion notification
 - `--adopt` wraps the source into eforge plan format without running the planner agent
 
-### Step 4: Monitor
+### Step 3: Monitor
 
 Tell the user:
 
@@ -114,6 +101,5 @@ Tell the user:
 | `eforge` not found | Tell user to install eforge CLI and ensure it's on PATH |
 | Source file not found | Check path, suggest `/eforge:plan` to create one |
 | No arguments provided | Check conversation for plan file from `/plan` session; if none found, suggest `/eforge:plan` |
-| Dry-run fails | Show error output, help diagnose |
 | Adopt fails (invalid plan format) | Show error, suggest removing `--adopt` to use normal planning mode |
 | Build fails on launch | Show error, check prerequisites |
