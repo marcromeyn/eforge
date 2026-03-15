@@ -22,7 +22,7 @@ Evaluate the plan set against these categories:
 - **Cohesion** — Plans work together as a coherent whole. No gaps between plans where work would fall through. No contradictions where one plan assumes something another plan changes.
 - **Completeness** — Every requirement in the source/PRD is covered by at least one plan. No silent omissions.
 - **Correctness** — Technical approach is sound. File paths reference real locations. Code patterns match the existing codebase. Types and interfaces align across plan boundaries.
-- **Feasibility** — Each plan is implementable in a single builder session. Verification criteria are concrete and testable (not vague like "ensure it works").
+- **Feasibility** — Each plan is implementable in a single builder session. Verification criteria are concrete and testable. Scan all verification criteria and acceptance criteria for vague language using this pattern: `/\b(appropriate|properly|correctly|should|good|nice|clean|well|efficient|adequate|reasonable|robust|scalable|maintainable|readable|intuitive|seamless)\b/i`. Any match is a `warning` / `feasibility` issue. Include the matched word, the criterion it appears in, and a concrete replacement suggestion in the issue description.
 - **Dependency** — Dependency graph is correct. Plans that consume outputs of other plans list them as dependencies. No missing or circular dependencies.
 - **Scope** — Plans are neither over-scoped (trying to do too much for a single builder session) nor under-scoped (splitting trivially related work into separate plans unnecessarily).
 

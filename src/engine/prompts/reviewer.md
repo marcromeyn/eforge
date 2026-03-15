@@ -17,6 +17,17 @@ The changes were made on a branch derived from `{{base_branch}}`. Use `git diff 
 3. Review the changes against the plan's requirements and general code quality standards.
 4. Focus only on the diff — do not review unchanged code.
 
+# Issue Triage
+
+Before reporting an issue, check whether it should be **skipped**. The following categories of findings are not actionable and should be silently dropped — do not include them in the output:
+
+- **Generated files** — Do not flag issues in files that are auto-generated (e.g., lock files, compiled output, migration snapshots, `.d.ts` declaration files from codegen). If uncertain whether a file is generated, check for a generation header comment or whether it lives in a known output directory (e.g., `dist/`, `build/`, `.next/`, `generated/`).
+- **Existing mitigations** — Do not flag an issue if the code already handles the concern elsewhere. For example, if a function lacks input validation but the caller validates before invoking, or if error handling is centralized in middleware rather than per-handler.
+- **Dev-only code** — Do not flag issues in code that only runs in development or test environments (e.g., seed scripts, test fixtures, dev-only middleware, mock implementations) unless the issue is a security vulnerability (e.g., hardcoded credentials that could leak).
+- **Unreachable paths** — Do not flag issues in code paths that are unreachable given the current type system or control flow. For example, a `default` case in a switch over a discriminated union that TypeScript guarantees is exhaustive.
+
+When in doubt, **report the issue** — false negatives are worse than false positives. These rules filter out clear non-issues, not borderline cases.
+
 # Review Categories
 
 Evaluate the code against these categories:

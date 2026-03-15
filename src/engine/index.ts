@@ -47,7 +47,7 @@ export type { PlannerOptions } from './agents/planner.js';
 
 // --- builder ---
 export { builderImplement, builderEvaluate, parseEvaluationBlock } from './agents/builder.js';
-export type { BuilderOptions, EvaluationVerdict } from './agents/builder.js';
+export type { BuilderOptions, EvaluationVerdict, EvaluationEvidence } from './agents/builder.js';
 
 // --- reviewer ---
 export { runReview, parseReviewIssues, composeReviewPrompt } from './agents/reviewer.js';

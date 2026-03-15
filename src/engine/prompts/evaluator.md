@@ -131,23 +131,55 @@ For each file with unstaged changes, apply your verdict:
   git checkout -- <file>
   ```
 
+## Per-Hunk Evaluation
+
+When a file has multiple distinct hunks (contiguous blocks of changes) from the reviewer:
+
+1. Count the number of distinct hunks in the unstaged diff for each file.
+2. If a file has **2 or more hunks**, evaluate each hunk independently — they may deserve different verdicts.
+3. Use the `hunk` attribute (1-indexed) to identify which hunk the verdict applies to.
+4. If a file has only **1 hunk**, omit the `hunk` attribute.
+
+This prevents a single bad hunk from causing rejection of an otherwise good fix, or a single good hunk from causing acceptance of unrelated changes.
+
 ## Output
 
-After inspecting all files, output your verdicts in an `<evaluation>` XML block:
+After inspecting all files, output your verdicts in an `<evaluation>` XML block. Each verdict must include structured evidence as child elements:
 
 ```xml
 <evaluation>
   <verdict file="path/to/file.ts" action="accept">
-    What the staged code does — what the fix does — why this is a strict improvement
+    <staged>What the staged implementation code does for this file</staged>
+    <fix>What the reviewer's fix changes</fix>
+    <rationale>Why this is a strict improvement — the objective issue being fixed</rationale>
+    <if-accepted>What happens if this fix is accepted</if-accepted>
+    <if-rejected>What happens if this fix is rejected</if-rejected>
   </verdict>
   <verdict file="path/to/other.ts" action="reject">
-    What the staged code does — what the fix does — why this alters intent
+    <staged>What the staged implementation code does</staged>
+    <fix>What the reviewer's fix changes</fix>
+    <rationale>Why this alters the implementor's intent</rationale>
+    <if-accepted>What would change if accepted</if-accepted>
+    <if-rejected>Implementation remains as the builder intended</if-rejected>
   </verdict>
-  <verdict file="path/to/another.ts" action="review">
-    What the staged code does — what the fix does — why this is debatable
+  <verdict file="path/to/multi-hunk.ts" hunk="1" action="accept">
+    <staged>What the staged code does in hunk 1</staged>
+    <fix>What hunk 1 of the fix changes</fix>
+    <rationale>Why this hunk is a strict improvement</rationale>
+    <if-accepted>Consequence of accepting hunk 1</if-accepted>
+    <if-rejected>Consequence of rejecting hunk 1</if-rejected>
+  </verdict>
+  <verdict file="path/to/multi-hunk.ts" hunk="2" action="reject">
+    <staged>What the staged code does in hunk 2</staged>
+    <fix>What hunk 2 of the fix changes</fix>
+    <rationale>Why this hunk alters intent</rationale>
+    <if-accepted>Consequence of accepting hunk 2</if-accepted>
+    <if-rejected>Implementation remains as intended</if-rejected>
   </verdict>
 </evaluation>
 ```
+
+Every `<verdict>` must contain all five child elements: `<staged>`, `<fix>`, `<rationale>`, `<if-accepted>`, `<if-rejected>`. This structured format ensures each verdict is grounded in explicit evidence rather than summary assertions.
 
 ## Final Commit
 
