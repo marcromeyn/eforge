@@ -137,14 +137,14 @@ function PlanRow({ planId, threads, sessionStart, totalSpan, reviewIssues, disab
           </TooltipTrigger>
           <TooltipContent side="left">{planId}</TooltipContent>
         </Tooltip>
-        <div className="flex-1 bg-bg-tertiary rounded-sm overflow-x-hidden flex flex-col gap-px py-px min-h-4">
+        <div className="flex-1 bg-bg-tertiary rounded-sm overflow-x-clip flex flex-col gap-px py-px min-h-4">
           {sortedThreads.map((thread) => {
             const threadStart = new Date(thread.startedAt).getTime();
             const threadEnd = thread.endedAt
               ? new Date(thread.endedAt).getTime()
               : Date.now();
-            const leftPercent = ((threadStart - sessionStart) / totalSpan) * 100;
-            const widthPercent = ((threadEnd - threadStart) / totalSpan) * 100;
+            const leftPercent = Math.max(0, ((threadStart - sessionStart) / totalSpan) * 100);
+            const widthPercent = Math.max(0, Math.min(((threadEnd - threadStart) / totalSpan) * 100, 100 - leftPercent));
             const isRunning = thread.endedAt === null;
             const color = getAgentColor(thread.agent);
             const duration = thread.durationMs != null
@@ -160,7 +160,7 @@ function PlanRow({ planId, threads, sessionStart, totalSpan, reviewIssues, disab
                     <div
                       className={`absolute inset-y-0 rounded-sm border ${color.bg} ${color.border} flex items-center overflow-hidden cursor-default`}
                       style={{
-                        left: `${Math.max(0, leftPercent)}%`,
+                        left: `${leftPercent}%`,
                         width: `max(2px, ${widthPercent}%)`,
                         animation: isRunning ? 'pulse-opacity 2s ease-in-out infinite' : undefined,
                       }}
