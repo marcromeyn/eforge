@@ -22,3 +22,13 @@ scenarios:
       - pnpm test
       - test -f .eforge/hook-events.log && grep -q EFORGE_CWD .eforge/hook-events.log
     description: "Add JWT auth middleware + protected routes"
+
+  - id: workspace-api-collaboration
+    fixture: workspace-api
+    prd: docs/add-collaboration-platform.md
+    validate:
+      - pnpm install
+      - pnpm type-check
+      - pnpm test
+      - test -f .eforge/hook-events.log && grep -q EFORGE_CWD .eforge/hook-events.log
+    description: "Add auth, permissions, events, audit, and search to workspace API (expedition)"
