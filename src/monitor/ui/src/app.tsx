@@ -100,7 +100,7 @@ export function App() {
     fetchOrchestration(currentSessionId)
       .then((data) => setOrchestration(data as OrchestrationConfig))
       .catch(() => setOrchestration(null));
-  }, [currentSessionId]);
+  }, [currentSessionId, hasPlans]);
 
   // Track merged plan IDs from events
   useEffect(() => {

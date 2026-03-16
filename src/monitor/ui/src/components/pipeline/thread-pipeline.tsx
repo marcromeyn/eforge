@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { usePlanPreview } from '@/components/preview';
 import { formatDuration } from '@/lib/format';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ReviewGauge } from './review-gauge';
 import type { AgentThread } from '@/lib/reducer';
 import type { PipelineStage, ReviewIssue } from '@/lib/types';
@@ -21,6 +22,7 @@ const AGENT_COLORS: Record<string, { bg: string; border: string }> = {
 };
 
 const FALLBACK_COLOR = { bg: 'bg-cyan/30', border: 'border-cyan/50' };
+const EMPTY_THREADS: AgentThread[] = [];
 
 function getAgentColor(agent: string) {
   return AGENT_COLORS[agent] ?? FALLBACK_COLOR;
@@ -67,24 +69,26 @@ export function ThreadPipeline({ agentThreads, startTime, planStatuses, reviewIs
   if (entries.length === 0) return null;
 
   return (
-    <div className="bg-card border border-border rounded-lg px-4 py-3 shadow-sm shadow-black/20">
-      <h3 className="text-[11px] uppercase tracking-wider text-text-dim mb-2 flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-blue" />
-        Pipeline
-      </h3>
-      <div className="flex flex-col gap-1.5">
-        {entries.map(([planId]) => (
-          <PlanRow
-            key={planId}
-            planId={planId}
-            threads={threadsByPlan.get(planId) ?? threadsByPlan.get('__global__') ?? []}
-            sessionStart={sessionStart}
-            totalSpan={totalSpan}
-            reviewIssues={reviewIssues?.[planId]}
-          />
-        ))}
+    <TooltipProvider delayDuration={0}>
+      <div className="bg-card border border-border rounded-lg px-4 py-3 shadow-sm shadow-black/20">
+        <h3 className="text-[11px] uppercase tracking-wider text-text-dim mb-2 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue" />
+          Pipeline
+        </h3>
+        <div className="flex flex-col gap-1.5">
+          {entries.map(([planId]) => (
+            <PlanRow
+              key={planId}
+              planId={planId}
+              threads={threadsByPlan.get(planId) ?? threadsByPlan.get('__global__') ?? EMPTY_THREADS}
+              sessionStart={sessionStart}
+              totalSpan={totalSpan}
+              reviewIssues={reviewIssues?.[planId]}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
 
@@ -99,18 +103,27 @@ interface PlanRowProps {
 function PlanRow({ planId, threads, sessionStart, totalSpan, reviewIssues }: PlanRowProps) {
   const { openPreview } = usePlanPreview();
 
+  const sortedThreads = useMemo(
+    () => [...threads].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime()),
+    [threads],
+  );
+
   return (
     <div className="flex flex-col gap-1">
-      <div className="flex items-center gap-2 text-xs">
-        <span
-          className="w-[140px] text-text-dim overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer hover:text-foreground hover:underline font-mono text-[11px]"
-          title={planId}
-          onClick={() => openPreview(planId)}
-        >
-          {planId}
-        </span>
-        <div className="relative flex-1 h-5 bg-bg-tertiary rounded-sm overflow-hidden">
-          {threads.map((thread) => {
+      <div className="flex items-start gap-2 text-xs">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className="w-[140px] shrink-0 mt-0.5 text-text-dim overflow-hidden text-ellipsis whitespace-nowrap cursor-pointer hover:text-foreground hover:underline font-mono text-[11px]"
+              onClick={() => openPreview(planId)}
+            >
+              {planId}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="left">{planId}</TooltipContent>
+        </Tooltip>
+        <div className="flex-1 bg-bg-tertiary rounded-sm overflow-x-hidden flex flex-col gap-px py-px min-h-4">
+          {sortedThreads.map((thread) => {
             const threadStart = new Date(thread.startedAt).getTime();
             const threadEnd = thread.endedAt
               ? new Date(thread.endedAt).getTime()
@@ -126,16 +139,28 @@ function PlanRow({ planId, threads, sessionStart, totalSpan, reviewIssues }: Pla
                 : formatDuration(threadEnd - threadStart);
 
             return (
-              <div
-                key={thread.agentId}
-                className={`absolute top-0.5 bottom-0.5 rounded-sm border ${color.bg} ${color.border}`}
-                style={{
-                  left: `${Math.max(0, leftPercent)}%`,
-                  width: `max(2px, ${widthPercent}%)`,
-                  animation: isRunning ? 'pulse-opacity 2s ease-in-out infinite' : undefined,
-                }}
-                title={`${thread.agent} - ${duration}`}
-              />
+              <div key={thread.agentId} className="relative h-4">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div
+                      className={`absolute inset-y-0 rounded-sm border ${color.bg} ${color.border} flex items-center overflow-hidden cursor-default`}
+                      style={{
+                        left: `${Math.max(0, leftPercent)}%`,
+                        width: `max(2px, ${widthPercent}%)`,
+                        animation: isRunning ? 'pulse-opacity 2s ease-in-out infinite' : undefined,
+                      }}
+                    >
+                      <span className="text-[9px] truncate px-1 leading-4 text-foreground/70">
+                        {thread.agent}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <div className="font-medium">{thread.agent}</div>
+                    <div className="opacity-70">{duration}</div>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
             );
           })}
         </div>
