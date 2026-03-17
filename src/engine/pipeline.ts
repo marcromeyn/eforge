@@ -55,6 +55,7 @@ export interface PipelineContext {
   sourceContent: string;
   verbose?: boolean;
   auto?: boolean;
+  generateProfile?: boolean;
   abortController?: AbortController;
   onClarification?: (questions: ClarificationQuestion[]) => Promise<Record<string, string>>;
 
@@ -103,6 +104,16 @@ export function getBuildStage(name: string): BuildStage {
   const stage = buildStages.get(name);
   if (!stage) throw new Error(`Unknown build stage: "${name}"`);
   return stage;
+}
+
+/** Return the set of registered compile stage names (for profile validation). */
+export function getCompileStageNames(): Set<string> {
+  return new Set(compileStages.keys());
+}
+
+/** Return the set of registered build stage names (for profile validation). */
+export function getBuildStageNames(): Set<string> {
+  return new Set(buildStages.keys());
 }
 
 // ---------------------------------------------------------------------------
@@ -253,6 +264,7 @@ registerCompileStage('planner', async function* plannerStage(ctx) {
       name: ctx.planSetName,
       auto: ctx.auto,
       verbose: ctx.verbose,
+      generateProfile: ctx.generateProfile,
       abortController: ctx.abortController,
       backend: ctx.backend,
       onClarification: ctx.onClarification,

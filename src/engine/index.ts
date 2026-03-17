@@ -42,8 +42,8 @@ export { ClaudeSDKBackend } from './backends/claude-sdk.js';
 export type { ClaudeSDKBackendOptions } from './backends/claude-sdk.js';
 
 // --- agents/common ---
-export { parseClarificationBlocks, parseProfileBlock } from './agents/common.js';
-export type { ProfileSelection } from './agents/common.js';
+export { parseClarificationBlocks, parseProfileBlock, parseGeneratedProfileBlock } from './agents/common.js';
+export type { ProfileSelection, GeneratedProfileBlock } from './agents/common.js';
 
 // --- state ---
 export { loadState, saveState, updatePlanStatus, isResumable } from './state.js';
@@ -116,13 +116,13 @@ export { withHooks, matchesPattern } from './hooks.js';
 
 // --- config ---
 export type { EforgeConfig, PartialEforgeConfig, PluginConfig, ProfileConfig, ResolvedProfileConfig, AgentProfileConfig, ReviewProfileConfig, PartialProfileConfig } from './config.js';
-export { DEFAULT_CONFIG, BUILTIN_PROFILES, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, resolveProfileExtensions, parseProfilesFile } from './config.js';
+export { DEFAULT_CONFIG, BUILTIN_PROFILES, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, resolveProfileExtensions, parseProfilesFile, validateProfileConfig, resolveGeneratedProfile } from './config.js';
 export type { TracingContext, SpanHandle, ToolCallHandle } from './tracing.js';
 export { createTracingContext, createNoopTracingContext } from './tracing.js';
 
 // --- pipeline ---
 export type { PipelineContext, BuildStageContext, CompileStage, BuildStage } from './pipeline.js';
-export { getCompileStage, getBuildStage, registerCompileStage, registerBuildStage, runCompilePipeline, runBuildPipeline } from './pipeline.js';
+export { getCompileStage, getBuildStage, registerCompileStage, registerBuildStage, runCompilePipeline, runBuildPipeline, getCompileStageNames, getBuildStageNames } from './pipeline.js';
 
 // --- eforge-core ---
 export { EforgeEngine } from './eforge.js';

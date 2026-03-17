@@ -3,10 +3,11 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { AgentBackend } from '../backend.js';
 import { isAlwaysYieldedAgentEvent, SCOPE_ASSESSMENTS, type EforgeEvent, type CompileOptions, type ClarificationQuestion, type PlanFile, type ScopeAssessment } from '../events.js';
-import { parseClarificationBlocks, parseScopeBlock, parseProfileBlock } from './common.js';
+import { parseClarificationBlocks, parseScopeBlock, parseProfileBlock, parseGeneratedProfileBlock } from './common.js';
 import { loadPrompt } from '../prompts.js';
 import { parsePlanFile, deriveNameFromSource } from '../plan.js';
 import type { ResolvedProfileConfig } from '../config.js';
+import { validateProfileConfig, resolveGeneratedProfile } from '../config.js';
 
 export interface PlannerOptions extends CompileOptions {
   backend: AgentBackend;
@@ -61,6 +62,53 @@ export function formatProfileDescriptions(profiles: Record<string, ResolvedProfi
 }
 
 /**
+ * Format the profile generation prompt section for injection via {{profileGeneration}}.
+ * Includes available profiles as JSON so the agent can reference exact field names.
+ */
+export function formatProfileGenerationSection(profiles: Record<string, ResolvedProfileConfig>): string {
+  const profilesJson = JSON.stringify(profiles, null, 2);
+
+  return `### Profile Generation
+
+Instead of selecting a predefined profile by name, generate a custom profile configuration tailored to this specific work. Analyze the PRD and your codebase exploration to determine the optimal review strategy, perspectives, and pipeline stages.
+
+Output a \`<generated-profile>\` block with JSON content. Prefer extending a base profile with overrides:
+
+\`\`\`xml
+<generated-profile>
+{
+  "extends": "excursion",
+  "overrides": {
+    "review": {
+      "perspectives": ["code", "security"],
+      "maxRounds": 2,
+      "evaluatorStrictness": "strict"
+    }
+  }
+}
+</generated-profile>
+\`\`\`
+
+Available base profiles:
+\`\`\`json
+${profilesJson}
+\`\`\`
+
+Available review fields:
+- \`strategy\`: "auto" | "single" | "parallel"
+- \`perspectives\`: array of review perspective names (e.g. ["code", "security", "performance"])
+- \`maxRounds\`: number of review-fix-evaluate cycles (default 1)
+- \`autoAcceptBelow\`: auto-accept issues at or below this severity — "suggestion" | "warning"
+- \`evaluatorStrictness\`: "strict" | "standard" | "lenient"
+
+Rules:
+- When a base profile fits with minor tweaks, use \`extends\` + \`overrides\`
+- Only override fields that differ from the base — omit fields you want to inherit
+- When the \`<generated-profile>\` block is present, skip the \`<profile>\` block
+- After generating a profile, still emit the \`<scope>\` block (both are required)`;
+}
+
+/**
  * Run the planner agent. Explores the codebase, asks clarifying questions
  * via <clarification> XML blocks, and writes plan files to disk.
  *
@@ -103,12 +151,18 @@ export async function* runPlanner(
   const allClarifications: Array<{ questions: ClarificationQuestion[]; answers: Record<string, string> }> = [];
 
   function buildPrompt(): Promise<string> {
+    let profileGeneration = '';
+    if (options.generateProfile && options.profiles) {
+      profileGeneration = formatProfileGenerationSection(options.profiles);
+    }
+
     return loadPrompt('planner', {
       source: sourceContent,
       planSetName,
       cwd,
       priorClarifications: formatPriorClarifications(allClarifications),
       profiles: options.profiles ? formatProfileDescriptions(options.profiles) : '',
+      profileGeneration,
     });
   }
 
@@ -142,6 +196,29 @@ export async function* runPlanner(
           if (scope) {
             scopeEmitted = true;
             yield { type: 'plan:scope', assessment: scope.assessment, justification: scope.justification };
+          }
+        }
+
+        if (!profileEmitted && options.generateProfile) {
+          const generatedBlock = parseGeneratedProfileBlock(event.content);
+          if (generatedBlock) {
+            try {
+              const resolved = resolveGeneratedProfile(generatedBlock, options.profiles ?? {});
+              const { valid, errors } = validateProfileConfig(resolved);
+              if (valid) {
+                profileEmitted = true;
+                yield {
+                  type: 'plan:profile',
+                  profileName: generatedBlock.extends ?? 'generated',
+                  rationale: `Generated profile${generatedBlock.extends ? ` extending ${generatedBlock.extends}` : ''} tailored to this PRD`,
+                  config: resolved,
+                };
+              } else {
+                yield { type: 'plan:progress', message: `Generated profile invalid (${errors.join('; ')}), falling back to name-based selection` };
+              }
+            } catch (err) {
+              yield { type: 'plan:progress', message: `Generated profile resolution failed (${(err as Error).message}), falling back to name-based selection` };
+            }
           }
         }
 

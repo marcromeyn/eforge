@@ -91,6 +91,7 @@ export interface CompileOptions {
   name?: string;
   cwd?: string;
   abortController?: AbortController;
+  generateProfile?: boolean;
 }
 
 export interface BuildOptions {

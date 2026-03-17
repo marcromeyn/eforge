@@ -5,6 +5,7 @@
  */
 import { SCOPE_ASSESSMENTS } from '../events.js';
 import type { ClarificationQuestion, ScopeAssessment, ExpeditionModule } from '../events.js';
+import type { ResolvedProfileConfig, ReviewProfileConfig } from '../config.js';
 
 /**
  * Parse <clarification> XML blocks from assistant text into structured questions.
@@ -161,4 +162,42 @@ export function parseScopeBlock(text: string): ScopeDeclaration | null {
   if (!justification) return null;
 
   return { assessment: assessment as ScopeAssessment, justification };
+}
+
+// ---------------------------------------------------------------------------
+// Generated Profile Parsing
+// ---------------------------------------------------------------------------
+
+export interface GeneratedProfileBlock {
+  extends?: string;
+  overrides?: Partial<{
+    description: string;
+    compile: string[];
+    build: string[];
+    agents: Record<string, unknown>;
+    review: Partial<ReviewProfileConfig>;
+  }>;
+  config?: ResolvedProfileConfig;
+}
+
+/**
+ * Parse a <generated-profile> XML block from assistant text.
+ * The block contains JSON with either:
+ * - `{ extends: "base-name", overrides: { ... } }`
+ * - `{ config: { description, compile, build, agents, review } }`
+ *
+ * Returns a typed object or null if no block found or parse failure.
+ */
+export function parseGeneratedProfileBlock(text: string): GeneratedProfileBlock | null {
+  const match = text.match(/<generated-profile>([\s\S]*?)<\/generated-profile>/);
+  if (!match) return null;
+
+  try {
+    const parsed = JSON.parse(match[1].trim());
+    if (parsed.config) return { config: parsed.config };
+    if (parsed.extends || parsed.overrides) return { extends: parsed.extends, overrides: parsed.overrides };
+    return null;
+  } catch {
+    return null;
+  }
 }

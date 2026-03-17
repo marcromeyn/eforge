@@ -593,3 +593,120 @@ export async function parseProfilesFile(
   const parsed = parseRawConfig(data as Record<string, unknown>);
   return parsed.profiles ?? {};
 }
+
+// ---------------------------------------------------------------------------
+// Profile Validation
+// ---------------------------------------------------------------------------
+
+const VALID_AGENT_ROLES_SET = new Set<string>([
+  'planner', 'builder', 'reviewer', 'evaluator', 'module-planner',
+  'plan-reviewer', 'plan-evaluator', 'cohesion-reviewer', 'cohesion-evaluator',
+  'validation-fixer', 'assessor', 'review-fixer', 'merge-conflict-resolver',
+]);
+
+const VALID_STRATEGIES_SET = new Set(['auto', 'single', 'parallel']);
+const VALID_STRICTNESS_SET = new Set(['strict', 'standard', 'lenient']);
+const VALID_AUTO_ACCEPT_SET = new Set(['suggestion', 'warning']);
+
+/**
+ * Validate a ResolvedProfileConfig has valid stage names, required fields,
+ * and allowed enum values. When stage registries are provided, validates
+ * that all stage names exist in the registries.
+ */
+export function validateProfileConfig(
+  config: ResolvedProfileConfig,
+  compileStageNames?: Set<string>,
+  buildStageNames?: Set<string>,
+): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!config.description || typeof config.description !== 'string') {
+    errors.push('description is required and must be a non-empty string');
+  }
+  if (!Array.isArray(config.compile) || config.compile.length === 0) {
+    errors.push('compile must be a non-empty array of stage names');
+  }
+  if (!Array.isArray(config.build) || config.build.length === 0) {
+    errors.push('build must be a non-empty array of stage names');
+  }
+
+  // Validate stage names against registries when provided
+  if (compileStageNames) {
+    for (const name of config.compile) {
+      if (!compileStageNames.has(name)) {
+        errors.push(`unknown compile stage: "${name}"`);
+      }
+    }
+  }
+  if (buildStageNames) {
+    for (const name of config.build) {
+      if (!buildStageNames.has(name)) {
+        errors.push(`unknown build stage: "${name}"`);
+      }
+    }
+  }
+
+  // Validate agent roles
+  if (config.agents) {
+    for (const role of Object.keys(config.agents)) {
+      if (!VALID_AGENT_ROLES_SET.has(role)) {
+        errors.push(`unknown agent role: "${role}"`);
+      }
+    }
+  }
+
+  // Validate review config
+  if (config.review) {
+    if (!VALID_STRATEGIES_SET.has(config.review.strategy)) {
+      errors.push(`invalid review strategy: "${config.review.strategy}"`);
+    }
+    if (!VALID_STRICTNESS_SET.has(config.review.evaluatorStrictness)) {
+      errors.push(`invalid evaluator strictness: "${config.review.evaluatorStrictness}"`);
+    }
+    if (config.review.autoAcceptBelow && !VALID_AUTO_ACCEPT_SET.has(config.review.autoAcceptBelow)) {
+      errors.push(`invalid autoAcceptBelow: "${config.review.autoAcceptBelow}"`);
+    }
+    if (typeof config.review.maxRounds !== 'number' || !Number.isInteger(config.review.maxRounds) || config.review.maxRounds < 1) {
+      errors.push('review.maxRounds must be a positive integer');
+    }
+    if (!Array.isArray(config.review.perspectives) || config.review.perspectives.length === 0) {
+      errors.push('review.perspectives must be a non-empty array');
+    } else if (config.review.perspectives.some((p: unknown) => typeof p !== 'string')) {
+      errors.push('review.perspectives must contain only strings');
+    }
+  } else {
+    errors.push('review config is required');
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Resolve a generated profile block into a full ResolvedProfileConfig.
+ * Supports two modes:
+ * - Full config: `{ config: { ... } }` — returns config as-is
+ * - Extends: `{ extends: "base-name", overrides: { ... } }` — merges overrides onto base
+ */
+export function resolveGeneratedProfile(
+  generated: import('./agents/common.js').GeneratedProfileBlock,
+  availableProfiles: Record<string, ResolvedProfileConfig>,
+): ResolvedProfileConfig {
+  // Full config mode - use as-is
+  if (generated.config) return generated.config;
+
+  // Extends mode - merge overrides onto base
+  const baseName = generated.extends ?? 'excursion';
+  const base = availableProfiles[baseName];
+  if (!base) {
+    throw new Error(`Generated profile extends unknown base: "${baseName}"`);
+  }
+
+  const overrides = generated.overrides ?? {};
+  return {
+    description: overrides.description ?? base.description,
+    compile: overrides.compile ?? base.compile,
+    build: overrides.build ?? base.build,
+    agents: { ...base.agents, ...(overrides.agents as Partial<Record<AgentRole, AgentProfileConfig>> ?? {}) },
+    review: { ...base.review, ...(overrides.review ?? {}) } as ReviewProfileConfig,
+  };
+}

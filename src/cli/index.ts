@@ -148,6 +148,7 @@ export function createProgram(abortController?: AbortController): Command {
     .option('--no-monitor', 'Disable web monitor')
     .option('--no-plugins', 'Disable plugin loading')
     .option('--profiles <paths...>', 'Additional workflow profile files to load')
+    .option('--generate-profile', 'Let the planner generate a custom workflow profile')
     .action(
       async (
         source: string,
@@ -163,6 +164,7 @@ export function createProgram(abortController?: AbortController): Command {
           monitor?: boolean;
           plugins?: boolean;
           profiles?: string[];
+          generateProfile?: boolean;
         },
       ) => {
         initDisplay({ verbose: options.verbose });
@@ -221,6 +223,7 @@ export function createProgram(abortController?: AbortController): Command {
                 auto: options.auto,
                 verbose: options.verbose,
                 name: options.name,
+                generateProfile: options.generateProfile,
                 abortController,
               });
 
