@@ -236,11 +236,18 @@ registerCompileStage('planner', async function* plannerStage(ctx) {
         ctx.scopeAssessment = event.assessment;
       }
 
-      // Update active profile when planner selects one
+      // Update active profile when planner selects one.
+      // Prefer inline config (future: agent-generated profiles), fall back to named lookup.
       if (event.type === 'plan:profile') {
-        const resolved = ctx.config.profiles[event.profileName];
-        if (resolved) {
-          ctx.profile = resolved;
+        if (event.config) {
+          ctx.profile = event.config;
+        } else {
+          const resolved = ctx.config.profiles[event.profileName];
+          if (resolved) {
+            ctx.profile = resolved;
+          } else {
+            throw new Error(`Planner selected unknown profile "${event.profileName}" — available profiles: ${Object.keys(ctx.config.profiles).join(', ')}`);
+          }
         }
       }
 
@@ -692,7 +699,12 @@ async function* runReviewCycle(config: ReviewCycleConfig): AsyncGenerator<Eforge
 export async function* runCompilePipeline(
   ctx: PipelineContext,
 ): AsyncGenerator<EforgeEvent> {
-  for (const stageName of ctx.profile.compile) {
+  // Index-based iteration: ctx.profile may change mid-pipeline (e.g., planner
+  // stage switches from excursion to expedition), so re-read ctx.profile.compile
+  // on each iteration instead of capturing it once via for...of.
+  let i = 0;
+  while (i < ctx.profile.compile.length) {
+    const stageName = ctx.profile.compile[i];
     if (stageName === 'plan-review-cycle') {
       // Commit plan artifacts before running plan review
       // (plan review reads committed files)
@@ -702,6 +714,7 @@ export async function* runCompilePipeline(
     }
     const stage = getCompileStage(stageName);
     yield* stage(ctx);
+    i++;
   }
 }
 
