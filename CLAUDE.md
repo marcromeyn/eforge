@@ -22,9 +22,9 @@ pnpm test:watch       # Watch mode
 pnpm type-check   # Type check without emitting
 
 # Run with Langfuse tracing (dev)
-pnpm dev:trace -- run docs/init-prd.md --verbose
+pnpm dev:trace -- run some-prd.md --verbose
 # Run built CLI with Langfuse tracing
-node --env-file=.env dist/cli.js run docs/init-prd.md --verbose
+node --env-file=.env dist/cli.js run some-prd.md --verbose
 ```
 
 ## Architecture
@@ -211,15 +211,13 @@ Flags: `--auto` (bypass approval gates), `--verbose` (stream output), `--dry-run
 
 - **Read it** before proposing new features or architectural changes to ensure alignment with planned direction
 - **Keep it lean** — goal + bullet points per section, no code examples, frontmatter specs, or implementation plans
-- **Future only** — remove items from the roadmap once they ship. Completed work is documented in the PRD, git history, and CLAUDE.md, not the roadmap.
+- **Future only** — remove items from the roadmap once they ship. Completed work lives in git history and CLAUDE.md, not the roadmap.
 - **Update it** when direction changes after discussion with the user
-- **Don't duplicate it** — implementation details belong in PRDs, plan files, or CLAUDE.md, not the roadmap
-
-The original PRD (`docs/init-prd.md`) is historical context. The roadmap is the current source of truth for future direction.
+- **Don't duplicate it** — implementation details belong in plan files or CLAUDE.md, not the roadmap
+- **Delete PRDs after implementation** — `docs/` should reflect current state and planned-but-not-yet-implemented work only. Once a PRD is built, the code and git history are the record. Don't keep stale PRDs around as "historical context."
 
 ## Key references
 
 - Roadmap: `docs/roadmap.md`
-- PRD (historical): `docs/init-prd.md`
 - Architecture: `plans/forge-v1/architecture.md`
 - Expedition plan: `plans/forge-v1/index.yaml`
