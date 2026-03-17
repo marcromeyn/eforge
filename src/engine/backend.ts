@@ -7,6 +7,7 @@ export interface AgentRunOptions {
   cwd: string;
   maxTurns: number;
   tools: ToolPreset;
+  model?: string;
   abortSignal?: AbortSignal;
 }
 

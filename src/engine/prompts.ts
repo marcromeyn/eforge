@@ -15,16 +15,23 @@ export async function loadPrompt(
   name: string,
   vars?: Record<string, string>,
 ): Promise<string> {
-  const filename = name.endsWith('.md') ? name : `${name}.md`;
-  const cached = cache.get(filename);
-  let content: string;
+  // Path-like values load from the filesystem directly
+  const isPath = name.includes('/');
+  const filename = isPath ? name : (name.endsWith('.md') ? name : `${name}.md`);
 
-  if (cached !== undefined) {
-    content = cached;
+  let content: string;
+  if (isPath) {
+    // Path-based prompts bypass cache (different files could share a basename)
+    content = await readFile(resolve(filename), 'utf-8');
   } else {
-    const filePath = resolve(PROMPTS_DIR, filename);
-    content = await readFile(filePath, 'utf-8');
-    cache.set(filename, content);
+    const cached = cache.get(filename);
+    if (cached !== undefined) {
+      content = cached;
+    } else {
+      const filePath = resolve(PROMPTS_DIR, filename);
+      content = await readFile(filePath, 'utf-8');
+      cache.set(filename, content);
+    }
   }
 
   if (vars) {

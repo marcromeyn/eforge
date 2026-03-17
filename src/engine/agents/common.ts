@@ -130,6 +130,26 @@ export function parseModulesBlock(text: string): ExpeditionModule[] {
  *     Focused change adding a single CLI flag — one area, no migrations.
  *   </scope>
  */
+export interface ProfileSelection {
+  profileName: string;
+  rationale: string;
+}
+
+/**
+ * Parse a <profile> XML block from assistant text into a ProfileSelection.
+ *
+ * Expected format:
+ *   <profile name="excursion">Rationale text</profile>
+ */
+export function parseProfileBlock(text: string): ProfileSelection | null {
+  const match = text.match(/<profile\s+name="([^"]+)">([\s\S]*?)<\/profile>/);
+  if (!match) return null;
+  const profileName = match[1].trim();
+  const rationale = match[2].trim();
+  if (!profileName || !rationale) return null;
+  return { profileName, rationale };
+}
+
 export function parseScopeBlock(text: string): ScopeDeclaration | null {
   const match = text.match(/<scope\s+assessment="([^"]+)">([\s\S]*?)<\/scope>/);
   if (!match) return null;

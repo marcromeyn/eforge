@@ -3,6 +3,47 @@ import { resolve, dirname } from 'node:path';
 import { availableParallelism, homedir } from 'node:os';
 import { parse as parseYaml } from 'yaml';
 
+import type { AgentRole } from './events.js';
+
+export type ToolPresetConfig = 'coding' | 'none';
+
+export interface AgentProfileConfig {
+  maxTurns?: number;
+  prompt?: string;
+  tools?: ToolPresetConfig;
+  model?: string;
+}
+
+export interface ReviewProfileConfig {
+  strategy: 'auto' | 'single' | 'parallel';
+  perspectives: string[];
+  maxRounds: number;
+  autoAcceptBelow?: 'suggestion' | 'warning';
+  evaluatorStrictness: 'strict' | 'standard' | 'lenient';
+}
+
+/** Pre-resolution profile (from YAML parsing). */
+export interface PartialProfileConfig {
+  description?: string;
+  extends?: string;
+  compile?: string[];
+  build?: string[];
+  agents?: Partial<Record<AgentRole, AgentProfileConfig>>;
+  review?: Partial<ReviewProfileConfig>;
+}
+
+/** After extension resolution - all required fields present. */
+export interface ResolvedProfileConfig {
+  description: string;
+  compile: string[];
+  build: string[];
+  agents: Partial<Record<AgentRole, AgentProfileConfig>>;
+  review: ReviewProfileConfig;
+}
+
+/** Alias kept for barrel re-export convenience. */
+export type ProfileConfig = ResolvedProfileConfig;
+
 export interface HookConfig {
   event: string;   // glob pattern on EforgeEvent.type (e.g. "build:*", "*")
   command: string; // shell command or script path
@@ -26,16 +67,54 @@ export interface EforgeConfig {
   plan: { outputDir: string };
   plugins: PluginConfig;
   hooks: readonly HookConfig[];
+  profiles: Record<string, ResolvedProfileConfig>;
 }
 
 /** Deep-partial version of EforgeConfig used for parsing and merging. */
 export type PartialEforgeConfig = {
   [K in keyof EforgeConfig]?: K extends 'hooks'
     ? HookConfig[]
-    : EforgeConfig[K] extends object
-      ? Partial<EforgeConfig[K]>
-      : EforgeConfig[K];
+    : K extends 'profiles'
+      ? Record<string, PartialProfileConfig>
+      : EforgeConfig[K] extends object
+        ? Partial<EforgeConfig[K]>
+        : EforgeConfig[K];
 };
+
+const DEFAULT_REVIEW: ReviewProfileConfig = Object.freeze({
+  strategy: 'auto' as const,
+  perspectives: Object.freeze(['code']) as unknown as string[],
+  maxRounds: 1,
+  evaluatorStrictness: 'standard' as const,
+});
+
+const DEFAULT_BUILD_STAGES = Object.freeze([
+  'implement', 'review', 'review-fix', 'evaluate',
+]) as unknown as string[];
+
+export const BUILTIN_PROFILES: Record<string, ResolvedProfileConfig> = Object.freeze({
+  errand: Object.freeze({
+    description: 'Small, self-contained changes. Single file or a few lines. Low risk, no architectural impact.',
+    compile: Object.freeze(['planner', 'plan-review-cycle']) as unknown as string[],
+    build: DEFAULT_BUILD_STAGES,
+    agents: Object.freeze({}),
+    review: DEFAULT_REVIEW,
+  }),
+  excursion: Object.freeze({
+    description: 'Multi-file feature work or refactors that need planning and review but fit in a single plan. Use for medium-complexity tasks with cross-file changes.',
+    compile: Object.freeze(['planner', 'plan-review-cycle']) as unknown as string[],
+    build: DEFAULT_BUILD_STAGES,
+    agents: Object.freeze({}),
+    review: DEFAULT_REVIEW,
+  }),
+  expedition: Object.freeze({
+    description: 'Large cross-cutting work spanning multiple modules. Needs architecture planning, module decomposition, and parallel execution.',
+    compile: Object.freeze(['planner', 'module-planning', 'cohesion-review-cycle', 'compile-expedition']) as unknown as string[],
+    build: DEFAULT_BUILD_STAGES,
+    agents: Object.freeze({}),
+    review: DEFAULT_REVIEW,
+  }),
+});
 
 export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   langfuse: Object.freeze({ enabled: false, host: 'https://cloud.langfuse.com' }),
@@ -44,6 +123,7 @@ export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   plan: Object.freeze({ outputDir: 'plans' }),
   plugins: Object.freeze({ enabled: true }),
   hooks: Object.freeze([]),
+  profiles: BUILTIN_PROFILES,
 });
 
 /**
@@ -112,6 +192,9 @@ export function resolveConfig(
       paths: fileConfig.plugins?.paths,
     }),
     hooks: Object.freeze(fileConfig.hooks ?? DEFAULT_CONFIG.hooks) as HookConfig[],
+    profiles: Object.freeze(
+      resolveProfileExtensions(fileConfig.profiles ?? {}, BUILTIN_PROFILES),
+    ),
   });
 }
 
@@ -214,6 +297,76 @@ function parseRawConfig(data: Record<string, unknown>): PartialEforgeConfig {
     result.hooks = validHooks;
   }
 
+  if (data.profiles && typeof data.profiles === 'object' && !Array.isArray(data.profiles)) {
+    const profiles: Record<string, PartialProfileConfig> = {};
+    const VALID_STRATEGIES = ['auto', 'single', 'parallel'];
+    const VALID_TOOLS: string[] = ['coding', 'none'];
+    const VALID_STRICTNESS = ['strict', 'standard', 'lenient'];
+    const VALID_AUTO_ACCEPT = ['suggestion', 'warning'];
+    const VALID_AGENT_ROLES = new Set([
+      'planner', 'builder', 'reviewer', 'evaluator', 'module-planner',
+      'plan-reviewer', 'plan-evaluator', 'cohesion-reviewer', 'cohesion-evaluator',
+      'validation-fixer', 'assessor', 'review-fixer',
+    ]);
+
+    for (const [name, value] of Object.entries(data.profiles as Record<string, unknown>)) {
+      if (!value || typeof value !== 'object') continue;
+      const raw = value as Record<string, unknown>;
+      const partial: PartialProfileConfig = {};
+
+      if (typeof raw.description === 'string') partial.description = raw.description;
+      if (typeof raw.extends === 'string') partial.extends = raw.extends;
+      if (Array.isArray(raw.compile) && raw.compile.every((s: unknown) => typeof s === 'string')) {
+        partial.compile = raw.compile as string[];
+      }
+      if (Array.isArray(raw.build) && raw.build.every((s: unknown) => typeof s === 'string')) {
+        partial.build = raw.build as string[];
+      }
+
+      // Parse agents
+      if (raw.agents && typeof raw.agents === 'object' && !Array.isArray(raw.agents)) {
+        const agents: Partial<Record<AgentRole, AgentProfileConfig>> = {};
+        for (const [role, agentRaw] of Object.entries(raw.agents as Record<string, unknown>)) {
+          if (!VALID_AGENT_ROLES.has(role)) continue;
+          if (!agentRaw || typeof agentRaw !== 'object') continue;
+          const ar = agentRaw as Record<string, unknown>;
+          const agentConfig: AgentProfileConfig = {};
+          if (typeof ar.maxTurns === 'number' && ar.maxTurns > 0) agentConfig.maxTurns = ar.maxTurns;
+          if (typeof ar.prompt === 'string') agentConfig.prompt = ar.prompt;
+          if (typeof ar.tools === 'string' && VALID_TOOLS.includes(ar.tools)) agentConfig.tools = ar.tools as ToolPresetConfig;
+          if (typeof ar.model === 'string') agentConfig.model = ar.model;
+          if (Object.keys(agentConfig).length > 0) {
+            agents[role as AgentRole] = agentConfig;
+          }
+        }
+        if (Object.keys(agents).length > 0) partial.agents = agents;
+      }
+
+      // Parse review
+      if (raw.review && typeof raw.review === 'object' && !Array.isArray(raw.review)) {
+        const rv = raw.review as Record<string, unknown>;
+        const review: Partial<ReviewProfileConfig> = {};
+        if (typeof rv.strategy === 'string' && VALID_STRATEGIES.includes(rv.strategy)) {
+          review.strategy = rv.strategy as ReviewProfileConfig['strategy'];
+        }
+        if (Array.isArray(rv.perspectives) && rv.perspectives.every((s: unknown) => typeof s === 'string')) {
+          review.perspectives = rv.perspectives as string[];
+        }
+        if (typeof rv.maxRounds === 'number' && rv.maxRounds > 0) review.maxRounds = rv.maxRounds;
+        if (typeof rv.autoAcceptBelow === 'string' && VALID_AUTO_ACCEPT.includes(rv.autoAcceptBelow)) {
+          review.autoAcceptBelow = rv.autoAcceptBelow as ReviewProfileConfig['autoAcceptBelow'];
+        }
+        if (typeof rv.evaluatorStrictness === 'string' && VALID_STRICTNESS.includes(rv.evaluatorStrictness)) {
+          review.evaluatorStrictness = rv.evaluatorStrictness as ReviewProfileConfig['evaluatorStrictness'];
+        }
+        if (Object.keys(review).length > 0) partial.review = review;
+      }
+
+      profiles[name] = partial;
+    }
+    result.profiles = profiles;
+  }
+
   return result;
 }
 
@@ -261,6 +414,40 @@ export function mergePartialConfigs(
   // hooks: concatenate (global first, then project)
   if (global.hooks || project.hooks) {
     result.hooks = [...(global.hooks ?? []), ...(project.hooks ?? [])];
+  }
+
+  // profiles: merge by name
+  if (global.profiles || project.profiles) {
+    const merged: Record<string, PartialProfileConfig> = {};
+    const allNames = new Set([
+      ...Object.keys(global.profiles ?? {}),
+      ...Object.keys(project.profiles ?? {}),
+    ]);
+    for (const name of allNames) {
+      const g = global.profiles?.[name];
+      const p = project.profiles?.[name];
+      if (g && p) {
+        // Shallow merge per profile, with agents merged per-agent
+        const mergedAgents: Partial<Record<AgentRole, AgentProfileConfig>> = {
+          ...g.agents,
+        };
+        if (p.agents) {
+          for (const [role, config] of Object.entries(p.agents)) {
+            const base = mergedAgents[role as AgentRole];
+            mergedAgents[role as AgentRole] = base ? { ...base, ...config } : config;
+          }
+        }
+        merged[name] = {
+          ...g,
+          ...p,
+          agents: Object.keys(mergedAgents).length > 0 ? mergedAgents : undefined,
+          review: g.review || p.review ? { ...g.review, ...p.review } : undefined,
+        };
+      } else {
+        merged[name] = (p ?? g)!;
+      }
+    }
+    result.profiles = merged;
   }
 
   return result;
@@ -312,4 +499,97 @@ export async function loadConfig(cwd?: string): Promise<EforgeConfig> {
 
   const merged = mergePartialConfigs(globalConfig, projectConfig);
   return resolveConfig(merged);
+}
+
+/**
+ * Resolve profile extensions by walking `extends` chains, detecting cycles,
+ * and shallow-merging inherited fields. Returns fully-resolved profiles
+ * with all required fields present.
+ */
+export function resolveProfileExtensions(
+  partials: Record<string, PartialProfileConfig>,
+  builtins: Record<string, ResolvedProfileConfig> = BUILTIN_PROFILES,
+): Record<string, ResolvedProfileConfig> {
+  const resolved = new Map<string, ResolvedProfileConfig>();
+  const resolving = new Set<string>(); // cycle detection
+
+  function resolve(name: string): ResolvedProfileConfig {
+    const cached = resolved.get(name);
+    if (cached) return cached;
+
+    // If it's a built-in with no user override, return as-is
+    const partial = partials[name];
+    if (!partial) {
+      const builtin = builtins[name];
+      if (builtin) return builtin;
+      throw new Error(`Profile "${name}" not found`);
+    }
+
+    if (resolving.has(name)) {
+      throw new Error(`Circular profile extension detected: ${name}`);
+    }
+    resolving.add(name);
+
+    // Get base - either the extends target or the built-in of the same name or excursion fallback
+    let base: ResolvedProfileConfig;
+    if (partial.extends) {
+      base = resolve(partial.extends);
+    } else if (builtins[name]) {
+      base = builtins[name];
+    } else {
+      base = builtins['excursion']; // fallback for custom profiles with no extends
+    }
+
+    // Shallow merge per-agent
+    const mergedAgents: Partial<Record<AgentRole, AgentProfileConfig>> = { ...base.agents };
+    if (partial.agents) {
+      for (const [role, agentConfig] of Object.entries(partial.agents)) {
+        const baseAgent = mergedAgents[role as AgentRole];
+        mergedAgents[role as AgentRole] = baseAgent
+          ? { ...baseAgent, ...agentConfig }
+          : agentConfig;
+      }
+    }
+
+    // Shallow merge review
+    const mergedReview: ReviewProfileConfig = {
+      ...base.review,
+      ...(partial.review ?? {}),
+    } as ReviewProfileConfig;
+
+    const result: ResolvedProfileConfig = {
+      description: partial.description ?? base.description,
+      compile: partial.compile ?? base.compile,
+      build: partial.build ?? base.build,
+      agents: mergedAgents,
+      review: mergedReview,
+    };
+
+    resolving.delete(name);
+    resolved.set(name, result);
+    return result;
+  }
+
+  // Resolve all profiles (builtins + user-defined)
+  const allNames = new Set([...Object.keys(builtins), ...Object.keys(partials)]);
+  const out: Record<string, ResolvedProfileConfig> = {};
+  for (const name of allNames) {
+    out[name] = resolve(name);
+  }
+  return out;
+}
+
+/**
+ * Parse a standalone profiles YAML file into partial profile configs.
+ * The file is expected to have a `profiles` top-level key matching the
+ * same structure as in eforge.yaml.
+ */
+export async function parseProfilesFile(
+  filePath: string,
+): Promise<Record<string, PartialProfileConfig>> {
+  const raw = await readFile(filePath, 'utf-8');
+  const data = parseYaml(raw);
+  if (!data || typeof data !== 'object') return {};
+  const parsed = parseRawConfig(data as Record<string, unknown>);
+  return parsed.profiles ?? {};
 }
