@@ -133,6 +133,29 @@ describe('AsyncEventQueue', () => {
     expect(items).toEqual([1]);
   });
 
+  it('events from second-wave producers are not dropped after first wave finishes', async () => {
+    const queue = new AsyncEventQueue<string>();
+
+    // Wave 1: single producer pushes events then finishes
+    queue.addProducer();
+    queue.push('a1');
+    queue.push('a2');
+    queue.removeProducer(); // producers=0, done=true
+
+    // Wave 2: new producer added after wave 1 finished
+    queue.addProducer();
+    queue.push('b1');
+    queue.push('b2');
+    queue.removeProducer();
+
+    // ALL events should be consumable
+    const events: string[] = [];
+    for await (const event of queue) {
+      events.push(event);
+    }
+    expect(events).toEqual(['a1', 'a2', 'b1', 'b2']);
+  });
+
   it('empty queue terminates immediately', async () => {
     const queue = new AsyncEventQueue<number>();
     queue.addProducer();

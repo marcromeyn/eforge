@@ -52,6 +52,7 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
 
   addProducer(): void {
     this.producers++;
+    this.done = false;
   }
 
   removeProducer(): void {
