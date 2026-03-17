@@ -4,7 +4,7 @@ Addresses the fragility of the regex-based XML parsers that extract structured s
 
 ## Problem
 
-All agent-to-engine structured communication goes through hand-rolled regex parsers in `common.ts`, `reviewer.ts`, and `builder.ts`. Current fragilities:
+Most agent-to-engine structured communication goes through hand-rolled regex parsers in `common.ts`, `reviewer.ts`, and `builder.ts`. The newer `parseGeneratedProfileBlock()` (added with dynamic profile generation) takes a better approach - JSON payload inside XML tags, parsed with `JSON.parse()` - but the older attribute-based parsers remain unchanged. Current fragilities:
 
 1. **Attribute parsing is brittle**: `attrs.match(/id="([^"]+)"/)` requires double quotes, no extra whitespace, and a specific attribute order. An LLM that outputs `id = 'q1'` or `id="q1" ` (trailing space) silently fails.
 
@@ -61,7 +61,7 @@ This event is always yielded (not gated on verbose) so it shows up in the monito
 
 ### Files to modify
 
-- **`src/engine/agents/common.ts`**: Add `parseAttributes()` helper and `ParseResult<T>` type. Refactor `parseClarificationBlocks`, `parseScopeBlock`, `parseProfileBlock`, `parseModulesBlock` to use `parseAttributes` and return `ParseResult`.
+- **`src/engine/agents/common.ts`**: Add `parseAttributes()` helper and `ParseResult<T>` type. Refactor `parseClarificationBlocks`, `parseScopeBlock`, `parseProfileBlock`, `parseModulesBlock` to use `parseAttributes` and return `ParseResult`. Note: `parseGeneratedProfileBlock` already uses JSON-in-XML and doesn't need attribute parsing changes, but should adopt `ParseResult` for consistency.
 
 - **`src/engine/agents/reviewer.ts`**: Refactor `parseReviewIssues` to use `parseAttributes`. Return `ParseResult<ReviewIssue[]>`.
 

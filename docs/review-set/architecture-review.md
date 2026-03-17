@@ -2,7 +2,9 @@
 
 ## Context
 
-High-level architecture review of the eforge codebase (~9,400 LOC in src/). Looking for structural strengths, weaknesses, and smells - not nitpicking individual lines.
+High-level architecture review of the eforge codebase (~9,800 LOC in src/). Looking for structural strengths, weaknesses, and smells - not nitpicking individual lines.
+
+*Originally written 2026-03-16. Updated to reflect dynamic profile generation landing and related changes.*
 
 ---
 
@@ -43,9 +45,9 @@ Wave-based parallel execution with dependency graph resolution, failure propagat
 
 ## Weaknesses & Smells
 
-### 1. `eforge.ts` is a god object in disguise (~742 LOC)
+### 1. `eforge.ts` is a god object in disguise (~789 LOC)
 
-`EforgeEngine` has three public methods (`compile`, `build`, `adopt`) that each contain substantial orchestration logic, plus a static factory that handles config loading, MCP discovery, and plugin discovery (~80 LOC). `adopt()` alone is ~200 lines and duplicates PipelineContext creation and plan review logic from `compile()`.
+`EforgeEngine` has three public methods (`compile`, `build`, `adopt`) that each contain substantial orchestration logic, plus a static factory that handles config loading, MCP discovery, and plugin discovery (~80 LOC). `adopt()` alone is ~200 lines and duplicates PipelineContext creation and plan review logic from `compile()`. The file grew ~47 lines with dynamic profile generation support.
 
 **Why it matters:** When you add a new entry point (e.g., `resume`, `validate`, headless CI mode), this file grows further. The factory's auto-discovery logic (MCP servers, plugins) is infrastructure that doesn't belong in the engine coordinator.
 
@@ -81,10 +83,12 @@ This appears 8+ times across planner, builder, reviewer, plan-reviewer, plan-eva
 
 ### 4. XML parsing is regex-based and fragile
 
-All structured communication between agents and the engine (scope, profile, clarifications, modules, review issues, evaluation verdicts) goes through hand-rolled regex parsers in `common.ts`, `reviewer.ts`, and `builder.ts`. These work, but:
+Most structured communication between agents and the engine (scope, profile, clarifications, modules, review issues, evaluation verdicts) goes through hand-rolled regex parsers in `common.ts`, `reviewer.ts`, and `builder.ts`. These work, but:
 - Attribute parsing (`attrs.match(/id="([^"]+)"/)`) breaks on single quotes, extra whitespace, or attribute reordering
 - Nested XML (clarification questions with options and context) gets increasingly gnarly
 - No error reporting - malformed blocks silently return null/empty
+
+The newer `parseGeneratedProfileBlock()` (added with dynamic profile generation) takes a better approach: JSON payload inside XML tags, parsed with `JSON.parse()`. This sidesteps attribute fragility for that one block, but the older attribute-based parsers remain unchanged.
 
 This isn't a crisis today since the LLM output is reasonably consistent, but it's the most brittle part of the system. One model version that outputs slightly different XML formatting breaks silently.
 
@@ -100,11 +104,11 @@ The multi-turn clarification loop (parse questions → callback → reformat →
 
 **Recommendation:** Extract clarification handling into a middleware or wrapper that any agent runner can opt into. The pattern is: wrap `backend.run()`, watch for clarification XML in output, invoke callback, restart with accumulated answers.
 
-### 6. Config validation is ~165 LOC of hand-rolled field checks
+### 6. Config validation is ~230 LOC of hand-rolled field checks (and growing)
 
-`parseRawConfig()` manually validates every field with individual `typeof` checks, `includes()` for enums, and explicit fallbacks. This is correct but verbose and easy to get out of sync when adding new config fields.
+`parseRawConfig()` manually validates every field with individual `typeof` checks, `includes()` for enums, and explicit fallbacks (~165 LOC). Dynamic profile generation added `validateProfileConfig()` (~65 more LOC) with its own enum sets (`VALID_STRATEGIES_SET`, `VALID_STRICTNESS_SET`, `VALID_AGENT_ROLES_SET`) that partially duplicate constants already used in `parseRawConfig`. The validation surface is growing with each feature.
 
-**Recommendation:** Bring in zod for config validation - this is the clear win for zod in this project. It would cut the parsing code by ~60%, give you typed parsing for free, and produce better error messages. (Note: zod does *not* help with agent output parsing - that's a free-text extraction problem, not a validation problem. See #4 above.) Low priority since the current code works, but it'll pay off as the config surface grows.
+**Recommendation:** Bring in zod for config validation - this is the clear win for zod in this project. It would cut the parsing code by ~60%, give you typed parsing for free, and produce better error messages. The case is stronger now than when this review was first written - `validateProfileConfig` added another validation layer that zod schemas would unify with the existing parsing. (Note: zod does *not* help with agent output parsing - that's a free-text extraction problem, not a validation problem. See #4 above.)
 
 ### 7. PipelineContext is a mutable grab bag
 
@@ -132,7 +136,7 @@ Not necessarily wrong, but worth watching. If the event count doubles, consider 
 
 ### Agent count exceeds documentation
 
-CLAUDE.md documents 7 agents, but there are 11 implementations (planner, module-planner, builder, reviewer, plan-reviewer, plan-evaluator, validation-fixer, assessor, parallel-reviewer, review-fixer, cohesion-reviewer). The undocumented ones are real agents doing real work. CLAUDE.md should reflect the actual architecture.
+CLAUDE.md documents 7 agents, but there are 12 implementations (planner, module-planner, builder, reviewer, plan-reviewer, plan-evaluator, validation-fixer, assessor, parallel-reviewer, review-fixer, cohesion-reviewer, cohesion-evaluator). The undocumented ones are real agents doing real work. CLAUDE.md should reflect the actual architecture.
 
 ### Monitor mock-server is 944 LOC
 
@@ -151,7 +155,7 @@ Largest file in the project, but it's a dev tool. Fine, just notable.
 | Orchestration | Good - proper dependency graphs, failure propagation |
 | Agent implementations | Adequate - work well but have consistency issues |
 | Error handling | Weak - inconsistent patterns across agents |
-| Config system | Adequate - correct but verbose, will scale poorly |
+| Config system | Adequate - correct but verbose, growing with each feature |
 | XML parsing | Fragile - works today, brittle to model changes |
 | Internal diagnostics | Missing - no structured logging for debugging |
 

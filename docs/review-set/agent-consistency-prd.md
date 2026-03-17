@@ -6,7 +6,7 @@ Addresses three related code smells identified in the architecture review: incon
 
 ### Problem
 
-Three different error patterns exist across 11 agent runners:
+Three different error patterns exist across 12 agent runners:
 - **Builder** (`builder.ts`): yields `build:failed` event, returns gracefully (no throw)
 - **Plan evaluator** (`plan-evaluator.ts`): yields zero-count completion event, then re-throws
 - **Validation fixer** (`validation-fixer.ts`): swallows non-abort errors, doesn't yield completion event
@@ -98,7 +98,7 @@ Or wrap the forwarding in a small utility if the yield-forwarding is still too n
 
 The multi-turn clarification loop is ~90 lines embedded in the planner agent runner (`planner.ts`). It handles: parsing clarification XML from output, invoking the `onClarification` callback, formatting prior answers into the next prompt, restarting the agent, and enforcing a max-iteration limit.
 
-No other agent can ask clarifying questions without reimplementing this. Module-planner and builder are candidates for clarification support but can't use it today.
+No other agent can ask clarifying questions without reimplementing this. The planner has also grown (~80 lines for dynamic profile generation), making it even more important to separate concerns - the clarification loop, profile generation, and scope/module parsing are all interleaved in one function. Module-planner and builder are candidates for clarification support but can't use it today.
 
 ### Design
 
