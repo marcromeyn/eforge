@@ -474,6 +474,10 @@ export function renderEvent(event: EforgeEvent): void {
       succeedSpinner('cleanup', `Plan files removed for ${chalk.cyan(event.planSet)}`);
       break;
 
+    // Profile selection (display handled by separate module)
+    case 'plan:profile':
+      break;
+
     // Agent lifecycle (consumed by hooks, monitor, tracing — no CLI display)
     case 'agent:start':
     case 'agent:stop':

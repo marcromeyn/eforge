@@ -1065,6 +1065,7 @@ function mergeConfig(base: EforgeConfig, overrides: Partial<EforgeConfig>): Efor
     plan: overrides.plan ? { ...base.plan, ...overrides.plan } : base.plan,
     plugins: overrides.plugins ? { ...base.plugins, ...overrides.plugins } : base.plugins,
     hooks: overrides.hooks ?? base.hooks,
+    profiles: overrides.profiles ?? base.profiles,
   };
 }
 

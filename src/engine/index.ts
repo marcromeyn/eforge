@@ -42,7 +42,8 @@ export { ClaudeSDKBackend } from './backends/claude-sdk.js';
 export type { ClaudeSDKBackendOptions } from './backends/claude-sdk.js';
 
 // --- agents/common ---
-export { parseClarificationBlocks } from './agents/common.js';
+export { parseClarificationBlocks, parseProfileBlock } from './agents/common.js';
+export type { ProfileSelection } from './agents/common.js';
 
 // --- state ---
 export { loadState, saveState, updatePlanStatus, isResumable } from './state.js';
@@ -113,8 +114,8 @@ export type { HookConfig } from './config.js';
 export { withHooks, matchesPattern } from './hooks.js';
 
 // --- config ---
-export type { EforgeConfig, PartialEforgeConfig, PluginConfig } from './config.js';
-export { DEFAULT_CONFIG, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs } from './config.js';
+export type { EforgeConfig, PartialEforgeConfig, PluginConfig, ProfileConfig, ResolvedProfileConfig, AgentProfileConfig, ReviewProfileConfig, PartialProfileConfig } from './config.js';
+export { DEFAULT_CONFIG, BUILTIN_PROFILES, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, resolveProfileExtensions, parseProfilesFile } from './config.js';
 export type { TracingContext, SpanHandle, ToolCallHandle } from './tracing.js';
 export { createTracingContext, createNoopTracingContext } from './tracing.js';
 

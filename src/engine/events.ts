@@ -134,6 +134,7 @@ export type EforgeEvent = { sessionId?: string } & (
   // Planning
   | { type: 'plan:start'; source: string }
   | { type: 'plan:scope'; assessment: ScopeAssessment; justification: string }
+  | { type: 'plan:profile'; profileName: string; rationale: string }
   | { type: 'plan:clarification'; questions: ClarificationQuestion[] }
   | { type: 'plan:clarification:answer'; answers: Record<string, string> }
   | { type: 'plan:progress'; message: string }
