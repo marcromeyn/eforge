@@ -1,0 +1,21 @@
+name: minimal-plugin-skill-api-enqueue-run-status
+description: Collapse plugin surface to enqueue + run + status with unified intake path through formatter agent and PRD queue
+created: 2026-03-17
+compiled: 2026-03-17
+mode: excursion
+base_branch: main
+
+validate:
+  - pnpm type-check
+  - pnpm test
+  - pnpm build
+
+plans:
+  - id: plan-01-engine-enqueue
+    name: Engine Enqueue Foundation
+    depends_on: []
+    branch: minimal-plugin-skill-api-enqueue-run-status/engine-enqueue
+  - id: plan-02-cli-plugin-docs
+    name: CLI, Plugin, and Documentation Updates
+    depends_on: [plan-01-engine-enqueue]
+    branch: minimal-plugin-skill-api-enqueue-run-status/cli-plugin-docs
