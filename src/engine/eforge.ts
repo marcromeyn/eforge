@@ -174,6 +174,7 @@ export class EforgeEngine {
         sourceContent,
         verbose: options.verbose,
         auto: options.auto,
+        generateProfile: options.generateProfile,
         abortController: options.abortController,
         onClarification: this.onClarification,
         plans: [],

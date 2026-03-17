@@ -68,6 +68,8 @@ Rules:
 - If no profiles are listed above, skip this section and proceed to Scope Assessment
 - After selecting a profile, still emit the `<scope>` block in Phase 3 (both are required)
 
+{{profileGeneration}}
+
 ### Phase 3: Scope Assessment
 
 Based on your exploration, classify the **actual work remaining** (not the source's ambition):
