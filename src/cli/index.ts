@@ -187,6 +187,8 @@ export function createProgram(abortController?: AbortController): Command {
     .option('--no-plugins', 'Disable plugin loading')
     .option('--profiles <paths...>', 'Additional workflow profile files to load')
     .option('--generate-profile', 'Let the planner generate a custom workflow profile')
+    .option('--watch', 'Watch mode: continuously poll the queue for new PRDs')
+    .option('--poll-interval <ms>', 'Poll interval in milliseconds for watch mode', parseInt)
     .action(
       async (
         source: string | undefined,
@@ -202,9 +204,11 @@ export function createProgram(abortController?: AbortController): Command {
           plugins?: boolean;
           profiles?: string[];
           generateProfile?: boolean;
+          watch?: boolean;
+          pollInterval?: number;
         },
       ) => {
-        // --queue mode: delegate to engine.runQueue()
+        // --queue mode: delegate to engine.runQueue() or engine.watchQueue()
         if (options.queue) {
           initDisplay({ verbose: options.verbose });
 
@@ -219,20 +223,26 @@ export function createProgram(abortController?: AbortController): Command {
           await withMonitor(options.monitor === false, async (monitor) => {
             const sessionId = randomUUID();
 
-            const queueEvents = engine.runQueue({
+            const queueOpts = {
               name: options.name,
               all: true,
               auto: options.auto,
               verbose: options.verbose,
               abortController,
-            });
+              ...(options.pollInterval !== undefined && { pollIntervalMs: options.pollInterval }),
+            };
+
+            const queueEvents = options.watch
+              ? engine.watchQueue(queueOpts)
+              : engine.runQueue(queueOpts);
 
             const result = await consumeEvents(
               wrapEvents(queueEvents, monitor, engine.resolvedConfig.hooks, { sessionId, emitSessionStart: true, emitSessionEnd: true }),
               { afterStart: () => renderLangfuseStatus(engine.resolvedConfig) },
             );
 
-            process.exit(result === 'completed' ? 0 : 1);
+            // In watch mode, abort is a clean exit
+            process.exit(options.watch ? 0 : (result === 'completed' ? 0 : 1));
           });
           return;
         }
@@ -454,6 +464,8 @@ export function createProgram(abortController?: AbortController): Command {
     .option('--no-monitor', 'Disable web monitor')
     .option('--no-plugins', 'Disable plugin loading')
     .option('--parallelism <n>', 'Max parallel plans', parseInt)
+    .option('--watch', 'Watch mode: continuously poll the queue for new PRDs')
+    .option('--poll-interval <ms>', 'Poll interval in milliseconds for watch mode', parseInt)
     .action(
       async (
         name: string | undefined,
@@ -464,6 +476,8 @@ export function createProgram(abortController?: AbortController): Command {
           monitor?: boolean;
           plugins?: boolean;
           parallelism?: number;
+          watch?: boolean;
+          pollInterval?: number;
         },
       ) => {
         initDisplay({ verbose: options.verbose });
@@ -479,20 +493,26 @@ export function createProgram(abortController?: AbortController): Command {
         await withMonitor(options.monitor === false, async (monitor) => {
           const sessionId = randomUUID();
 
-          const queueEvents = engine.runQueue({
+          const queueOpts = {
             name,
             all: options.all,
             auto: options.auto,
             verbose: options.verbose,
             abortController,
-          });
+            ...(options.pollInterval !== undefined && { pollIntervalMs: options.pollInterval }),
+          };
+
+          const queueEvents = options.watch
+            ? engine.watchQueue(queueOpts)
+            : engine.runQueue(queueOpts);
 
           const result = await consumeEvents(
             wrapEvents(queueEvents, monitor, engine.resolvedConfig.hooks, { sessionId, emitSessionStart: true, emitSessionEnd: true }),
             { afterStart: () => renderLangfuseStatus(engine.resolvedConfig) },
           );
 
-          process.exit(result === 'completed' ? 0 : 1);
+          // In watch mode, abort is a clean exit
+          process.exit(options.watch ? 0 : (result === 'completed' ? 0 : 1));
         });
       },
     );

@@ -119,6 +119,8 @@ Key flags:
 - `--auto` — bypass approval/clarification gates
 - `--verbose` — stream agent output
 - `--dry-run` — validate and show execution plan without running
+- `--watch` — watch queue for new PRDs (with `--queue`)
+- `--poll-interval <ms>` — poll interval for watch mode (default 5000)
 - `--no-monitor` — disable web monitor
 - `--parallelism <n>` — max concurrent plans
 

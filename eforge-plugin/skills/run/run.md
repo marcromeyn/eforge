@@ -1,6 +1,6 @@
 ---
 description: Validate source and launch eforge run (enqueue + plan + build + validate) as a background task with monitor dashboard
-argument-hint: "<source> [--queue]"
+argument-hint: "<source> [--queue] [--watch]"
 disable-model-invocation: true
 ---
 
@@ -14,6 +14,8 @@ Launch `eforge run` to plan and build from a PRD file or description. This is a 
 
 - `source` - PRD file path or inline description of what to build (required unless `--queue`)
 - `--queue` - (optional) Process all PRDs from the queue instead of a single source
+- `--watch` - (optional) Enable watch mode: continuously poll the queue for new PRDs after each cycle
+- `--poll-interval <ms>` - (optional) Poll interval in milliseconds for watch mode (default: 5000)
 
 ## Workflow
 
@@ -44,6 +46,12 @@ eforge run $SOURCE --auto --verbose
 
 # Queue mode (process all PRDs from the queue)
 eforge run --queue --auto --verbose
+
+# Watch mode (continuously poll the queue for new PRDs)
+eforge run --queue --watch --auto --verbose
+
+# Watch mode with custom poll interval
+eforge run --queue --watch --poll-interval 10000 --auto --verbose
 ```
 
 Use `run_in_background: true` on the Bash tool call so the user gets notified when the build completes without blocking the conversation.
@@ -81,6 +89,16 @@ Tell the user:
 > **Monitor**: http://localhost:4567
 >
 > Each queued PRD goes through the full lifecycle: enqueue formatting, planning, building, review, merging, and validation.
+>
+> Use `/eforge:status` for a quick inline status check.
+
+**For watch mode (--watch):**
+
+> Queue watch mode started. The queue will be polled for new PRDs after each cycle.
+>
+> **Monitor**: http://localhost:4567
+>
+> Press Ctrl+C to stop watching. The process exits cleanly on abort.
 >
 > Use `/eforge:status` for a quick inline status check.
 

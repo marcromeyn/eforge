@@ -79,6 +79,7 @@ See `src/engine/events.ts` for the full `EforgeEvent` type definition. The main 
 - `session:start` / `session:end` - Session lifecycle (one per invocation)
 - `phase:start` / `phase:end` - Phase lifecycle (compile, build, adopt)
 - `plan:*` - Planning phase events
+- `queue:*` - Queue processing events (`queue:complete`, `queue:watch:waiting`, `queue:watch:poll`, `queue:watch:cycle`)
 - `build:*` - Build phase events (per-plan)
 - `wave:*` / `merge:*` - Orchestration events
 - `expedition:*` - Expedition architecture, module planning, compilation

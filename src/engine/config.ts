@@ -102,6 +102,7 @@ export const eforgeConfigSchema = z.object({
   prdQueue: z.object({
     dir: z.string().optional(),
     autoRevise: z.boolean().optional(),
+    watchPollIntervalMs: z.number().int().positive().optional(),
   }).optional(),
   hooks: z.array(hookConfigSchema).optional(),
   profiles: z.record(z.string(), partialProfileConfigSchema).optional(),
@@ -129,7 +130,7 @@ export interface EforgeConfig {
   build: { parallelism: number; worktreeDir?: string; postMergeCommands?: string[]; maxValidationRetries: number; cleanupPlanFiles: boolean };
   plan: { outputDir: string };
   plugins: PluginConfig;
-  prdQueue: { dir: string; autoRevise: boolean };
+  prdQueue: { dir: string; autoRevise: boolean; watchPollIntervalMs: number };
   hooks: readonly HookConfig[];
   profiles: Record<string, ResolvedProfileConfig>;
 }
@@ -178,7 +179,7 @@ export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   build: Object.freeze({ parallelism: availableParallelism(), worktreeDir: undefined, postMergeCommands: undefined, maxValidationRetries: 2, cleanupPlanFiles: true }),
   plan: Object.freeze({ outputDir: 'plans' }),
   plugins: Object.freeze({ enabled: true }),
-  prdQueue: Object.freeze({ dir: 'docs/prd-queue', autoRevise: false }),
+  prdQueue: Object.freeze({ dir: 'docs/prd-queue', autoRevise: false, watchPollIntervalMs: 5000 }),
   hooks: Object.freeze([]),
   profiles: BUILTIN_PROFILES,
 });
@@ -251,6 +252,7 @@ export function resolveConfig(
     prdQueue: Object.freeze({
       dir: fileConfig.prdQueue?.dir ?? DEFAULT_CONFIG.prdQueue.dir,
       autoRevise: fileConfig.prdQueue?.autoRevise ?? DEFAULT_CONFIG.prdQueue.autoRevise,
+      watchPollIntervalMs: fileConfig.prdQueue?.watchPollIntervalMs ?? DEFAULT_CONFIG.prdQueue.watchPollIntervalMs,
     }),
     hooks: Object.freeze(fileConfig.hooks ?? DEFAULT_CONFIG.hooks) as HookConfig[],
     profiles: Object.freeze(

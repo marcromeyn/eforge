@@ -113,6 +113,9 @@ eforge run "Add a health check endpoint"
 # Process all PRDs from the queue
 eforge run --queue
 
+# Watch queue and process new PRDs as they arrive
+eforge run --queue --watch
+
 # Check running builds
 eforge status
 
@@ -121,6 +124,9 @@ eforge queue list
 
 # Process specific PRD from the queue
 eforge queue run my-feature
+
+# Watch queue for new PRDs
+eforge queue run --watch
 
 # Validate eforge.yaml configuration
 eforge config validate
@@ -140,6 +146,8 @@ Each command supports `--help` for the full list of options. Common flags:
 | `--verbose` | Stream agent output |
 | `--dry-run` | Validate without executing |
 | `--queue` | Process all PRDs from the queue |
+| `--watch` | Watch queue for new PRDs (with `--queue`) |
+| `--poll-interval <ms>` | Poll interval for watch mode (default 5000) |
 | `--no-monitor` | Disable web monitor |
 | `--no-plugins` | Disable plugin loading |
 | `--generate-profile` | Let the planner generate a custom workflow profile |
@@ -184,6 +192,7 @@ plan:
 prdQueue:
   dir: docs/prd-queue          # Where queued PRDs are stored
   autoRevise: false             # Auto-revise PRDs on enqueue
+  watchPollIntervalMs: 5000     # Poll interval for --watch mode
 
 langfuse:
   # publicKey: lf_pk_...      # Or set LANGFUSE_PUBLIC_KEY env var

@@ -229,7 +229,10 @@ export type QueueEvent =
   | { type: 'queue:prd:stale'; verdict: StalenessVerdict; justification: string; revision?: string }
   | { type: 'queue:prd:skip'; prdId: string; reason: string }
   | { type: 'queue:prd:complete'; prdId: string; status: 'completed' | 'failed' }
-  | { type: 'queue:complete'; processed: number; skipped: number };
+  | { type: 'queue:complete'; processed: number; skipped: number }
+  | { type: 'queue:watch:waiting'; pollIntervalMs: number }
+  | { type: 'queue:watch:poll' }
+  | { type: 'queue:watch:cycle'; processed: number; skipped: number };
 
 /** Agent event types that runners always yield (not gated on verbose). */
 export function isAlwaysYieldedAgentEvent(event: EforgeEvent): boolean {

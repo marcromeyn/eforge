@@ -75,7 +75,36 @@ export interface QueueOptions {
   noMonitor?: boolean;
   /** AbortController for cancellation */
   abortController?: AbortController;
+  /** Enable watch mode — poll for new PRDs after each cycle */
+  watch?: boolean;
+  /** Poll interval in milliseconds (overrides config) */
+  pollIntervalMs?: number;
 }
+
+/**
+ * Sleep for the given duration, returning early if the signal fires.
+ * Resolves to `true` when aborted, `false` when the timer completes normally.
+ */
+function abortableSleep(ms: number, signal?: AbortSignal): Promise<boolean> {
+  if (signal?.aborted) return Promise.resolve(true);
+  return new Promise<boolean>((resolve) => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    const onAbort = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+
+    timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve(false);
+    }, ms);
+
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+export { abortableSleep };
 
 export class EforgeEngine {
   private readonly config: EforgeConfig;
@@ -632,6 +661,64 @@ export class EforgeEngine {
       type: 'queue:complete',
       processed,
       skipped,
+    };
+  }
+
+  /**
+   * Watch queue: wrap runQueue() in a polling loop, checking for new PRDs
+   * after each cycle. Yields queue:watch:* events to communicate state.
+   * Exits cleanly when the abort signal fires.
+   */
+  async *watchQueue(options: QueueOptions = {}): AsyncGenerator<EforgeEvent> {
+    const pollIntervalMs = options.pollIntervalMs ?? this.config.prdQueue.watchPollIntervalMs;
+    const signal = options.abortController?.signal;
+
+    let totalProcessed = 0;
+    let totalSkipped = 0;
+
+    while (!signal?.aborted) {
+      // Delegate to runQueue for this cycle, intercepting queue:complete
+      let cycleProcessed = 0;
+      let cycleSkipped = 0;
+
+      for await (const event of this.runQueue(options)) {
+        if (event.type === 'queue:complete') {
+          // Swallow queue:complete, emit queue:watch:cycle instead
+          cycleProcessed = event.processed;
+          cycleSkipped = event.skipped;
+        } else {
+          yield event;
+        }
+      }
+
+      totalProcessed += cycleProcessed;
+      totalSkipped += cycleSkipped;
+
+      yield {
+        type: 'queue:watch:cycle',
+        processed: cycleProcessed,
+        skipped: cycleSkipped,
+      };
+
+      // Check abort before sleeping
+      if (signal?.aborted) break;
+
+      yield {
+        type: 'queue:watch:waiting',
+        pollIntervalMs,
+      };
+
+      const aborted = await abortableSleep(pollIntervalMs, signal);
+      if (aborted) break;
+
+      yield { type: 'queue:watch:poll' };
+    }
+
+    // Final queue:complete after watch loop exits
+    yield {
+      type: 'queue:complete',
+      processed: totalProcessed,
+      skipped: totalSkipped,
     };
   }
 

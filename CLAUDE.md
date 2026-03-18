@@ -88,7 +88,7 @@ eforge-plugin/                      # Claude Code plugin (skills for enqueue, ru
 eforge.yaml                         # Optional engine config (langfuse, parallelism, etc.)
 src/
   engine/                     # Library core (no stdout, events only)
-    eforge.ts                 # EforgeEngine: compile(), build(), status()
+    eforge.ts                 # EforgeEngine: compile(), build(), status(), watchQueue()
     events.ts                 # EforgeEvent type definitions
     backend.ts                # AgentBackend interface (provider abstraction)
     pipeline.ts               # Stage registry, compile/build stage implementations
@@ -128,7 +128,7 @@ eforge loads config from two levels, merged together:
 **Priority chain** (lowest → highest): defaults → global config → project config → env vars → CLI overrides
 
 **Merge strategy**:
-- Object sections (`langfuse`, `agents`, `build`, `plan`, `plugins`, `prdQueue`): shallow merge per-field — project overrides global, global fields survive if project doesn't define them. `prdQueue` has `dir` (queue directory path) and `autoRevise` (boolean) fields.
+- Object sections (`langfuse`, `agents`, `build`, `plan`, `plugins`, `prdQueue`): shallow merge per-field — project overrides global, global fields survive if project doesn't define them. `prdQueue` has `dir` (queue directory path), `autoRevise` (boolean), and `watchPollIntervalMs` (poll interval for watch mode, default 5000) fields.
 - `hooks` array: **concatenate** (global hooks fire first, then project hooks)
 - Arrays inside objects (`postMergeCommands`, `plugins.include/exclude/paths`, `settingSources`): project replaces global
 
@@ -170,15 +170,17 @@ eforge loads config from two levels, merged together:
 eforge enqueue <source>   # Normalize input and add to PRD queue
 eforge run <source>       # Enqueue + compile + build + validate in one step
 eforge run --queue        # Process all PRDs from the queue
+eforge run --queue --watch # Watch queue and process new PRDs as they arrive
 eforge status             # Check running builds
 eforge queue list         # Show PRDs in the queue
 eforge queue run [name]   # Process PRDs from the queue (optionally by name)
+eforge queue run --watch  # Watch queue and process new PRDs as they arrive
 eforge monitor            # Start or connect to the monitor dashboard
 eforge config validate    # Validate eforge.yaml (schema + profile stage names)
 eforge config show        # Print resolved config (all layers merged) as YAML
 ```
 
-Flags: `--auto` (bypass approval gates), `--verbose` (stream output), `--dry-run` (validate only), `--queue` (process all PRDs from the queue), `--no-monitor` (disable web monitor), `--no-plugins` (disable plugin loading), `--profiles <path>` (add custom workflow profiles from a YAML file), `--generate-profile` (let the planner generate a custom workflow profile)
+Flags: `--auto` (bypass approval gates), `--verbose` (stream output), `--dry-run` (validate only), `--queue` (process all PRDs from the queue), `--watch` (watch queue for new PRDs, re-poll after each cycle), `--poll-interval <ms>` (poll interval for watch mode, default 5000), `--no-monitor` (disable web monitor), `--no-plugins` (disable plugin loading), `--profiles <path>` (add custom workflow profiles from a YAML file), `--generate-profile` (let the planner generate a custom workflow profile)
 
 ## Roadmap
 
