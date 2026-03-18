@@ -183,7 +183,7 @@ export function createProgram(abortController?: AbortController): Command {
     .option('--no-monitor', 'Disable web monitor')
     .option('--no-plugins', 'Disable plugin loading')
     .option('--profiles <paths...>', 'Additional workflow profile files to load')
-    .option('--generate-profile', 'Let the planner generate a custom workflow profile')
+    .option('--no-generate-profile', 'Disable custom profile generation (enabled by default)')
     .option('--watch', 'Watch mode: continuously poll the queue for new PRDs')
     .option('--poll-interval <ms>', 'Poll interval in milliseconds for watch mode', parseInt)
     .action(
@@ -223,6 +223,7 @@ export function createProgram(abortController?: AbortController): Command {
               all: true,
               auto: options.auto,
               verbose: options.verbose,
+              generateProfile: options.generateProfile,
               abortController,
               ...(options.pollInterval !== undefined && { pollIntervalMs: options.pollInterval }),
             };

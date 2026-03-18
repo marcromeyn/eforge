@@ -73,6 +73,8 @@ export interface QueueOptions {
   verbose?: boolean;
   /** Disable web monitor */
   noMonitor?: boolean;
+  /** Enable custom profile generation (defaults to true) */
+  generateProfile?: boolean;
   /** AbortController for cancellation */
   abortController?: AbortController;
   /** Enable watch mode — poll for new PRDs after each cycle */
@@ -624,6 +626,7 @@ export class EforgeEngine {
         name: planSetName,
         auto: options.auto,
         verbose,
+        generateProfile: options.generateProfile ?? true,
         cwd,
         abortController,
       })) {

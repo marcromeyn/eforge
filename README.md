@@ -152,7 +152,7 @@ Each command supports `--help` for the full list of options. Common flags:
 | `--poll-interval <ms>` | Poll interval for watch mode (default 5000) |
 | `--no-monitor` | Disable web monitor server (events still recorded) |
 | `--no-plugins` | Disable plugin loading |
-| `--generate-profile` | Let the planner generate a custom workflow profile |
+| `--no-generate-profile` | Disable custom profile generation (enabled by default) |
 
 ## Configuration
 
