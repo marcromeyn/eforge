@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseClarificationBlocks, parseScopeBlock, parseModulesBlock, parseProfileBlock, parseStalenessBlock } from '../src/engine/agents/common.js';
+import { parseClarificationBlocks, parseSkipBlock, parseModulesBlock, parseProfileBlock, parseStalenessBlock } from '../src/engine/agents/common.js';
 import { parseReviewIssues } from '../src/engine/agents/reviewer.js';
 import { parseEvaluationBlock } from '../src/engine/agents/builder.js';
 import { formatPriorClarifications } from '../src/engine/agents/planner.js';
@@ -114,74 +114,29 @@ And some trailing text.`;
   });
 });
 
-describe('parseScopeBlock', () => {
-  it('parses a valid errand scope', () => {
-    const text = `
-<scope assessment="errand">
-  Adding a single CLI flag — one area, no migrations.
-</scope>`;
-
-    const result = parseScopeBlock(text);
-    expect(result).toEqual({
-      assessment: 'errand',
-      justification: 'Adding a single CLI flag — one area, no migrations.',
-    });
+describe('parseSkipBlock', () => {
+  it('parses a valid skip block', () => {
+    const text = '<skip>Already implemented in a previous PR.</skip>';
+    const result = parseSkipBlock(text);
+    expect(result).toBe('Already implemented in a previous PR.');
   });
 
-  it('parses all valid assessment levels', () => {
-    const complete = parseScopeBlock('<scope assessment="complete">Source is fully implemented.</scope>');
-    expect(complete?.assessment).toBe('complete');
-
-    const excursion = parseScopeBlock('<scope assessment="excursion">Cross-cutting change.</scope>');
-    expect(excursion?.assessment).toBe('excursion');
-
-    const expedition = parseScopeBlock('<scope assessment="expedition">Large initiative.</scope>');
-    expect(expedition?.assessment).toBe('expedition');
+  it('returns null when no skip block present', () => {
+    expect(parseSkipBlock('just plain text')).toBeNull();
   });
 
-  it('returns null for invalid assessment value', () => {
-    const text = '<scope assessment="tiny">Small change.</scope>';
-    expect(parseScopeBlock(text)).toBeNull();
-  });
-
-  it('returns null when no scope block present', () => {
-    expect(parseScopeBlock('just plain text')).toBeNull();
-  });
-
-  it('returns null for empty justification', () => {
-    const text = '<scope assessment="errand">   </scope>';
-    expect(parseScopeBlock(text)).toBeNull();
-  });
-
-  it('extracts only the first scope block', () => {
-    const text = `
-<scope assessment="errand">First assessment.</scope>
-<scope assessment="expedition">Second assessment.</scope>`;
-
-    const result = parseScopeBlock(text);
-    expect(result?.assessment).toBe('errand');
-    expect(result?.justification).toBe('First assessment.');
+  it('returns null for empty content', () => {
+    const text = '<skip>   </skip>';
+    expect(parseSkipBlock(text)).toBeNull();
   });
 
   it('ignores surrounding text', () => {
     const text = `Here is some preamble.
-<scope assessment="excursion">Migration before feature code.</scope>
+<skip>Feature already exists in codebase.</skip>
 And trailing text.`;
 
-    const result = parseScopeBlock(text);
-    expect(result).toEqual({
-      assessment: 'excursion',
-      justification: 'Migration before feature code.',
-    });
-  });
-
-  it('trims whitespace from justification', () => {
-    const text = `<scope assessment="errand">
-      Lots of whitespace around this.
-    </scope>`;
-
-    const result = parseScopeBlock(text);
-    expect(result?.justification).toBe('Lots of whitespace around this.');
+    const result = parseSkipBlock(text);
+    expect(result).toBe('Feature already exists in codebase.');
   });
 });
 

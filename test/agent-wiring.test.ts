@@ -34,9 +34,9 @@ describe('runPlanner wiring', () => {
     expect(findEvent(events, 'agent:result')).toBeDefined();
   });
 
-  it('detects scope assessment from agent output', async () => {
+  it('emits plan:skip when agent output contains a skip block', async () => {
     const backend = new StubBackend([{
-      text: '<scope assessment="errand">Small change — one file.</scope>',
+      text: '<skip>Already implemented in a previous PR.</skip>',
     }]);
     const cwd = makeTempDir();
 
@@ -45,10 +45,9 @@ describe('runPlanner wiring', () => {
       cwd,
     }));
 
-    const scope = findEvent(events, 'plan:scope');
-    expect(scope).toBeDefined();
-    expect(scope!.assessment).toBe('errand');
-    expect(scope!.justification).toBe('Small change — one file.');
+    const skip = findEvent(events, 'plan:skip');
+    expect(skip).toBeDefined();
+    expect(skip!.reason).toBe('Already implemented in a previous PR.');
   });
 
   it('triggers clarification callback and restarts with answers', async () => {
@@ -255,28 +254,6 @@ describe('runPlanner profile emission', () => {
     expect(profile!.config).toBe(stubProfile);
   });
 
-  it('emits both plan:profile and plan:scope when profile name matches a built-in scope', async () => {
-    const backend = new StubBackend([{
-      text: '<profile name="excursion">Cross-cutting change.</profile>',
-    }]);
-    const cwd = makeTempDir();
-
-    const events = await collectEvents(runPlanner('Build feature', {
-      backend,
-      cwd,
-      profiles: { excursion: stubProfile },
-    }));
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeDefined();
-    expect(profile!.profileName).toBe('excursion');
-
-    const scope = findEvent(events, 'plan:scope');
-    expect(scope).toBeDefined();
-    expect(scope!.assessment).toBe('excursion');
-    expect(scope!.justification).toBe('Cross-cutting change.');
-  });
-
   it('emits only plan:profile when profile name is a custom name', async () => {
     const backend = new StubBackend([{
       text: '<profile name="migration">Database migration work.</profile>',
@@ -292,29 +269,6 @@ describe('runPlanner profile emission', () => {
     const profile = findEvent(events, 'plan:profile');
     expect(profile).toBeDefined();
     expect(profile!.profileName).toBe('migration');
-
-    // No plan:scope emitted for custom profile names
-    const scope = findEvent(events, 'plan:scope');
-    expect(scope).toBeUndefined();
-  });
-
-  it('emits only plan:scope when no profile block but scope block is present (backwards compatible)', async () => {
-    const backend = new StubBackend([{
-      text: '<scope assessment="errand">Small change — one file.</scope>',
-    }]);
-    const cwd = makeTempDir();
-
-    const events = await collectEvents(runPlanner('Fix bug', {
-      backend,
-      cwd,
-    }));
-
-    const scope = findEvent(events, 'plan:scope');
-    expect(scope).toBeDefined();
-    expect(scope!.assessment).toBe('errand');
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeUndefined();
   });
 
   it('includes profiles template variable in prompt when profiles are provided', async () => {

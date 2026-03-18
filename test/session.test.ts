@@ -112,16 +112,16 @@ describe('runSession', () => {
     expect(sessionEnd!.type === 'session:end' && sessionEnd!.result.status).toBe('failed');
   });
 
-  it('emits session:end with completed result when generator returns early (scope-complete)', async () => {
-    async function* scopeCompleteStream(): AsyncGenerator<EforgeEvent> {
+  it('emits session:end with completed result when generator returns early (plan:skip)', async () => {
+    async function* skipStream(): AsyncGenerator<EforgeEvent> {
       yield { type: 'phase:start', runId: 'run-1', planSet: 'test', command: 'compile', timestamp: '2024-01-01T00:00:00Z' } as EforgeEvent;
-      yield { type: 'plan:scope', assessment: 'complete', justification: 'already done' } as EforgeEvent;
-      yield { type: 'phase:end', runId: 'run-1', result: { status: 'completed', summary: 'scope complete' }, timestamp: '2024-01-01T00:01:00Z' } as EforgeEvent;
+      yield { type: 'plan:skip', reason: 'already done' } as EforgeEvent;
+      yield { type: 'phase:end', runId: 'run-1', result: { status: 'completed', summary: 'skipped' }, timestamp: '2024-01-01T00:01:00Z' } as EforgeEvent;
       // Generator returns early — no build phase
       return;
     }
 
-    const result = await collect(runSession(scopeCompleteStream(), 'session-scope'));
+    const result = await collect(runSession(skipStream(), 'session-scope'));
 
     expect(result[0].type).toBe('session:start');
     const sessionEnd = result.find((e) => e.type === 'session:end');

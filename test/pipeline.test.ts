@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import type { EforgeEvent, PlanFile, OrchestrationConfig, ReviewIssue, ScopeAssessment } from '../src/engine/events.js';
+import type { EforgeEvent, PlanFile, OrchestrationConfig, ReviewIssue } from '../src/engine/events.js';
 import type { EforgeConfig, ResolvedProfileConfig } from '../src/engine/config.js';
 import type { AgentBackend } from '../src/engine/backend.js';
 import { BUILTIN_PROFILES, DEFAULT_CONFIG } from '../src/engine/config.js';
@@ -347,29 +347,6 @@ describe('PipelineContext mutable state', () => {
     await collect(runCompilePipeline(ctx));
 
     expect(readPlans).toEqual([testPlan]);
-  });
-
-  it('scopeAssessment set by first stage is readable by subsequent stage', async () => {
-    registerCompileStage('test-set-scope', async function* (ctx) {
-      ctx.scopeAssessment = 'expedition';
-      yield { type: 'plan:progress', message: 'set-scope' };
-    });
-
-    let readScope: ScopeAssessment | undefined;
-    registerCompileStage('test-read-scope', async function* (ctx) {
-      readScope = ctx.scopeAssessment;
-      yield { type: 'plan:progress', message: 'read-scope' };
-    });
-
-    const profile: ResolvedProfileConfig = {
-      ...BUILTIN_PROFILES['excursion'],
-      compile: ['test-set-scope', 'test-read-scope'],
-    };
-
-    const ctx = makePipelineCtx({ profile });
-    await collect(runCompilePipeline(ctx));
-
-    expect(readScope).toBe('expedition');
   });
 });
 
