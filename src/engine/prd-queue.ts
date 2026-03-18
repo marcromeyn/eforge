@@ -11,6 +11,7 @@ import { resolve, basename } from 'node:path';
 import { promisify } from 'node:util';
 import { z } from 'zod/v4';
 import { resolveDependencyGraph } from './plan.js';
+import { forgeCommit } from './git.js';
 
 const exec = promisify(execFile);
 
@@ -288,7 +289,7 @@ export async function cleanupCompletedPrd(filePath: string, queueDir: string, cw
   } catch { /* not empty or already gone */ }
 
   const prdId = basename(filePath, '.md');
-  await exec('git', ['commit', '-m', `cleanup(${prdId}): remove completed PRD`, '--', filePath], { cwd });
+  await forgeCommit(cwd, `cleanup(${prdId}): remove completed PRD`, [filePath]);
 }
 
 // ---------------------------------------------------------------------------

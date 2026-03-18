@@ -37,6 +37,7 @@ import type { MergeResolver } from './worktree.js';
 import { deriveNameFromSource, parseOrchestrationConfig, parsePlanFile, validatePlanSet, validatePlanSetName } from './plan.js';
 import { loadState } from './state.js';
 import { runCompilePipeline, runBuildPipeline, createToolTracker, type PipelineContext, type BuildStageContext } from './pipeline.js';
+import { forgeCommit } from './git.js';
 
 const exec = promisify(execFile);
 
@@ -206,7 +207,7 @@ export class EforgeEngine {
       if (ctx.plans.length > 0 && !ctx.profile.compile.includes('plan-review-cycle')) {
         const planDir = resolve(cwd, 'plans', planSetName);
         await exec('git', ['add', planDir], { cwd });
-        await exec('git', ['commit', '-m', `plan(${planSetName}): initial planning artifacts`], { cwd });
+        await forgeCommit(cwd, `plan(${planSetName}): initial planning artifacts`);
       }
     } catch (err) {
       status = 'failed';
@@ -271,7 +272,7 @@ export class EforgeEngine {
     // Commit the enqueued PRD
     try {
       await exec('git', ['add', enqueueResult.filePath], { cwd });
-      await exec('git', ['commit', '-m', `enqueue(${enqueueResult.id}): ${title}`], { cwd });
+      await forgeCommit(cwd, `enqueue(${enqueueResult.id}): ${title}`);
     } catch {
       // Not a git repo or nothing to commit — non-fatal
     }
@@ -562,7 +563,7 @@ export class EforgeEngine {
             await writeFile(prd.filePath, revision, 'utf-8');
             try {
               await exec('git', ['add', '--', prd.filePath], { cwd });
-              await exec('git', ['commit', '-m', `chore(queue): revise stale PRD ${prd.id}`], { cwd });
+              await forgeCommit(cwd, `chore(queue): revise stale PRD ${prd.id}`);
             } catch {
               // Not a git repo or nothing to commit — non-fatal
             }
@@ -700,7 +701,7 @@ async function* cleanupPlanFiles(cwd: string, planSet: string, prdFilePath?: str
     const commitMsg = prdFilePath
       ? `cleanup(${planSet}): remove plan files and PRD`
       : `cleanup(${planSet}): remove plan files after successful build`;
-    await exec('git', ['commit', '-m', commitMsg], { cwd });
+    await forgeCommit(cwd, commitMsg);
 
     // Clean up state file (gitignored)
     try { await rm(resolve(cwd, '.eforge', 'state.json')); } catch {}

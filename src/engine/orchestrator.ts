@@ -22,6 +22,7 @@ import {
   type MergeResolver,
 } from './worktree.js';
 import { Semaphore, AsyncEventQueue } from './concurrency.js';
+import { ATTRIBUTION } from './git.js';
 
 /**
  * Callback that runs a single plan in a worktree.
@@ -376,7 +377,7 @@ export class Orchestrator {
                 : undefined;
 
               const prefix = config.mode === 'errand' ? 'fix' : 'feat';
-              const commitMessage = `${prefix}(${plan.id}): ${plan.name}\n\nForged by eforge https://eforge.run`;
+              const commitMessage = `${prefix}(${plan.id}): ${plan.name}\n\n${ATTRIBUTION}`;
               await mergeWorktree(repoRoot, plan.branch, config.baseBranch, commitMessage, contextResolver);
 
               updatePlanStatus(state, planId, 'merged');

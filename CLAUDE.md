@@ -93,6 +93,7 @@ src/
     backend.ts                # AgentBackend interface (provider abstraction)
     pipeline.ts               # Stage registry, compile/build stage implementations
     config.ts                 # Config loading, merging & validation
+    git.ts                    # forgeCommit() helper — all engine commits go through here for attribution
     agents/                   # Agent implementations (16 agents — see agent list above)
     backends/                 # SDK adapters (sole SDK import point)
     prompts/                  # Agent prompt .md files (self-contained, no runtime plugin deps)
@@ -148,6 +149,7 @@ eforge loads config from two levels, merged together:
 ## Conventions
 
 - Use Mermaid diagrams instead of ASCII art in documentation
+- All engine commits use `forgeCommit()` from `src/engine/git.ts` — this appends "Forged by eforge https://eforge.run" attribution automatically. Do not use raw `exec('git', ['commit', ...])` in engine code outside of `git.ts` and `worktree.ts`.
 - SDK imports (`@anthropic-ai/claude-agent-sdk`) are restricted to `src/engine/backends/` — agent runners use the `AgentBackend` interface
 - **Always bump the plugin version** in `eforge-plugin/.claude-plugin/plugin.json` when making any changes to the plugin (skills, plugin.json, etc.)
 

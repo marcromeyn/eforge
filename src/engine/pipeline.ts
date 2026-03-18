@@ -39,6 +39,7 @@ import { parseModulesBlock } from './agents/common.js';
 import { compileExpedition } from './compiler.js';
 import { resolveDependencyGraph, injectProfileIntoOrchestrationYaml } from './plan.js';
 import { runParallel, type ParallelTask } from './concurrency.js';
+import { forgeCommit } from './git.js';
 
 const exec = promisify(execFile);
 
@@ -909,7 +910,7 @@ export async function* runBuildPipeline(
         const { stdout: statusOut } = await exec('git', ['status', '--porcelain'], { cwd: ctx.worktreePath });
         if (statusOut.trim().length > 0) {
           await exec('git', ['add', '-A'], { cwd: ctx.worktreePath });
-          await exec('git', ['commit', '-m', `chore(${ctx.planId}): post-parallel-group auto-commit`], { cwd: ctx.worktreePath });
+          await forgeCommit(ctx.worktreePath, `chore(${ctx.planId}): post-parallel-group auto-commit`);
         }
       } catch (err) {
         // Non-critical — best-effort commit, but yield a warning so it's observable
@@ -934,5 +935,5 @@ export async function* runBuildPipeline(
 async function commitPlanArtifacts(cwd: string, planSetName: string): Promise<void> {
   const planDir = resolve(cwd, 'plans', planSetName);
   await exec('git', ['add', planDir], { cwd });
-  await exec('git', ['commit', '-m', `plan(${planSetName}): initial planning artifacts`], { cwd });
+  await forgeCommit(cwd, `plan(${planSetName}): initial planning artifacts`);
 }
