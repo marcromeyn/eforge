@@ -1,0 +1,34 @@
+name: plan-remove-roadmap-skills-from-eforge-plugin
+description: Remove all roadmap-related skills and references from the eforge plugin
+created: 2026-03-18
+compiled: 2026-03-18
+mode: errand
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm build
+  - pnpm test
+plans:
+  - id: plan-01-remove-roadmap-skills
+    name: Remove Roadmap Skills from Eforge Plugin
+    depends_on: []
+    branch: plan-remove-roadmap-skills-from-eforge-plugin/remove-roadmap-skills
+profile:
+  description: Small, self-contained changes. Single file or a few lines. Low
+    risk, no architectural impact.
+  compile:
+    - planner
+    - plan-review-cycle
+  build:
+    - - implement
+      - doc-update
+    - review
+    - review-fix
+    - evaluate
+  agents: {}
+  review:
+    strategy: auto
+    perspectives:
+      - code
+    maxRounds: 1
+    evaluatorStrictness: standard
