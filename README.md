@@ -99,9 +99,6 @@ Once installed, the primary entrypoint is `/eforge:run` - it takes a PRD or prom
 | `/eforge:run` | Enqueue + compile + build + validate in one step |
 | `/eforge:status` | Check build progress |
 | `/eforge:config` | Initialize or edit `eforge.yaml` with interactive guidance |
-| `/eforge:roadmap` | View and discuss the project roadmap |
-| `/eforge:roadmap-init` | Initialize a new `docs/roadmap.md` for the project |
-| `/eforge:roadmap-prune` | Remove shipped items from the roadmap |
 
 ### CLI Usage
 

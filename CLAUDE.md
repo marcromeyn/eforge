@@ -83,7 +83,7 @@ Build stages: `implement`, `review`, `review-fix`, `evaluate`, `review-cycle`, `
 
 ```
 .claude-plugin/marketplace.json     # Claude Code marketplace manifest
-eforge-plugin/                      # Claude Code plugin (skills for enqueue, run, status, config, roadmap)
+eforge-plugin/                      # Claude Code plugin (skills for enqueue, run, status, config)
 .mcp.json                           # MCP server config (gitignored, auto-loaded by engine)
 eforge.yaml                         # Optional engine config (langfuse, parallelism, etc.)
 src/

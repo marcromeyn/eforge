@@ -31,7 +31,6 @@
 
 - **Provider abstraction** — Second `AgentBackend` implementation for non-SDK environments
 - **npm distribution** — Publish CLI + library to npm, configure exports and files field
-- **Remove roadmap skills** — Remove the roadmap-policy skill from the eforge plugin
 
 ---
 
