@@ -26,4 +26,9 @@ This is attempt {{attempt}} of {{max_attempts}}.
 - Do not refactor or improve code beyond what's needed for the fix
 - Do not change test expectations unless they are genuinely wrong
 - If the fix requires changes across multiple files, make them all
-- Commit all changes in a single commit: `git add -u && git commit -m "fix: resolve validation failures"`
+- Commit all changes in a single commit:
+  ```
+  git add -u && git commit -m "fix: resolve validation failures
+
+  Forged by eforge https://eforge.run"
+  ```

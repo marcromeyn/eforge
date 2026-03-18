@@ -192,5 +192,7 @@ After applying all verdicts:
 
 2. Commit all staged changes (implementation + accepted fixes):
    ```bash
-   git add -A && git commit -m "feat({{plan_id}}): {{plan_name}}"
+   git add -A && git commit -m "feat({{plan_id}}): {{plan_name}}
+
+Forged by eforge https://eforge.run"
    ```

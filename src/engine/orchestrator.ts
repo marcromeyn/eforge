@@ -376,7 +376,7 @@ export class Orchestrator {
                 : undefined;
 
               const prefix = config.mode === 'errand' ? 'fix' : 'feat';
-              const commitMessage = `${prefix}(${plan.id}): ${plan.name}`;
+              const commitMessage = `${prefix}(${plan.id}): ${plan.name}\n\nForged by eforge https://eforge.run`;
               await mergeWorktree(repoRoot, plan.branch, config.baseBranch, commitMessage, contextResolver);
 
               updatePlanStatus(state, planId, 'merged');
