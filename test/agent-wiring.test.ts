@@ -6,7 +6,6 @@ import { StubBackend } from './stub-backend.js';
 import { collectEvents, findEvent, filterEvents } from './test-events.js';
 import { useTempDir } from './test-tmpdir.js';
 import { runPlanner, formatProfileDescriptions } from '../src/engine/agents/planner.js';
-import { runAssessor } from '../src/engine/agents/assessor.js';
 import { runReview } from '../src/engine/agents/reviewer.js';
 import { builderImplement, builderEvaluate } from '../src/engine/agents/builder.js';
 import { runPlanReview } from '../src/engine/agents/plan-reviewer.js';
@@ -330,48 +329,6 @@ describe('runPlanner profile emission', () => {
 
     expect(backend.prompts[0]).toContain('Small focused change');
     expect(backend.prompts[0]).toContain('`errand`');
-  });
-});
-
-// --- Assessor profile emission ---
-
-describe('runAssessor profile emission', () => {
-  it('emits plan:profile when agent output contains a profile block', async () => {
-    const backend = new StubBackend([{
-      text: '<profile name="excursion">Multi-file work.</profile><scope assessment="excursion">Cross-cutting change.</scope>',
-    }]);
-
-    const events = await collectEvents(runAssessor({
-      backend,
-      sourceContent: 'test plan',
-      cwd: '/tmp',
-      profiles: { excursion: stubProfile },
-    }));
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeDefined();
-    expect(profile!.profileName).toBe('excursion');
-    expect(profile!.rationale).toBe('Multi-file work.');
-    expect(profile!.config).toBe(stubProfile);
-  });
-
-  it('emits plan:scope without plan:profile when no profile block present (backwards compatible)', async () => {
-    const backend = new StubBackend([{
-      text: '<scope assessment="errand">Small change.</scope>',
-    }]);
-
-    const events = await collectEvents(runAssessor({
-      backend,
-      sourceContent: 'test plan',
-      cwd: '/tmp',
-    }));
-
-    const scope = findEvent(events, 'plan:scope');
-    expect(scope).toBeDefined();
-    expect(scope!.assessment).toBe('errand');
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeUndefined();
   });
 });
 

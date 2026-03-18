@@ -14,7 +14,7 @@ import type { AgentRole } from './events.js';
 export const AGENT_ROLES = [
   'planner', 'builder', 'reviewer', 'evaluator', 'module-planner',
   'plan-reviewer', 'plan-evaluator', 'cohesion-reviewer', 'cohesion-evaluator',
-  'validation-fixer', 'assessor', 'review-fixer', 'merge-conflict-resolver',
+  'validation-fixer', 'review-fixer', 'merge-conflict-resolver',
   'staleness-assessor', 'formatter', 'doc-updater',
 ] as const;
 

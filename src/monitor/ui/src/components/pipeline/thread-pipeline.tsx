@@ -13,7 +13,6 @@ const REVIEW_AGENTS = new Set([
 /** Map agent roles to pipeline-stage color classes */
 const AGENT_COLORS: Record<string, { bg: string; border: string }> = {
   planner:             { bg: 'bg-yellow/30',  border: 'border-yellow/50' },
-  assessor:            { bg: 'bg-yellow/30',  border: 'border-yellow/50' },
   'module-planner':    { bg: 'bg-yellow/30',  border: 'border-yellow/50' },
   builder:             { bg: 'bg-blue/30',    border: 'border-blue/50' },
   reviewer:            { bg: 'bg-green/30',   border: 'border-green/50' },

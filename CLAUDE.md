@@ -52,7 +52,6 @@ Build stages: `implement`, `review`, `review-fix`, `evaluate`, `review-cycle`, `
 
 **Plugin propagation**: The engine auto-discovers Claude Code plugins from `~/.claude/plugins/installed_plugins.json`. Both user-scoped (global) and project-scoped plugins matching the cwd are loaded. Plugins provide skills, hooks, and MCP servers. Like MCP servers, plugins are backend-specific: `ClaudeSDKBackend` accepts `plugins` and `settingSources` in its constructor. The `AgentBackend` interface has no plugin concept. Configure via `eforge.yaml` `plugins` section or `--no-plugins` CLI flag. The eforge Claude Code plugin itself lives in-repo at `eforge-plugin/` — this repo is also a Claude Code marketplace (see `.claude-plugin/marketplace.json`).
 
-- **Assessor** — one-shot query. Evaluates PRD scope and complexity to recommend a workflow profile.
 - **Formatter** — one-shot query. Normalizes source input (PRD, prompt, rough notes) into a well-structured PRD with frontmatter for the queue.
 - **Planner** — one-shot query. Explores codebase, assesses scope, writes plan files (YAML frontmatter format). Outputs `<clarification>` XML blocks for ambiguities. For expeditions, also generates architecture + module list.
 - **Plan Reviewer** — one-shot query. Blind review of plan files against PRD for cohesion, completeness, correctness. Leaves fixes unstaged.
@@ -94,7 +93,7 @@ src/
     pipeline.ts               # Stage registry, compile/build stage implementations
     config.ts                 # Config loading, merging & validation
     git.ts                    # forgeCommit() helper — all engine commits go through here for attribution
-    agents/                   # Agent implementations (16 agents — see agent list above)
+    agents/                   # Agent implementations (15 agents — see agent list above)
     backends/                 # SDK adapters (sole SDK import point)
     prompts/                  # Agent prompt .md files (self-contained, no runtime plugin deps)
   monitor/                    # Web monitor — SQLite event persistence + SSE dashboard

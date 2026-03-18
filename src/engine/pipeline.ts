@@ -216,7 +216,6 @@ export async function hasUnstagedChanges(cwd: string): Promise<boolean> {
 /** Per-role default maxTurns. Agents that need more/fewer turns than the global default declare it here. */
 const AGENT_MAX_TURNS_DEFAULTS: Partial<Record<AgentRole, number>> = {
   builder: 50,
-  assessor: 20,
   'module-planner': 20,
   'doc-updater': 20,
 };

@@ -7,7 +7,7 @@ export const ORCHESTRATION_MODES = ['errand', 'excursion', 'expedition'] as cons
 export const SCOPE_ASSESSMENTS = ['complete', ...ORCHESTRATION_MODES] as const;
 export type ScopeAssessment = (typeof SCOPE_ASSESSMENTS)[number];
 
-export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'assessor' | 'review-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater';
+export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'review-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater';
 
 export interface ExpeditionModule {
   id: string;

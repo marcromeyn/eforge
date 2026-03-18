@@ -79,18 +79,26 @@ Based on your exploration, classify the **actual work remaining** (not the sourc
 | Level | Plans | When to use |
 |-------|-------|-------------|
 | **complete** | 0 | The source document is fully implemented. No gaps remain. Do NOT write any plan files. |
-| **errand** | 1 | Focused change in one area. No migrations, no architecture decisions. **This is the default — most tasks are errands.** |
+| **errand** | 1 | Focused change in one area. No migrations, no architecture decisions. |
 | **excursion** | 2-3 | Cross-cutting change with natural phasing — e.g., a migration must land before a feature, or backend/frontend have a real dependency edge. |
 | **expedition** | 4+ | Large initiative spanning multiple subsystems with a meaningful dependency graph. Requires architectural decisions. |
 
-Use these concrete indicators alongside the source document:
+**Weigh these dimensions together** — no single dimension determines scope:
 
-| Indicator | errand | excursion | expedition |
-|-----------|--------|-----------|------------|
-| Files to change | 1-5 | 5-15 | 15+ |
-| Database changes | None | 1-2 migrations | Schema redesign |
-| Architecture impact | None | Fits existing | Requires new patterns |
-| Integration points | 0-1 | 2-4 | 5+ |
+| Dimension | What to look at |
+|-----------|----------------|
+| **Dependency structure** | Do changes have ordering constraints (migrations before features, types before consumers)? More dependency edges → higher scope. |
+| **Execution volume** | How many files need changes? How many lines of code? High-volume mechanical changes (renaming, migrating APIs across many files) strain a single builder session even when logically simple. |
+| **Independence** | Can changes be done in one pass, or do independent subsystems exist that can be parallelized? |
+| **Risk surface** | Database migrations, new architectural patterns, or cross-cutting integration points increase risk. |
+
+Use these file count indicators as a concrete signal for execution volume:
+
+| Files to change | Typical scope |
+|-----------------|---------------|
+| 1-5 | errand |
+| 5-15 | excursion |
+| 15+ | expedition |
 
 **Critical**: Assess based on the **delta between the source and the current codebase**. If the source describes a large system but exploration shows it's already 80% built, identify the specific gaps that remain and scope those — the remaining work may be an errand. If the source is 100% implemented with no gaps, use `assessment="complete"`.
 
@@ -98,12 +106,14 @@ Use these concrete indicators alongside the source document:
 - A database migration must complete before dependent code can be built
 - Independent subsystems with zero shared files can be parallelized
 - There is a genuine dependency ordering that the orchestrator needs to know about
+- Total execution volume would strain a single builder session (many files, many mechanical changes)
 
 **Do NOT split when:**
 - Different files are involved but the change is atomic — a single plan handles multiple files fine
 - Backend and frontend changes can be done in one pass
 - Tests or docs accompany a feature — they belong in the same plan as the code they test/document
-- The only reason to split is "it's a lot of files" — plan scope is about dependency structure, not file count
+
+Assess scope based on your own codebase exploration, not on labels or scope claims in the source document.
 
 After assessment, emit a `<scope>` block declaring your assessment:
 
