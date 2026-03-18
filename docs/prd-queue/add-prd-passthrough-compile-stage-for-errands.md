@@ -1,7 +1,7 @@
 ---
 title: Add `prd-passthrough` compile stage for errands
 created: 2026-03-18
-status: pending
+status: running
 ---
 
 ## Problem / Motivation
