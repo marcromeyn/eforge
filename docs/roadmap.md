@@ -1,5 +1,15 @@
 # Eforge Roadmap
 
+## Hardening
+
+**Goal**: Stabilize what exists before building new features - expand eval coverage, tune profiles with evidence, and fix rough edges in the monitor.
+
+- **Eval scenario breadth** - More fixtures and scenarios across all three profiles (errand, excursion, expedition) so regressions surface before they ship
+- **Profile tuning** - Use eval results and Langfuse traces to refine agent parameters, stage composition, and review strategies in built-in profiles
+- **Monitor auto-shutdown reliability** - The idle-timeout shutdown is unreliable in practice - rework the lifecycle so the monitor exits cleanly when the run ends rather than guessing at idle state
+
+---
+
 ## Planning Intelligence
 
 **Goal**: Go from rough idea to refined, reviewed plans entirely within Claude Code.
