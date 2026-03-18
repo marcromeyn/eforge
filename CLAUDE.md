@@ -74,7 +74,7 @@ Build stages: `implement`, `review`, `review-fix`, `evaluate`, `review-cycle`, `
 
 **State**: `.eforge/state.json` (gitignored) tracks build progress for resume support.
 
-**Monitor** (`src/monitor/`): Web-based real-time monitor. Records all `EforgeEvent`s to SQLite (`.eforge/monitor.db`) via a transparent `withRecording()` async generator middleware. Serves a single-page dashboard over SSE at `http://localhost:4567`. Auto-starts with `run` commands (disable with `--no-monitor`).
+**Monitor** (`src/monitor/`): Web-based real-time monitor. Recording and the web server are decoupled - events are always recorded to SQLite (`.eforge/monitor.db`) via a transparent `withRecording()` async generator middleware, even with `--no-monitor` or `enqueue`. The web dashboard serves a single-page UI over SSE at `http://localhost:4567` and auto-starts with `run` commands (disable with `--no-monitor`). The server uses a countdown shutdown state machine (WATCHING → COUNTDOWN → SHUTDOWN) that gives browser users time to inspect results before the server exits. `signalMonitorShutdown()` exported from `src/monitor/index.ts` handles clean server termination.
 
 **CLI** (`src/cli/`): Thin consumer that iterates the engine's event stream and renders to stdout. Handles interactive clarification prompts and approval gates via callbacks.
 
@@ -179,7 +179,7 @@ eforge config validate    # Validate eforge.yaml (schema + profile stage names)
 eforge config show        # Print resolved config (all layers merged) as YAML
 ```
 
-Flags: `--auto` (bypass approval gates), `--verbose` (stream output), `--dry-run` (validate only), `--queue` (process all PRDs from the queue), `--watch` (watch queue for new PRDs, re-poll after each cycle), `--poll-interval <ms>` (poll interval for watch mode, default 5000), `--no-monitor` (disable web monitor), `--no-plugins` (disable plugin loading), `--profiles <path>` (add custom workflow profiles from a YAML file), `--generate-profile` (let the planner generate a custom workflow profile)
+Flags: `--auto` (bypass approval gates), `--verbose` (stream output), `--dry-run` (validate only), `--queue` (process all PRDs from the queue), `--watch` (watch queue for new PRDs, re-poll after each cycle), `--poll-interval <ms>` (poll interval for watch mode, default 5000), `--no-monitor` (disable web monitor server; events are still recorded to SQLite), `--no-plugins` (disable plugin loading), `--profiles <path>` (add custom workflow profiles from a YAML file), `--generate-profile` (let the planner generate a custom workflow profile)
 
 ## Roadmap
 

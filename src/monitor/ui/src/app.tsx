@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AppLayout } from '@/components/layout/app-layout';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
+import { ShutdownBanner } from '@/components/layout/shutdown-banner';
 import { SummaryCards } from '@/components/common/summary-cards';
 import { ActivityHeatstrip } from '@/components/common/activity-heatstrip';
 import { ThreadPipeline } from '@/components/pipeline/thread-pipeline';
@@ -27,7 +28,7 @@ export function App() {
   const [mergedPlanIds, setMergedPlanIds] = useState<Set<string>>(new Set());
   const knownLatestRef = useRef<string | null>(null);
   const userSelectedRef = useRef<string | null>(null);
-  const { runState, connectionStatus } = useEforgeEvents(currentSessionId);
+  const { runState, connectionStatus, shutdownCountdown } = useEforgeEvents(currentSessionId);
   const { containerRef, autoScroll, enableAutoScroll } = useAutoScroll([runState.events.length]);
 
   const stats = getSummaryStats(runState);
@@ -194,6 +195,7 @@ export function App() {
           />
         }
       >
+        {shutdownCountdown !== null && <ShutdownBanner countdown={shutdownCountdown} />}
         <main
           ref={containerRef}
           className="overflow-y-auto px-6 py-5 flex flex-col gap-4 flex-1"

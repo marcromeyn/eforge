@@ -3,7 +3,7 @@
  *
  * Runs as a detached child process. Polls SQLite for new events,
  * serves SSE to subscribers, detects orphaned runs, and auto-shuts
- * down when idle.
+ * down when idle using a WATCHING → COUNTDOWN → SHUTDOWN state machine.
  *
  * Usage: node dist/server-main.js <dbPath> <port> <cwd>
  */
@@ -13,8 +13,12 @@ import { startServer } from './server.js';
 import { writeLockfile, removeLockfile, isPidAlive } from './lockfile.js';
 
 const ORPHAN_CHECK_INTERVAL_MS = 5000;
-const AUTO_SHUTDOWN_CHECK_INTERVAL_MS = 5000;
-const IDLE_TIMEOUT_MS = 30_000;
+const STATE_CHECK_INTERVAL_MS = 2000;
+const COUNTDOWN_WITH_SUBSCRIBERS_MS = 60_000;
+const COUNTDOWN_WITHOUT_SUBSCRIBERS_MS = 10_000;
+const IDLE_FALLBACK_MS = 10_000;
+
+type ServerState = 'WATCHING' | 'COUNTDOWN' | 'SHUTDOWN';
 
 async function main(): Promise<void> {
   const [dbPath, portStr, cwd] = process.argv.slice(2);
@@ -45,10 +49,45 @@ async function main(): Promise<void> {
     startedAt: new Date().toISOString(),
   });
 
-  let lastEventTimestamp = Date.now();
+  // --- State machine ---
+  let state: ServerState = 'WATCHING';
+  let countdownStartedAt = 0;
+  let lastActivityTimestamp = Date.now();
 
-  // Track last seen event ID per run for poll-based SSE (unused in this process,
-  // the server itself handles polling now via its internal poll loop)
+  function countdownDurationMs(): number {
+    return server.subscriberCount > 0
+      ? COUNTDOWN_WITH_SUBSCRIBERS_MS
+      : COUNTDOWN_WITHOUT_SUBSCRIBERS_MS;
+  }
+
+  function transitionToCountdown(): void {
+    if (state === 'COUNTDOWN') return;
+    state = 'COUNTDOWN';
+    countdownStartedAt = Date.now();
+    const durationSec = Math.round(countdownDurationMs() / 1000);
+    server.broadcast('monitor:shutdown-pending', JSON.stringify({ countdown: durationSec }));
+  }
+
+  function cancelCountdown(): void {
+    if (state !== 'COUNTDOWN') return;
+    state = 'WATCHING';
+    countdownStartedAt = 0;
+    lastActivityTimestamp = Date.now();
+    server.broadcast('monitor:shutdown-cancelled', JSON.stringify({}));
+  }
+
+  // Wire keep-alive to reset countdown
+  server.onKeepAlive = () => {
+    lastActivityTimestamp = Date.now();
+    if (state === 'COUNTDOWN') {
+      // Reset countdown rather than transitioning back to WATCHING -
+      // this avoids re-entering the watching state without an actual running run
+      countdownStartedAt = Date.now();
+      const durationSec = Math.round(countdownDurationMs() / 1000);
+      server.broadcast('monitor:shutdown-cancelled', JSON.stringify({}));
+      server.broadcast('monitor:shutdown-pending', JSON.stringify({ countdown: durationSec }));
+    }
+  };
 
   // Orphan detection loop
   const orphanTimer = setInterval(() => {
@@ -65,33 +104,52 @@ async function main(): Promise<void> {
   }, ORPHAN_CHECK_INTERVAL_MS);
   orphanTimer.unref();
 
-  // Auto-shutdown check loop
-  const shutdownTimer = setInterval(() => {
+  // State machine check loop
+  const stateTimer = setInterval(() => {
     try {
       const runningRuns = db.getRunningRuns();
-      if (runningRuns.length > 0) {
-        lastEventTimestamp = Date.now();
+      const hasRunning = runningRuns.length > 0;
+
+      if (hasRunning) {
+        // Active runs — stay in or return to WATCHING
+        lastActivityTimestamp = Date.now();
+        if (state === 'COUNTDOWN') {
+          cancelCountdown();
+        }
         return;
       }
 
-      // Check if there have been recent events
-      const latestTimestamp = db.getLatestEventTimestamp();
-      if (latestTimestamp) {
-        const eventTime = new Date(latestTimestamp).getTime();
-        if (eventTime > lastEventTimestamp) {
-          lastEventTimestamp = eventTime;
+      // No running runs
+      if (state === 'WATCHING') {
+        // Check idle time before transitioning
+        const latestTimestamp = db.getLatestEventTimestamp();
+        if (latestTimestamp) {
+          const eventTime = new Date(latestTimestamp).getTime();
+          if (eventTime > lastActivityTimestamp) {
+            lastActivityTimestamp = eventTime;
+          }
         }
+
+        const idleMs = Date.now() - lastActivityTimestamp;
+        if (idleMs >= IDLE_FALLBACK_MS) {
+          transitionToCountdown();
+        }
+        return;
       }
 
-      const idleMs = Date.now() - lastEventTimestamp;
-      if (idleMs >= IDLE_TIMEOUT_MS) {
-        shutdown();
+      if (state === 'COUNTDOWN') {
+        const elapsed = Date.now() - countdownStartedAt;
+        if (elapsed >= countdownDurationMs()) {
+          state = 'SHUTDOWN';
+          shutdown();
+        }
+        return;
       }
     } catch {
       // DB might be closed during shutdown
     }
-  }, AUTO_SHUTDOWN_CHECK_INTERVAL_MS);
-  shutdownTimer.unref();
+  }, STATE_CHECK_INTERVAL_MS);
+  stateTimer.unref();
 
   let isShuttingDown = false;
 
@@ -100,7 +158,7 @@ async function main(): Promise<void> {
     isShuttingDown = true;
 
     clearInterval(orphanTimer);
-    clearInterval(shutdownTimer);
+    clearInterval(stateTimer);
 
     removeLockfile(cwd);
 

@@ -15,9 +15,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface Monitor {
   db: MonitorDB;
-  server: { port: number; url: string };
+  server: { port: number; url: string } | null;
   wrapEvents(events: AsyncGenerator<EforgeEvent>): AsyncGenerator<EforgeEvent>;
   stop(): void;
+}
+
+export interface EnsureMonitorOptions {
+  port?: number;
+  noServer?: boolean;
 }
 
 const DEFAULT_PORT = 4567;
@@ -29,14 +34,23 @@ const HEALTH_CHECK_INTERVAL_MS = 250;
  * (checked via lockfile + health endpoint), reuse it. Otherwise, spawn
  * a new detached child process.
  *
+ * When `noServer` is true, opens the DB and returns a Monitor with
+ * `server: null` but a fully functional `wrapEvents`. No lockfile or
+ * server process is touched.
+ *
  * Returns a Monitor whose `wrapEvents` only writes to SQLite (the detached
  * server polls the DB for SSE delivery). `stop()` closes the DB connection
  * but does NOT kill the server.
  */
-export async function ensureMonitor(cwd: string, port?: number): Promise<Monitor> {
+export async function ensureMonitor(cwd: string, options?: EnsureMonitorOptions): Promise<Monitor> {
   const dbPath = resolve(cwd, '.eforge', 'monitor.db');
   const db = openDatabase(dbPath);
-  const preferredPort = port ?? DEFAULT_PORT;
+
+  if (options?.noServer) {
+    return buildMonitor(db, null, cwd);
+  }
+
+  const preferredPort = options?.port ?? DEFAULT_PORT;
 
   // Check if a server is already alive
   const existingLock = readLockfile(cwd);
@@ -57,10 +71,39 @@ export async function ensureMonitor(cwd: string, port?: number): Promise<Monitor
   return buildMonitor(db, serverPort, cwd);
 }
 
-function buildMonitor(db: MonitorDB, port: number, cwd: string): Monitor {
+/**
+ * Signal the detached monitor server to shut down, if no active runs remain.
+ * Reads the lockfile, checks server health, queries the DB for running runs,
+ * and sends SIGTERM if idle.
+ */
+export async function signalMonitorShutdown(cwd: string): Promise<void> {
+  const lock = readLockfile(cwd);
+  if (!lock) return;
+
+  const alive = await isServerAlive(lock);
+  if (!alive) return;
+
+  // Check if there are running runs by opening DB briefly
+  const dbPath = resolve(cwd, '.eforge', 'monitor.db');
+  let hasRunning = false;
+  try {
+    const checkDb = openDatabase(dbPath);
+    hasRunning = checkDb.getRunningRuns().length > 0;
+    checkDb.close();
+  } catch {}
+
+  if (hasRunning) return;
+
+  // Send SIGTERM to the detached server
+  try {
+    process.kill(lock.pid, 'SIGTERM');
+  } catch {}
+}
+
+function buildMonitor(db: MonitorDB, port: number | null, cwd: string): Monitor {
   return {
     db,
-    server: { port, url: `http://localhost:${port}` },
+    server: port !== null ? { port, url: `http://localhost:${port}` } : null,
     wrapEvents(events: AsyncGenerator<EforgeEvent>): AsyncGenerator<EforgeEvent> {
       return withRecording(events, db, cwd, process.pid);
     },

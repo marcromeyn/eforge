@@ -16,8 +16,7 @@ import { withHooks } from '../engine/hooks.js';
 import { withSessionId, runSession } from '../engine/session.js';
 import { initDisplay, renderEvent, renderStatus, renderDryRun, renderLangfuseStatus, renderQueueList, stopAllSpinners } from './display.js';
 import { createClarificationHandler, createApprovalHandler } from './interactive.js';
-import { ensureMonitor, type Monitor } from '../monitor/index.js';
-import { readLockfile, isServerAlive } from '../monitor/lockfile.js';
+import { ensureMonitor, signalMonitorShutdown, type Monitor } from '../monitor/index.js';
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -48,16 +47,14 @@ function setupSignalHandlers(): AbortController {
 }
 
 async function withMonitor<T>(
-  noMonitor: boolean | undefined,
-  fn: (monitor: Monitor | undefined) => Promise<T>,
+  noServer: boolean | undefined,
+  fn: (monitor: Monitor) => Promise<T>,
 ): Promise<T> {
-  if (noMonitor) {
-    return fn(undefined);
-  }
-
-  const monitor = await ensureMonitor(process.cwd());
+  const monitor = await ensureMonitor(process.cwd(), { noServer: noServer ?? false });
   activeMonitor = monitor;
-  console.error(chalk.dim(`  Monitor: ${monitor.server.url}`));
+  if (monitor.server) {
+    console.error(chalk.dim(`  Monitor: ${monitor.server.url}`));
+  }
 
   try {
     return await fn(monitor);
@@ -71,7 +68,7 @@ async function withMonitor<T>(
 
 function wrapEvents(
   events: AsyncGenerator<EforgeEvent>,
-  monitor: Monitor | undefined,
+  monitor: Monitor,
   hooks: readonly HookConfig[],
   sessionOpts?: import('../engine/session.js').SessionOptions,
 ): AsyncGenerator<EforgeEvent> {
@@ -79,7 +76,7 @@ function wrapEvents(
   if (hooks.length > 0) {
     wrapped = withHooks(wrapped, hooks, process.cwd());
   }
-  return monitor ? monitor.wrapEvents(wrapped) : wrapped;
+  return monitor.wrapEvents(wrapped);
 }
 
 async function consumeEvents(
@@ -157,7 +154,7 @@ export function createProgram(abortController?: AbortController): Command {
           ...(configOverrides && { config: configOverrides }),
         });
 
-        await withMonitor(true, async (monitor) => {
+        await withMonitor(true /* noServer */, async (monitor) => {
           const sessionId = randomUUID();
 
           const enqueueEvents = engine.enqueue(source, {
@@ -405,8 +402,12 @@ export function createProgram(abortController?: AbortController): Command {
     .option('--port <port>', 'Preferred port', parseInt)
     .action(async (options: { port?: number }) => {
       const cwd = process.cwd();
-      const monitor = await ensureMonitor(cwd, options.port);
+      const monitor = await ensureMonitor(cwd, { port: options.port });
 
+      if (!monitor.server) {
+        console.error(chalk.red('Failed to start monitor server'));
+        process.exit(1);
+      }
       console.log(chalk.bold(`Monitor: ${monitor.server.url}`));
       console.log(chalk.dim('Press Ctrl+C to exit'));
 
@@ -421,31 +422,7 @@ export function createProgram(abortController?: AbortController): Command {
           monitor.stop();
 
           // If no active runs remain, signal the detached server to shut down
-          try {
-            const lock = readLockfile(cwd);
-            if (lock) {
-              const alive = await isServerAlive(lock);
-              if (alive) {
-                // Check if there are running runs by re-opening DB briefly
-                const { openDatabase } = await import('../monitor/db.js');
-                const { resolve: pathResolve } = await import('node:path');
-                const dbPath = pathResolve(cwd, '.eforge', 'monitor.db');
-                let hasRunning = false;
-                try {
-                  const checkDb = openDatabase(dbPath);
-                  hasRunning = checkDb.getRunningRuns().length > 0;
-                  checkDb.close();
-                } catch {}
-
-                if (!hasRunning) {
-                  // Send SIGTERM to the detached server
-                  try {
-                    process.kill(lock.pid, 'SIGTERM');
-                  } catch {}
-                }
-              }
-            }
-          } catch {}
+          await signalMonitorShutdown(cwd);
 
           clearInterval(keepAlive);
           resolveWait();

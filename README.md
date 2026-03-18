@@ -150,7 +150,7 @@ Each command supports `--help` for the full list of options. Common flags:
 | `--queue` | Process all PRDs from the queue |
 | `--watch` | Watch queue for new PRDs (with `--queue`) |
 | `--poll-interval <ms>` | Poll interval for watch mode (default 5000) |
-| `--no-monitor` | Disable web monitor |
+| `--no-monitor` | Disable web monitor server (events still recorded) |
 | `--no-plugins` | Disable plugin loading |
 | `--generate-profile` | Let the planner generate a custom workflow profile |
 
@@ -234,7 +234,7 @@ eforge is **library-first**. The engine (`src/engine/`) is a pure TypeScript lib
 
 Agent runners use the `AgentBackend` interface - all SDK interaction is isolated behind a single adapter (`src/engine/backends/claude-sdk.ts`). New surfaces (CI, TUI, web) consume the same event stream.
 
-A real-time web monitor records all events to SQLite and serves a dashboard over SSE, auto-starting with `run` commands.
+A real-time web monitor records all events to SQLite and serves a dashboard over SSE, auto-starting with `run` commands. Recording is decoupled from the web server - events are always persisted, even with `--no-monitor` or `enqueue`.
 
 ## Evaluation
 

@@ -32,6 +32,9 @@ const MIME_TYPES: Record<string, string> = {
 export interface MonitorServer {
   readonly port: number;
   readonly url: string;
+  readonly subscriberCount: number;
+  broadcast(eventName: string, data: string): void;
+  onKeepAlive: (() => void) | null;
   stop(): Promise<void>;
 }
 
@@ -413,8 +416,41 @@ export async function startServer(
     res.end(JSON.stringify(data));
   }
 
+  let keepAliveCallback: (() => void) | null = null;
+
+  function broadcast(eventName: string, data: string): void {
+    for (const subscriber of subscribers) {
+      try {
+        subscriber.res.write(`event: ${eventName}\ndata: ${data}\n\n`);
+      } catch {
+        // Subscriber may have disconnected
+      }
+    }
+  }
+
   const server = createServer(async (req, res) => {
     const url = req.url ?? '/';
+
+    if (req.method === 'POST' && url === '/api/keep-alive') {
+      if (keepAliveCallback) keepAliveCallback();
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(JSON.stringify({ status: 'ok' }));
+      return;
+    }
+
+    // Handle CORS preflight for POST endpoints
+    if (req.method === 'OPTIONS' && url === '/api/keep-alive') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      });
+      res.end();
+      return;
+    }
 
     if (url === '/api/health') {
       serveHealth(req, res);
@@ -482,9 +518,24 @@ export async function startServer(
 
   const port = await listen(server, preferredPort, options?.strictPort ? 0 : 10);
 
-  return {
+  const monitorServer: MonitorServer = {
     port,
     url: `http://localhost:${port}`,
+
+    get subscriberCount(): number {
+      return subscribers.size;
+    },
+
+    broadcast(eventName: string, data: string): void {
+      broadcast(eventName, data);
+    },
+
+    get onKeepAlive(): (() => void) | null {
+      return keepAliveCallback;
+    },
+    set onKeepAlive(cb: (() => void) | null) {
+      keepAliveCallback = cb;
+    },
 
     stop(): Promise<void> {
       clearInterval(pollTimer);
@@ -498,6 +549,8 @@ export async function startServer(
       });
     },
   };
+
+  return monitorServer;
 }
 
 function listen(server: Server, port: number, maxRetries = 10): Promise<number> {
