@@ -20,7 +20,7 @@ import type {
   PlanFile,
   ClarificationQuestion,
 } from './events.js';
-import { loadQueue, resolveQueueOrder, getHeadHash, getPrdDiffSummary, updatePrdStatus, cleanupCompletedPrd, enqueuePrd, inferTitle, type QueuedPrd } from './prd-queue.js';
+import { loadQueue, resolveQueueOrder, getHeadHash, getPrdDiffSummary, updatePrdStatus, enqueuePrd, inferTitle } from './prd-queue.js';
 import { runStalenessAssessor } from './agents/staleness-assessor.js';
 import { runFormatter } from './agents/formatter.js';
 import type { EforgeConfig, PluginConfig, PartialProfileConfig } from './config.js';
@@ -473,11 +473,6 @@ export class EforgeEngine {
         yield mergeEvents.shift()!;
       }
 
-      // Squash intermediate commits into one content commit
-      if (status === 'completed' && options.squashBaseHash) {
-        yield* squashRunCommits(cwd, options.squashBaseHash, orchConfig);
-      }
-
       const shouldCleanup = options.cleanup ?? this.config.build.cleanupPlanFiles;
       if (status === 'completed' && shouldCleanup) {
         yield* cleanupPlanFiles(cwd, planSet, options.prdFilePath);
@@ -563,8 +558,14 @@ export class EforgeEngine {
 
         if (stalenessVerdict === 'revise') {
           if (this.config.prdQueue.autoRevise && revision) {
-            // Auto-apply revision
+            // Auto-apply revision and commit
             await writeFile(prd.filePath, revision, 'utf-8');
+            try {
+              await exec('git', ['add', '--', prd.filePath], { cwd });
+              await exec('git', ['commit', '-m', `chore(queue): revise stale PRD ${prd.id}`], { cwd });
+            } catch {
+              // Not a git repo or nothing to commit — non-fatal
+            }
           } else {
             // Skip — needs manual revision
             yield { type: 'queue:prd:skip', prdId: prd.id, reason: 'needs revision' };
@@ -576,9 +577,6 @@ export class EforgeEngine {
 
       // Update status to running
       await updatePrdStatus(prd.filePath, 'running');
-
-      // Capture HEAD before compile for squash
-      const squashBaseHash = await getHeadHash(cwd);
 
       // Compile (plan) the PRD
       let compileFailed = false;
@@ -604,14 +602,13 @@ export class EforgeEngine {
         continue;
       }
 
-      // Build the plan — squash and PRD cleanup flow through build()
+      // Build the plan — PRD cleanup flows through build()
       let buildFailed = false;
       for await (const event of this.build(planSetName, {
         auto: options.auto,
         verbose,
         cwd,
         abortController,
-        squashBaseHash,
         prdFilePath: prd.filePath,
       })) {
         yield event;
@@ -662,48 +659,6 @@ export class EforgeEngine {
       completedPlans: state.completedPlans,
     };
   }
-}
-
-/**
- * Compose a conventional commit message from orchestration config.
- * Errand → fix prefix, everything else → feat.
- */
-function composeSquashMessage(orchConfig: import('./events.js').OrchestrationConfig): string {
-  const prefix = orchConfig.mode === 'errand' ? 'fix' : 'feat';
-  const subject = `${prefix}(${orchConfig.name}): ${orchConfig.description}`;
-  const planList = orchConfig.plans.map((p) => `- ${p.id}: ${p.name}`).join('\n');
-  return `${subject}\n\n${planList}`;
-}
-
-/**
- * Squash all intermediate commits from a successful eforge run into one content commit.
- * Uses git reset --soft to preserve working tree, then commits with a conventional message.
- * No-op when commitCount <= 1.
- */
-async function* squashRunCommits(
-  cwd: string,
-  squashBaseHash: string,
-  orchConfig: import('./events.js').OrchestrationConfig,
-): AsyncGenerator<EforgeEvent> {
-  // Count commits since base hash
-  const { stdout: countStr } = await exec('git', ['rev-list', '--count', `${squashBaseHash}..HEAD`], { cwd });
-  const commitCount = parseInt(countStr.trim(), 10);
-
-  if (commitCount <= 1) return;
-
-  yield { type: 'squash:start', commitCount };
-
-  // Soft reset to base hash — keeps all changes staged
-  await exec('git', ['reset', '--soft', squashBaseHash], { cwd });
-
-  // Commit with conventional message
-  const message = composeSquashMessage(orchConfig);
-  await exec('git', ['commit', '-m', message], { cwd });
-
-  // Get short hash of the new squashed commit
-  const { stdout: shortHash } = await exec('git', ['rev-parse', '--short', 'HEAD'], { cwd });
-
-  yield { type: 'squash:complete', shortHash: shortHash.trim() };
 }
 
 /**

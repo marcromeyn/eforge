@@ -375,7 +375,9 @@ export class Orchestrator {
                   }
                 : undefined;
 
-              await mergeWorktree(repoRoot, plan.branch, config.baseBranch, contextResolver);
+              const prefix = config.mode === 'errand' ? 'fix' : 'feat';
+              const commitMessage = `${prefix}(${plan.id}): ${plan.name}`;
+              await mergeWorktree(repoRoot, plan.branch, config.baseBranch, commitMessage, contextResolver);
 
               updatePlanStatus(state, planId, 'merged');
               planState.merged = true;

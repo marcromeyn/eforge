@@ -18,7 +18,6 @@ import { initDisplay, renderEvent, renderStatus, renderDryRun, renderLangfuseSta
 import { createClarificationHandler, createApprovalHandler } from './interactive.js';
 import { ensureMonitor, type Monitor } from '../monitor/index.js';
 import { readLockfile, isServerAlive } from '../monitor/lockfile.js';
-import { getHeadHash } from '../engine/prd-queue.js';
 
 const SHUTDOWN_TIMEOUT_MS = 5000;
 
@@ -281,9 +280,6 @@ export function createProgram(abortController?: AbortController): Command {
         // Shared sessionId across enqueue+compile+build so tracking sees one session
         const sessionId = randomUUID();
 
-        // Capture HEAD before enqueue for post-build squash
-        const squashBaseHash = await getHeadHash(process.cwd());
-
         // Phase 0: Enqueue — format and add to queue, capture file path
         // Runs without monitor to avoid idle timeout during formatter agent
         let enqueuedFilePath: string | undefined;
@@ -358,7 +354,6 @@ export function createProgram(abortController?: AbortController): Command {
               verbose: options.verbose,
               cleanup: options.cleanup,
               abortController,
-              squashBaseHash,
               prdFilePath: enqueuedFilePath,
             }), monitor, engine.resolvedConfig.hooks, { sessionId, emitSessionStart: false, emitSessionEnd: true }),
             { afterStart: () => renderLangfuseStatus(engine.resolvedConfig) },

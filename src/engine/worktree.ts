@@ -130,7 +130,8 @@ async function gatherConflictInfo(
 }
 
 /**
- * Merge a branch into the base branch using --no-ff.
+ * Merge a branch into the base branch using --squash.
+ * Produces a single commit on baseBranch containing all worktree changes.
  * On conflict, invokes the optional mergeResolver callback to attempt resolution.
  * If no resolver or resolution fails, aborts the merge and re-throws.
  */
@@ -138,15 +139,13 @@ export async function mergeWorktree(
   repoRoot: string,
   branch: string,
   baseBranch: string,
+  commitMessage: string,
   mergeResolver?: MergeResolver,
 ): Promise<void> {
   await exec('git', ['checkout', baseBranch], { cwd: repoRoot });
   try {
-    await exec(
-      'git',
-      ['merge', '--no-ff', branch, '-m', `Merge ${branch} into ${baseBranch}`],
-      { cwd: repoRoot },
-    );
+    await exec('git', ['merge', '--squash', branch], { cwd: repoRoot });
+    await exec('git', ['commit', '-m', commitMessage], { cwd: repoRoot });
   } catch (err) {
     // Attempt resolution via callback if provided
     if (mergeResolver) {
@@ -162,8 +161,8 @@ export async function mergeWorktree(
                 { cwd: repoRoot },
               );
               if (stdout.trim().length === 0) {
-                // All conflicts resolved — complete the merge commit
-                await exec('git', ['commit', '--no-edit'], { cwd: repoRoot });
+                // All conflicts resolved — commit the squash-merge
+                await exec('git', ['commit', '-m', commitMessage], { cwd: repoRoot });
                 return;
               }
             } catch {
@@ -177,9 +176,9 @@ export async function mergeWorktree(
     }
 
     try {
-      await exec('git', ['merge', '--abort'], { cwd: repoRoot });
+      await exec('git', ['reset', '--merge'], { cwd: repoRoot });
     } catch {
-      // Best-effort abort
+      // Best-effort reset
     }
     throw err;
   }
