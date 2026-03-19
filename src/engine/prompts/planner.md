@@ -56,6 +56,15 @@ If profiles are listed above, select the profile that best matches the work desc
 - The type of work (migration, security, refactor, feature, etc.)
 - The risk profile and review needs
 - The scope indicators from your codebase exploration
+- **Decomposability** — can the work be split into modules that each pass type-check and tests independently?
+
+**When NOT to use expedition:**
+- Type/interface refactors where changing a definition breaks all consumers (use excursion)
+- Adding or removing required fields from widely-used types (use excursion)
+- Rename-and-update-all-callers refactors (use excursion)
+- Work where every module depends on a "foundation" module (sign the split is artificial)
+
+Expedition is for genuinely independent subsystems — e.g., building auth + billing + notifications where each is self-contained. If your dependency graph is a tall chain (A → B → C → D), that's sequential work better handled as an excursion with ordered plans.
 
 Emit a `<profile>` block declaring your selection:
 

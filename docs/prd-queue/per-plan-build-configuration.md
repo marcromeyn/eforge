@@ -31,8 +31,9 @@ Separate compile config (profiles) from build config (per-plan), so each plan in
 1. **Profiles = `{ description, compile }` only** — everything else removed.
 2. **`agents` removed from profiles** — `resolveAgentConfig` drops the profile parameter. Only reads per-role defaults + `config.agents.maxTurns`. The `prompt`/`tools`/`model` return fields are removed (dead code — no call site reads them).
 3. **Per-plan `build`/`review` are required** — planner must always determine them.
-4. **`BuildStageContext` gains direct `build` and `review` fields** — all build stages read `ctx.build`/`ctx.review`.
-5. **For errands** — `prd-passthrough`/`writePlanArtifacts` writes sensible defaults since no planner agent runs.
+4. **`review-cycle` is the standard composite build stage** — already exists in `pipeline.ts` (lines 881-904), internally runs review → review-fix → evaluate in a loop. Planners specify `review-cycle` (not individual stages). The planner decides *whether* to include it (almost always yes for code/doc changes) and configures review knobs (perspectives, rounds, strictness) via the `review` field. Individual `review`/`review-fix`/`evaluate` stages remain registered for advanced use but are not the standard composition.
+5. **`BuildStageContext` gains direct `build` and `review` fields** — all build stages read `ctx.build`/`ctx.review`.
+6. **For errands** — `prd-passthrough`/`writePlanArtifacts` writes sensible defaults since no planner agent runs.
 
 ### Target orchestration.yaml shape
 
@@ -46,13 +47,13 @@ plans:
     name: Auth middleware rewrite
     depends_on: []
     branch: my-set/auth
-    build: [["implement", "doc-update"], "review", "review-fix", "evaluate"]
+    build: [["implement", "doc-update"], "review-cycle"]
     review: { strategy: auto, perspectives: [code, security], maxRounds: 2, evaluatorStrictness: strict }
   - id: plan-02-refactor-utils
     name: Internal utils cleanup
     depends_on: []
     branch: my-set/utils
-    build: ["implement", "review", "review-fix", "evaluate"]
+    build: ["implement", "review-cycle"]
     review: { strategy: auto, perspectives: [code], maxRounds: 1, evaluatorStrictness: standard }
 ```
 
@@ -91,8 +92,8 @@ Remove `DEFAULT_BUILD_STAGES`, `ERRAND_BUILD_STAGES` constants. Keep `DEFAULT_RE
 
 Add a `DEFAULT_BUILD` constant for errand defaults:
 ```typescript
-export const DEFAULT_BUILD: readonly BuildStageSpec[] = ['implement', 'review', 'review-fix', 'evaluate'];
-export const DEFAULT_BUILD_WITH_DOCS: readonly BuildStageSpec[] = [['implement', 'doc-update'], 'review', 'review-fix', 'evaluate'];
+export const DEFAULT_BUILD: readonly BuildStageSpec[] = ['implement', 'review-cycle'];
+export const DEFAULT_BUILD_WITH_DOCS: readonly BuildStageSpec[] = [['implement', 'doc-update'], 'review-cycle'];
 ```
 
 Update `resolveProfileExtensions` (line 507-586) — remove agents/review/build merging. Profile merge becomes trivial: just `description`, `compile`, `extends`.
@@ -284,8 +285,11 @@ Update callers of `writePlanArtifacts` (the `prd-passthrough` stage in pipeline.
 Update to instruct per-plan build/review in orchestration.yaml plan entries:
 
 - Each plan entry MUST include `build` and `review` fields
-- Provide the `BuildStageSpec` and `ReviewProfileConfig` schemas for reference
-- Document when to include `doc-update` (user-facing surface changes)
+- `build` uses `review-cycle` as the composite stage (not individual `review`/`review-fix`/`evaluate`):
+  - Code changes: `["implement", "review-cycle"]` or `[["implement", "doc-update"], "review-cycle"]`
+  - `doc-update` included when plan touches user-facing surfaces (APIs, CLI, config, docs)
+  - `review-cycle` should almost always be included — only omit for purely mechanical changes with zero logic
+- `review` configures the review-cycle knobs: `perspectives`, `maxRounds`, `evaluatorStrictness`, `strategy`
 - Document review perspective choices (code, security, performance, api)
 - Remove build/review/agents from profile generation section
 
@@ -332,7 +336,7 @@ if (event.type === 'agent:message' && event.agent === 'module-planner') {
   const config = parseBuildConfigBlock(event.content);
   if (config) {
     ctx.moduleBuildConfigs.set(mod.id, {
-      build: config.build ?? [...DEFAULT_BUILD],
+      build: config?.build ?? [...DEFAULT_BUILD],
       review: { ...DEFAULT_REVIEW, ...(config.review ?? {}) },
     });
   }
@@ -378,7 +382,7 @@ const plans = await compileExpedition(ctx.cwd, ctx.planSetName, ctx.profile, ctx
 
 **10f. Module planner prompt — `src/engine/prompts/module-planner.md`**
 
-Add section instructing `<build-config>` block emission with schema reference and guidelines.
+Add section instructing `<build-config>` block emission with schema reference and guidelines. Build stages should use `review-cycle` (not individual stages). Same guidance: `review-cycle` almost always included, `doc-update` when touching user-facing surfaces.
 
 #### Step 11: Validation — `src/engine/plan.ts`
 

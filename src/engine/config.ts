@@ -209,14 +209,14 @@ export const BUILTIN_PROFILES: Record<string, ResolvedProfileConfig> = Object.fr
     review: DEFAULT_REVIEW,
   }),
   excursion: Object.freeze({
-    description: 'Multi-file feature work or refactors that need planning and review but fit in a single plan. Use for medium-complexity tasks with cross-file changes.',
+    description: 'Multi-file feature work or refactors. Use when changes touch many files but are tightly coupled - e.g., type signature changes that cascade to consumers, interface refactors, rename-and-update-all-callers. The key test: can every piece pass type-check independently? If not, use excursion.',
     compile: Object.freeze(['planner', 'plan-review-cycle']) as unknown as string[],
     build: DEFAULT_BUILD_STAGES,
     agents: Object.freeze({}),
     review: DEFAULT_REVIEW,
   }),
   expedition: Object.freeze({
-    description: 'Large cross-cutting work spanning multiple modules. Needs architecture planning, module decomposition, and parallel execution.',
+    description: 'Large work that decomposes into independently buildable modules. Each module must be able to pass type-check and tests on its own branch before merging. Use only when modules have genuinely independent scopes - not when a single type change ripples across many files.',
     compile: Object.freeze(['planner', 'architecture-review-cycle', 'module-planning', 'cohesion-review-cycle', 'compile-expedition']) as unknown as string[],
     build: DEFAULT_BUILD_STAGES,
     agents: Object.freeze({}),
