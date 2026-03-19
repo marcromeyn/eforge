@@ -10,7 +10,9 @@ import { runReview } from '../src/engine/agents/reviewer.js';
 import { builderImplement, builderEvaluate } from '../src/engine/agents/builder.js';
 import { runPlanReview } from '../src/engine/agents/plan-reviewer.js';
 import { runPlanEvaluate } from '../src/engine/agents/plan-evaluator.js';
+import { runArchitectureEvaluate } from '../src/engine/agents/plan-evaluator.js';
 import { runModulePlanner } from '../src/engine/agents/module-planner.js';
+import { runArchitectureReview } from '../src/engine/agents/architecture-reviewer.js';
 import type { ResolvedProfileConfig } from '../src/engine/config.js';
 
 // --- Planner ---
@@ -606,5 +608,104 @@ describe('runModulePlanner wiring', () => {
     }));
 
     expect(backend.prompts[0]).toContain('No dependencies');
+  });
+});
+
+// --- Architecture Reviewer ---
+
+describe('runArchitectureReview wiring', () => {
+  it('emits architecture review lifecycle events with parsed issues', async () => {
+    const backend = new StubBackend([{
+      text: `<review-issues>
+  <issue severity="warning" category="completeness" file="plans/my-plan/architecture.md">Missing integration contract between auth and api modules</issue>
+</review-issues>`,
+    }]);
+
+    const events = await collectEvents(runArchitectureReview({
+      backend,
+      sourceContent: 'PRD content',
+      planSetName: 'my-plan',
+      architectureContent: '# Architecture\nModules: auth, api',
+      cwd: '/tmp',
+    }));
+
+    expect(findEvent(events, 'plan:architecture:review:start')).toBeDefined();
+    const complete = findEvent(events, 'plan:architecture:review:complete');
+    expect(complete).toBeDefined();
+    expect(complete!.issues).toHaveLength(1);
+    expect(complete!.issues[0].category).toBe('completeness');
+    expect(complete!.issues[0].severity).toBe('warning');
+  });
+
+  it('yields empty issues for clean architecture', async () => {
+    const backend = new StubBackend([{
+      text: 'Architecture looks solid. <review-issues></review-issues>',
+    }]);
+
+    const events = await collectEvents(runArchitectureReview({
+      backend,
+      sourceContent: 'PRD content',
+      planSetName: 'my-plan',
+      architectureContent: '# Architecture\nWell defined.',
+      cwd: '/tmp',
+    }));
+
+    const complete = findEvent(events, 'plan:architecture:review:complete');
+    expect(complete).toBeDefined();
+    expect(complete!.issues).toHaveLength(0);
+  });
+});
+
+// --- Architecture Evaluator ---
+
+describe('runArchitectureEvaluate wiring', () => {
+  it('counts evaluation verdicts correctly', async () => {
+    const backend = new StubBackend([{
+      text: `<evaluation>
+  <verdict file="plans/my-plan/architecture.md" action="accept">Good clarification</verdict>
+  <verdict file="plans/my-plan/architecture.md" action="reject">Changes module decomposition</verdict>
+  <verdict file="plans/my-plan/architecture.md" action="accept">Missing contract added</verdict>
+</evaluation>`,
+    }]);
+
+    const events = await collectEvents(runArchitectureEvaluate({
+      backend,
+      planSetName: 'my-plan',
+      sourceContent: 'PRD content',
+      cwd: '/tmp',
+    }));
+
+    expect(findEvent(events, 'plan:architecture:evaluate:start')).toBeDefined();
+    const complete = findEvent(events, 'plan:architecture:evaluate:complete');
+    expect(complete).toBeDefined();
+    expect(complete!.accepted).toBe(2);
+    expect(complete!.rejected).toBe(1);
+  });
+
+  it('emits zero counts and re-throws on error', async () => {
+    const backend = new StubBackend([{ error: new Error('Architecture evaluate crash') }]);
+
+    let thrown: Error | undefined;
+    const events: EforgeEvent[] = [];
+    try {
+      for await (const event of runArchitectureEvaluate({
+        backend,
+        planSetName: 'my-plan',
+        sourceContent: 'PRD content',
+        cwd: '/tmp',
+      })) {
+        events.push(event);
+      }
+    } catch (err) {
+      thrown = err as Error;
+    }
+
+    expect(thrown).toBeDefined();
+    expect(thrown!.message).toBe('Architecture evaluate crash');
+
+    const complete = findEvent(events, 'plan:architecture:evaluate:complete');
+    expect(complete).toBeDefined();
+    expect(complete!.accepted).toBe(0);
+    expect(complete!.rejected).toBe(0);
   });
 });

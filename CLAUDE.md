@@ -37,14 +37,14 @@ node --env-file=.env dist/cli.js run some-prd.md --verbose
 
 **Pipeline stages**: Compile and build pipelines are composed of named stages registered in a stage registry (`src/engine/pipeline.ts`). Each stage is an async generator that accepts a `PipelineContext` and yields `EforgeEvent`s. The engine iterates the stage list from the resolved profile.
 
-Compile stages: `prd-passthrough`, `planner`, `plan-review-cycle`, `module-planning`, `cohesion-review-cycle`, `compile-expedition`
+Compile stages: `prd-passthrough`, `planner`, `plan-review-cycle`, `architecture-review-cycle`, `module-planning`, `cohesion-review-cycle`, `compile-expedition`
 
 Build stages: `implement`, `review`, `review-fix`, `evaluate`, `review-cycle`, `validate`, `doc-update`
 
 **Built-in profiles** (defined in `BUILTIN_PROFILES` in `src/engine/config.ts`):
 - **errand** — Small, self-contained changes. Compile: `[prd-passthrough]`. Build: `[[implement, doc-update], review, review-fix, evaluate]`.
 - **excursion** — Multi-file feature work. Compile: `[planner, plan-review-cycle]`. Build: `[[implement, doc-update], review, review-fix, evaluate]`.
-- **expedition** — Large cross-cutting work. Compile: `[planner, module-planning, cohesion-review-cycle, compile-expedition]`. Build: `[[implement, doc-update], review, review-fix, evaluate]`.
+- **expedition** — Large cross-cutting work. Compile: `[planner, architecture-review-cycle, module-planning, cohesion-review-cycle, compile-expedition]`. Build: `[[implement, doc-update], review, review-fix, evaluate]`.
 
 **Backend abstraction**: Agent runners never import the AI SDK directly. All LLM interaction goes through the `AgentBackend` interface (`src/engine/backend.ts`). The sole SDK adapter lives in `src/engine/backends/claude-sdk.ts`. New agents must accept an `AgentBackend` via their options — do not import `@anthropic-ai/claude-agent-sdk` outside of `src/engine/backends/`. The backend emits `agent:start`/`agent:stop` lifecycle events (with a UUID `agentId`) around every agent invocation — agent runners must pass these through via `isAlwaysYieldedAgentEvent()` from `events.ts`.
 
@@ -55,10 +55,12 @@ Build stages: `implement`, `review`, `review-fix`, `evaluate`, `review-cycle`, `
 - **Formatter** — one-shot query. Normalizes source input (PRD, prompt, rough notes) into a well-structured PRD with frontmatter for the queue.
 - **Planner** — one-shot query. Explores codebase, selects a workflow profile, writes plan files (YAML frontmatter format). Outputs `<clarification>` XML blocks for ambiguities and `<skip>` blocks when work is already complete. For expeditions, also generates architecture + module list.
 - **Plan Reviewer** — one-shot query. Blind review of plan files against PRD for cohesion, completeness, correctness. Leaves fixes unstaged.
-- **Plan Evaluator** — one-shot query. Evaluates plan reviewer's unstaged fixes against planner's intent. Accepts/rejects. Parameterized with `mode: 'plan' | 'cohesion'` - the same runner handles both plan evaluation and cohesion evaluation, dispatching different event types and prompts based on mode.
+- **Plan Evaluator** — one-shot query. Evaluates plan reviewer's unstaged fixes against planner's intent. Accepts/rejects. Parameterized with `mode: 'plan' | 'cohesion' | 'architecture'` - the same runner handles plan, cohesion, and architecture evaluation, dispatching different event types and prompts based on mode.
 - **Module Planner** — one-shot query (expedition mode only). Writes detailed plan for a single module using architecture context.
 - **Cohesion Reviewer** — one-shot query (expedition mode only). Reviews cross-module plan cohesion for consistency and integration gaps.
 - **Cohesion Evaluator** — one-shot query (expedition mode only). Evaluates cohesion reviewer's fixes against module planner intent. Implemented as a thin wrapper around the plan evaluator with `mode: 'cohesion'`.
+- **Architecture Reviewer** — one-shot query (expedition mode only). Blind review of `architecture.md` against PRD for module boundary soundness, integration contract completeness, and shared file registry clarity. Leaves fixes unstaged.
+- **Architecture Evaluator** — one-shot query (expedition mode only). Evaluates architecture reviewer's fixes against planner intent. Implemented as a thin wrapper around the plan evaluator with `mode: 'architecture'`.
 - **Staleness Assessor** — one-shot query. Checks whether existing plans need regeneration based on codebase changes.
 - **Builder** — multi-turn agent. Turn 1: implement plan. Turn 2: evaluate reviewer's unstaged fixes (accept/reject/review).
 - **Reviewer** — one-shot query. Blind code review (no builder context), leaves fixes unstaged.
@@ -94,7 +96,7 @@ src/
     pipeline.ts               # Stage registry, compile/build stage implementations
     config.ts                 # Config loading, merging & validation
     git.ts                    # forgeCommit() helper — all engine commits go through here for attribution
-    agents/                   # Agent implementations (14 agent files — see agent list above; plan evaluator and cohesion evaluator share one file)
+    agents/                   # Agent implementations (15 agent files — see agent list above; plan evaluator, cohesion evaluator, and architecture evaluator share one file)
     backends/                 # SDK adapters (sole SDK import point)
     prompts/                  # Agent prompt .md files (self-contained, no runtime plugin deps)
   monitor/                    # Web monitor — SQLite event persistence + SSE dashboard

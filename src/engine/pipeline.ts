@@ -33,8 +33,9 @@ import { runDocUpdater } from './agents/doc-updater.js';
 import { runParallelReview } from './agents/parallel-reviewer.js';
 import { runReviewFixer } from './agents/review-fixer.js';
 import { runPlanReview } from './agents/plan-reviewer.js';
-import { runPlanEvaluate, runCohesionEvaluate } from './agents/plan-evaluator.js';
+import { runPlanEvaluate, runCohesionEvaluate, runArchitectureEvaluate } from './agents/plan-evaluator.js';
 import { runCohesionReview } from './agents/cohesion-reviewer.js';
+import { runArchitectureReview } from './agents/architecture-reviewer.js';
 import { parseModulesBlock } from './agents/common.js';
 import { compileExpedition } from './compiler.js';
 import { resolveDependencyGraph, injectProfileIntoOrchestrationYaml, writePlanArtifacts, extractPlanTitle, detectValidationCommands } from './plan.js';
@@ -453,6 +454,47 @@ registerCompileStage('plan-review-cycle', async function* planReviewCycleStage(c
   } catch (err) {
     // Plan review failure is non-fatal - plan artifacts are already committed
     yield { type: 'plan:progress', message: `Plan review skipped: ${(err as Error).message}` };
+  }
+});
+
+registerCompileStage('architecture-review-cycle', async function* architectureReviewCycleStage(ctx) {
+  // Only meaningful in expedition mode
+  if (ctx.expeditionModules.length === 0) return;
+
+  const cwd = ctx.cwd;
+  const planDir = resolve(cwd, 'plans', ctx.planSetName);
+  const verbose = ctx.verbose;
+  const abortController = ctx.abortController;
+  const backend = ctx.backend;
+  const sourceContent = ctx.sourceContent;
+  const planSetName = ctx.planSetName;
+
+  // Read architecture content for review — if the planner didn't produce
+  // architecture.md, something went wrong; skip rather than reviewing nothing.
+  let architectureContent: string;
+  try {
+    architectureContent = await readFile(resolve(planDir, 'architecture.md'), 'utf-8');
+  } catch {
+    return;
+  }
+
+  try {
+    yield* runReviewCycle({
+      tracing: ctx.tracing,
+      cwd,
+      reviewer: {
+        role: 'architecture-reviewer',
+        metadata: { planSet: planSetName },
+        run: () => runArchitectureReview({ backend, sourceContent, planSetName, architectureContent, cwd, verbose, abortController }),
+      },
+      evaluator: {
+        role: 'architecture-evaluator',
+        metadata: { planSet: planSetName },
+        run: () => runArchitectureEvaluate({ backend, planSetName, sourceContent, cwd, verbose, abortController }),
+      },
+    });
+  } catch (err) {
+    yield { type: 'plan:progress', message: `Architecture review skipped: ${(err as Error).message}` };
   }
 });
 
@@ -939,10 +981,10 @@ export async function* runCompilePipeline(
   let i = 0;
   while (i < ctx.profile.compile.length) {
     const stageName = ctx.profile.compile[i];
-    if (stageName === 'plan-review-cycle') {
-      // Commit plan artifacts before running plan review
-      // (plan review reads committed files)
-      if (ctx.plans.length > 0) {
+    if (stageName === 'plan-review-cycle' || stageName === 'architecture-review-cycle') {
+      // Commit plan artifacts before running review cycles
+      // (reviewers read committed files)
+      if (ctx.plans.length > 0 || ctx.expeditionModules.length > 0) {
         await commitPlanArtifacts(ctx.cwd, ctx.planSetName);
       }
     }

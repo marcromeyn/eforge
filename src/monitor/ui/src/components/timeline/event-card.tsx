@@ -42,6 +42,10 @@ function eventSummary(event: EforgeEvent): string {
     case 'plan:review:complete': return `Plan review: ${event.issues?.length || 0} issue(s)`;
     case 'plan:evaluate:start': return 'Evaluating plan review fixes';
     case 'plan:evaluate:complete': return `Accepted ${event.accepted}, rejected ${event.rejected}`;
+    case 'plan:architecture:review:start': return 'Architecture review started';
+    case 'plan:architecture:review:complete': return `Architecture review: ${event.issues?.length || 0} issue(s)`;
+    case 'plan:architecture:evaluate:start': return 'Evaluating architecture review fixes';
+    case 'plan:architecture:evaluate:complete': return `Accepted ${event.accepted}, rejected ${event.rejected}`;
     case 'build:start': return `Building: ${event.planId}`;
     case 'build:implement:start': return `Implementing: ${event.planId}`;
     case 'build:implement:progress': return `[${event.planId}] ${event.message}`;
@@ -109,6 +113,7 @@ function eventDetail(event: EforgeEvent): string | null {
     case 'plan:clarification':
       return event.questions?.map((q) => `Q: ${q.question}${q.context ? '\n   ' + q.context : ''}`).join('\n\n') ?? null;
     case 'plan:review:complete':
+    case 'plan:architecture:review:complete':
     case 'build:review:complete':
       return event.issues?.map((i) => `[${i.severity}] ${i.category} — ${i.file}${i.line ? ':' + i.line : ''}\n  ${i.description}`).join('\n\n') ?? null;
     case 'agent:message':

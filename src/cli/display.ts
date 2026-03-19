@@ -180,6 +180,35 @@ export function renderEvent(event: EforgeEvent): void {
       }
       break;
 
+    // Architecture review (expedition architecture validation)
+    case 'plan:architecture:review:start':
+      startSpinner('architecture-review', 'Reviewing architecture...');
+      break;
+
+    case 'plan:architecture:review:complete': {
+      if (event.issues.length === 0) {
+        succeedSpinner('architecture-review', 'Architecture review complete \u2014 no issues found');
+      } else {
+        succeedSpinner('architecture-review', `Architecture review: ${formatIssueSummary(event.issues)}`);
+      }
+      break;
+    }
+
+    case 'plan:architecture:evaluate:start':
+      startSpinner('architecture-evaluate', 'Evaluating architecture review fixes...');
+      break;
+
+    case 'plan:architecture:evaluate:complete':
+      if (event.accepted === 0 && event.rejected === 0) {
+        succeedSpinner('architecture-evaluate', 'Architecture evaluation: no fixes to evaluate');
+      } else {
+        succeedSpinner(
+          'architecture-evaluate',
+          `Architecture evaluation: ${chalk.green(`${event.accepted} accepted`)}, ${chalk.red(`${event.rejected} rejected`)}`,
+        );
+      }
+      break;
+
     // Cohesion review (expedition cross-module validation)
     case 'plan:cohesion:start':
       startSpinner('cohesion-review', 'Reviewing cross-module cohesion...');

@@ -7,7 +7,7 @@ import type { reviewIssueSchema, expeditionModuleSchema, clarificationQuestionSc
 
 export const ORCHESTRATION_MODES = ['errand', 'excursion', 'expedition'] as const;
 
-export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'review-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater';
+export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'architecture-reviewer' | 'architecture-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'review-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater';
 
 export type ExpeditionModule = z.output<typeof expeditionModuleSchema>;
 
@@ -132,6 +132,12 @@ export type EforgeEvent = { sessionId?: string } & (
   | { type: 'plan:review:complete'; issues: ReviewIssue[] }
   | { type: 'plan:evaluate:start' }
   | { type: 'plan:evaluate:complete'; accepted: number; rejected: number }
+
+  // Architecture review (expedition architecture validation)
+  | { type: 'plan:architecture:review:start' }
+  | { type: 'plan:architecture:review:complete'; issues: ReviewIssue[] }
+  | { type: 'plan:architecture:evaluate:start' }
+  | { type: 'plan:architecture:evaluate:complete'; accepted: number; rejected: number }
 
   // Cohesion review (expedition cross-module validation)
   | { type: 'plan:cohesion:start' }

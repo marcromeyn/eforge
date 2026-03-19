@@ -7,7 +7,7 @@ import { parseEvaluationBlock } from './common.js';
 /**
  * Evaluator mode: 'plan' for plan review evaluation, 'cohesion' for cohesion review evaluation.
  */
-export type EvaluatorMode = 'plan' | 'cohesion';
+export type EvaluatorMode = 'plan' | 'cohesion' | 'architecture';
 
 /**
  * Options shared by both plan and cohesion evaluator agents.
@@ -52,6 +52,11 @@ export interface PlanEvaluatorOptions {
  */
 export type CohesionEvaluatorOptions = PlanEvaluatorOptions;
 
+/**
+ * Options for the architecture evaluator agent.
+ */
+export type ArchitectureEvaluatorOptions = PlanEvaluatorOptions;
+
 // Mode-specific configuration
 const MODE_CONFIG = {
   plan: {
@@ -89,15 +94,32 @@ const MODE_CONFIG = {
       reject_criteria_extra: '\n4. **Module boundary change** — The change alters module boundaries from the architecture',
     },
   },
+  architecture: {
+    startEvent: 'plan:architecture:evaluate:start' as const,
+    completeEvent: 'plan:architecture:evaluate:complete' as const,
+    promptName: 'plan-evaluator',
+    role: 'architecture-evaluator' as const,
+    promptVars: {
+      evaluator_title: 'Architecture Fix Evaluator',
+      evaluator_context: 'A planner agent generated an architecture document and committed it. A blind architecture reviewer then reviewed the architecture against the PRD for module boundary soundness, integration contract completeness, and feasibility — and left fixes as unstaged changes. You must evaluate each fix and decide whether to accept, reject, or flag for review.',
+      strict_improvement_bullet_1: 'It fixes a genuine, objective issue (unclear module boundary clarified, missing integration contract added, shared file registry gap filled)',
+      accept_patterns_table: `| Unclear module boundary | Module boundary description was vague — reviewer clarified scope |
+| Missing integration contract | Two modules interact but no contract was defined — reviewer added one |
+| Shared file registry gap | A file is shared across modules but not listed in the registry |
+| Data model inconsistency | Architecture references a type not defined in any module |
+| PRD alignment gap | Architecture omits a requirement from the PRD |`,
+      reject_criteria_extra: '\n4. **Module decomposition change** — The change alters the module decomposition strategy from the planner',
+    },
+  },
 } as const;
 
 /**
- * Internal consolidated evaluator runner for both plan and cohesion evaluation.
+ * Internal consolidated evaluator runner for plan, cohesion, and architecture evaluation.
  *
  * Yields:
- * - `plan:evaluate:start` or `plan:cohesion:evaluate:start` at the beginning
+ * - Mode-specific start event at the beginning
  * - `agent:message`, `agent:tool_use`, `agent:tool_result` events (when verbose)
- * - `plan:evaluate:complete` or `plan:cohesion:evaluate:complete` with accepted/rejected counts at the end
+ * - Mode-specific complete event with accepted/rejected counts at the end
  */
 async function* runEvaluate(
   options: PlanPhaseEvaluatorOptions,
@@ -169,4 +191,20 @@ export async function* runCohesionEvaluate(
   options: CohesionEvaluatorOptions,
 ): AsyncGenerator<EforgeEvent> {
   yield* runEvaluate({ ...options, mode: 'cohesion' });
+}
+
+/**
+ * Evaluate the architecture reviewer's unstaged fixes. Runs `git reset --soft HEAD~1`
+ * to expose staged (planner's architecture) vs unstaged (reviewer's fixes), applies
+ * verdicts, and commits the final result.
+ *
+ * Yields:
+ * - `plan:architecture:evaluate:start` at the beginning
+ * - `agent:message`, `agent:tool_use`, `agent:tool_result` events (when verbose)
+ * - `plan:architecture:evaluate:complete` with accepted/rejected counts at the end
+ */
+export async function* runArchitectureEvaluate(
+  options: ArchitectureEvaluatorOptions,
+): AsyncGenerator<EforgeEvent> {
+  yield* runEvaluate({ ...options, mode: 'architecture' });
 }

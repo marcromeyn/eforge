@@ -13,7 +13,8 @@ import type { AgentRole } from './events.js';
 /** Agent roles matching the AgentRole union in events.ts. */
 export const AGENT_ROLES = [
   'planner', 'builder', 'reviewer', 'evaluator', 'module-planner',
-  'plan-reviewer', 'plan-evaluator', 'cohesion-reviewer', 'cohesion-evaluator',
+  'plan-reviewer', 'plan-evaluator', 'architecture-reviewer', 'architecture-evaluator',
+  'cohesion-reviewer', 'cohesion-evaluator',
   'validation-fixer', 'review-fixer', 'merge-conflict-resolver',
   'staleness-assessor', 'formatter', 'doc-updater',
 ] as const;
@@ -211,7 +212,7 @@ export const BUILTIN_PROFILES: Record<string, ResolvedProfileConfig> = Object.fr
   }),
   expedition: Object.freeze({
     description: 'Large cross-cutting work spanning multiple modules. Needs architecture planning, module decomposition, and parallel execution.',
-    compile: Object.freeze(['planner', 'module-planning', 'cohesion-review-cycle', 'compile-expedition']) as unknown as string[],
+    compile: Object.freeze(['planner', 'architecture-review-cycle', 'module-planning', 'cohesion-review-cycle', 'compile-expedition']) as unknown as string[],
     build: DEFAULT_BUILD_STAGES,
     agents: Object.freeze({}),
     review: DEFAULT_REVIEW,

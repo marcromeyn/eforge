@@ -6,8 +6,8 @@ import type { AgentThread } from '@/lib/reducer';
 import type { PipelineStage, ReviewIssue, ProfileInfo, BuildStageSpec } from '@/lib/types';
 
 const REVIEW_AGENTS = new Set([
-  'reviewer', 'plan-reviewer', 'cohesion-reviewer',
-  'evaluator', 'plan-evaluator', 'cohesion-evaluator',
+  'reviewer', 'plan-reviewer', 'architecture-reviewer', 'cohesion-reviewer',
+  'evaluator', 'plan-evaluator', 'architecture-evaluator', 'cohesion-evaluator',
 ]);
 
 /** Map agent roles to pipeline-stage color classes */
@@ -18,8 +18,10 @@ const AGENT_COLORS: Record<string, { bg: string; border: string }> = {
   reviewer:            { bg: 'bg-green/30',   border: 'border-green/50' },
   'plan-reviewer':     { bg: 'bg-green/30',   border: 'border-green/50' },
   'cohesion-reviewer': { bg: 'bg-green/30',   border: 'border-green/50' },
+  'architecture-reviewer': { bg: 'bg-green/30', border: 'border-green/50' },
   evaluator:           { bg: 'bg-purple/30',  border: 'border-purple/50' },
   'plan-evaluator':    { bg: 'bg-purple/30',  border: 'border-purple/50' },
+  'architecture-evaluator': { bg: 'bg-purple/30', border: 'border-purple/50' },
   'cohesion-evaluator':{ bg: 'bg-purple/30',  border: 'border-purple/50' },
   'review-fixer':      { bg: 'bg-purple/30',  border: 'border-purple/50' },
   'parallel-reviewer': { bg: 'bg-green/30',   border: 'border-green/50' },
@@ -55,6 +57,8 @@ const AGENT_TO_STAGE: Record<string, string> = {
   'plan-reviewer': 'plan-review-cycle',
   'plan-evaluator': 'plan-review-cycle',
   'module-planner': 'module-planning',
+  'architecture-reviewer': 'architecture-review-cycle',
+  'architecture-evaluator': 'architecture-review-cycle',
   'cohesion-reviewer': 'cohesion-review-cycle',
   'cohesion-evaluator': 'cohesion-review-cycle',
   'builder': 'implement',
