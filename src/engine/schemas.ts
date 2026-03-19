@@ -50,6 +50,12 @@ const docsCategorySchema = z.enum([
   'completeness', 'readme',
 ]).describe('Review category for the docs perspective');
 
+/** Test quality specialist categories. */
+const testCategorySchema = z.enum([
+  'coverage-gaps', 'test-quality', 'test-isolation',
+  'fixtures', 'assertions', 'flaky-patterns', 'test-design',
+]).describe('Review category for the test perspective');
+
 /** Plan reviewer and cohesion reviewer categories. */
 const planReviewCategorySchema = z.enum([
   'cohesion', 'completeness', 'correctness',
@@ -198,6 +204,7 @@ const codeReviewIssueSchema = makeReviewIssueSchemaWithCategory(codeCategorySche
 const securityReviewIssueSchema = makeReviewIssueSchemaWithCategory(securityCategorySchema);
 const apiReviewIssueSchema = makeReviewIssueSchemaWithCategory(apiCategorySchema);
 const docsReviewIssueSchema = makeReviewIssueSchemaWithCategory(docsCategorySchema);
+const testReviewIssueSchema = makeReviewIssueSchemaWithCategory(testCategorySchema);
 const planReviewIssueSchema = makeReviewIssueSchemaWithCategory(planReviewCategorySchema);
 
 // ---------------------------------------------------------------------------
@@ -227,6 +234,11 @@ export function getApiReviewIssueSchemaYaml(): string {
 /** Schema YAML for the documentation perspective. */
 export function getDocsReviewIssueSchemaYaml(): string {
   return getSchemaYaml('review-issue-docs', docsReviewIssueSchema);
+}
+
+/** Schema YAML for the test quality perspective. */
+export function getTestsReviewIssueSchemaYaml(): string {
+  return getSchemaYaml('review-issue-test', testReviewIssueSchema);
 }
 
 /** Schema YAML for plan reviewers and cohesion reviewers. */

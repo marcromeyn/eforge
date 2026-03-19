@@ -3,7 +3,7 @@
  * Ported from the review plugin's categorization patterns.
  */
 
-export type ReviewPerspective = 'code' | 'security' | 'api' | 'docs';
+export type ReviewPerspective = 'code' | 'security' | 'api' | 'docs' | 'test';
 
 export interface FileCategories {
   code: string[];
@@ -11,6 +11,7 @@ export interface FileCategories {
   docs: string[];
   config: string[];
   deps: string[];
+  test: string[];
 }
 
 export interface DiffStats {
@@ -32,6 +33,7 @@ export function categorizeFiles(files: string[]): FileCategories {
     docs: [],
     config: [],
     deps: [],
+    test: [],
   };
 
   for (const file of files) {
@@ -41,6 +43,8 @@ export function categorizeFiles(files: string[]): FileCategories {
       categories.docs.push(file);
     } else if (isConfig(file)) {
       categories.config.push(file);
+    } else if (isTest(file)) {
+      categories.test.push(file);
     } else if (isApi(file)) {
       categories.api.push(file);
     } else if (isCode(file)) {
@@ -57,8 +61,9 @@ export function categorizeFiles(files: string[]): FileCategories {
  * - code files -> code + security
  * - API files -> api
  * - docs files -> docs
+ * - test files -> test
  * - deps files -> security (if not already included)
- * - config files -> code (if code perspective not already triggered)
+ * - config files -> no perspective
  */
 export function determineApplicableReviews(categories: FileCategories): ReviewPerspective[] {
   const perspectives = new Set<ReviewPerspective>();
@@ -74,6 +79,10 @@ export function determineApplicableReviews(categories: FileCategories): ReviewPe
 
   if (categories.docs.length > 0) {
     perspectives.add('docs');
+  }
+
+  if (categories.test.length > 0) {
+    perspectives.add('test');
   }
 
   if (categories.deps.length > 0) {
@@ -154,6 +163,15 @@ function isApi(file: string): boolean {
     file.endsWith('.controller.ts') ||
     file.endsWith('.controller.js')
   );
+}
+
+function isTest(file: string): boolean {
+  const base = basename(file);
+  // Match *.test.{ts,tsx,js,jsx} and *.spec.{ts,tsx,js,jsx}
+  if (/\.(test|spec)\.(ts|tsx|js|jsx)$/.test(base)) return true;
+  // Match files under test/, tests/, or __tests__/ directories
+  if (/^(test|tests|__tests__)\//.test(file) || /\/(test|tests|__tests__)\//.test(file)) return true;
+  return false;
 }
 
 function isCode(file: string): boolean {

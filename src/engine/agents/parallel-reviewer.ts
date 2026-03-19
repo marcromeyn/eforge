@@ -18,6 +18,7 @@ import {
   getSecurityReviewIssueSchemaYaml,
   getApiReviewIssueSchemaYaml,
   getDocsReviewIssueSchemaYaml,
+  getTestsReviewIssueSchemaYaml,
 } from '../schemas.js';
 
 const exec = promisify(execFile);
@@ -49,6 +50,7 @@ const PERSPECTIVE_PROMPTS: Record<ReviewPerspective, string> = {
   security: 'reviewer-security',
   api: 'reviewer-api',
   docs: 'reviewer-docs',
+  test: 'reviewer-tests',
 };
 
 /** Map perspective names to schema YAML getters */
@@ -57,6 +59,7 @@ const PERSPECTIVE_SCHEMA_YAML: Record<ReviewPerspective, () => string> = {
   security: getSecurityReviewIssueSchemaYaml,
   api: getApiReviewIssueSchemaYaml,
   docs: getDocsReviewIssueSchemaYaml,
+  test: getTestsReviewIssueSchemaYaml,
 };
 
 /**

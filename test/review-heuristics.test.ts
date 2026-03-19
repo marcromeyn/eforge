@@ -59,6 +59,55 @@ describe('categorizeFiles', () => {
     expect(result.docs).toEqual([]);
     expect(result.config).toEqual([]);
     expect(result.deps).toEqual([]);
+    expect(result.test).toEqual([]);
+  });
+
+  it('assigns *.test.ts files to test bucket', () => {
+    const result = categorizeFiles(['src/foo.test.ts']);
+    expect(result.test).toEqual(['src/foo.test.ts']);
+    expect(result.code).toEqual([]);
+  });
+
+  it('assigns *.spec.ts files to test bucket', () => {
+    const result = categorizeFiles(['src/bar.spec.ts']);
+    expect(result.test).toEqual(['src/bar.spec.ts']);
+    expect(result.code).toEqual([]);
+  });
+
+  it('assigns *.test.tsx files to test bucket', () => {
+    const result = categorizeFiles(['src/component.test.tsx']);
+    expect(result.test).toEqual(['src/component.test.tsx']);
+    expect(result.code).toEqual([]);
+  });
+
+  it('assigns *.spec.jsx files to test bucket', () => {
+    const result = categorizeFiles(['src/widget.spec.jsx']);
+    expect(result.test).toEqual(['src/widget.spec.jsx']);
+    expect(result.code).toEqual([]);
+  });
+
+  it('assigns files under test/ directory to test bucket', () => {
+    const result = categorizeFiles(['test/helpers.ts']);
+    expect(result.test).toEqual(['test/helpers.ts']);
+    expect(result.code).toEqual([]);
+  });
+
+  it('assigns files under tests/ directory to test bucket', () => {
+    const result = categorizeFiles(['tests/utils.ts']);
+    expect(result.test).toEqual(['tests/utils.ts']);
+    expect(result.code).toEqual([]);
+  });
+
+  it('assigns files under __tests__/ directory to test bucket', () => {
+    const result = categorizeFiles(['src/__tests__/foo.ts']);
+    expect(result.test).toEqual(['src/__tests__/foo.ts']);
+    expect(result.code).toEqual([]);
+  });
+
+  it('assigns regular code files to code, not test', () => {
+    const result = categorizeFiles(['src/foo.ts']);
+    expect(result.code).toEqual(['src/foo.ts']);
+    expect(result.test).toEqual([]);
   });
 });
 
@@ -70,6 +119,7 @@ describe('determineApplicableReviews', () => {
       docs: [],
       config: [],
       deps: [],
+      test: [],
     };
     const result = determineApplicableReviews(categories);
     expect(result).toContain('code');
@@ -84,6 +134,7 @@ describe('determineApplicableReviews', () => {
       docs: [],
       config: [],
       deps: [],
+      test: [],
     };
     const result = determineApplicableReviews(categories);
     expect(result).toContain('code');
@@ -98,6 +149,7 @@ describe('determineApplicableReviews', () => {
       docs: ['README.md'],
       config: [],
       deps: [],
+      test: [],
     };
     const result = determineApplicableReviews(categories);
     expect(result).toEqual(['docs']);
@@ -110,6 +162,7 @@ describe('determineApplicableReviews', () => {
       docs: [],
       config: [],
       deps: ['package.json'],
+      test: [],
     };
     const result = determineApplicableReviews(categories);
     // code triggers code + security, deps also triggers security but it's already there
@@ -125,6 +178,7 @@ describe('determineApplicableReviews', () => {
       docs: [],
       config: [],
       deps: ['package.json'],
+      test: [],
     };
     const result = determineApplicableReviews(categories);
     expect(result).toEqual(['security']);
@@ -137,9 +191,37 @@ describe('determineApplicableReviews', () => {
       docs: [],
       config: ['.eslintrc.json'],
       deps: [],
+      test: [],
     };
     const result = determineApplicableReviews(categories);
     expect(result).toEqual([]);
+  });
+
+  it('adds test perspective for test files', () => {
+    const categories: FileCategories = {
+      code: [],
+      api: [],
+      docs: [],
+      config: [],
+      deps: [],
+      test: ['x.test.ts'],
+    };
+    const result = determineApplicableReviews(categories);
+    expect(result).toContain('test');
+  });
+
+  it('does not add security for test-only files', () => {
+    const categories: FileCategories = {
+      code: [],
+      api: [],
+      docs: [],
+      config: [],
+      deps: [],
+      test: ['x.test.ts'],
+    };
+    const result = determineApplicableReviews(categories);
+    expect(result).not.toContain('security');
+    expect(result).toEqual(['test']);
   });
 });
 
