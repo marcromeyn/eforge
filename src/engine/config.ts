@@ -706,6 +706,7 @@ export function resolveGeneratedProfile(
 
   const overrides = generated.overrides ?? {};
   return {
+    extends: baseName,
     description: overrides.description ?? base.description,
     compile: overrides.compile ?? base.compile,
     build: overrides.build ?? base.build,
