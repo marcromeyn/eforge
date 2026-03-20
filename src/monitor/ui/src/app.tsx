@@ -23,7 +23,7 @@ type ContentTab = 'plans' | 'timeline' | 'graph' | 'heatmap';
 export function App() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
-  const [activeTab, setActiveTab] = useState<ContentTab>('graph');
+  const [activeTab, setActiveTab] = useState<ContentTab>('timeline');
   const [orchestration, setOrchestration] = useState<OrchestrationConfig | null>(null);
   const [mergedPlanIds, setMergedPlanIds] = useState<Set<string>>(new Set());
   const knownLatestRef = useRef<string | null>(null);
@@ -140,7 +140,8 @@ export function App() {
   // Use early orchestration (from expedition:architecture:complete) until server-fetched data arrives
   const effectiveOrchestration = orchestration ?? runState.earlyOrchestration;
   const hasOrchestration = effectiveOrchestration !== null && effectiveOrchestration.plans.length > 0;
-  const graphEnabled = hasOrchestration;
+  const hasDependencyEdges = effectiveOrchestration !== null && effectiveOrchestration.plans.some((p) => p.dependsOn && p.dependsOn.length > 0);
+  const graphEnabled = hasOrchestration && hasDependencyEdges;
   const heatmapEnabled = isMultiPlan;
 
   // During compile phase, map module statuses to pipeline stages so the graph
@@ -212,14 +213,6 @@ export function App() {
 
               {/* Content tabs */}
               <div className="flex gap-2 border-b border-border pb-px">
-                <button
-                  onClick={() => setActiveTab('graph')}
-                  disabled={!graphEnabled}
-                  className={tabClass('graph', graphEnabled)}
-                  title={graphEnabled ? undefined : 'Available for multi-plan runs with orchestration'}
-                >
-                  Graph
-                </button>
                 <button onClick={() => setActiveTab('timeline')} className={tabClass('timeline')}>
                   Timeline
                 </button>
@@ -233,6 +226,14 @@ export function App() {
                 </button>
                 <button onClick={() => setActiveTab('plans')} className={tabClass('plans')}>
                   Plans
+                </button>
+                <button
+                  onClick={() => setActiveTab('graph')}
+                  disabled={!graphEnabled}
+                  className={tabClass('graph', graphEnabled)}
+                  title={graphEnabled ? undefined : 'Available when plans have dependency edges'}
+                >
+                  Graph
                 </button>
               </div>
 
