@@ -6,8 +6,8 @@ import { isAlwaysYieldedAgentEvent, type EforgeEvent, type CompileOptions, type 
 import { parseClarificationBlocks, parseSkipBlock, parseProfileBlock, parseGeneratedProfileBlock } from './common.js';
 import { loadPrompt } from '../prompts.js';
 import { parsePlanFile, deriveNameFromSource, extractPlanTitle } from '../plan.js';
-import type { ResolvedProfileConfig, BuildStageSpec } from '../config.js';
-import { validateProfileConfig, resolveGeneratedProfile, getProfileSchemaYaml } from '../config.js';
+import type { ResolvedProfileConfig } from '../config.js';
+import { validateProfileConfig, resolveGeneratedProfile, getCompileOnlyProfileSchemaYaml } from '../config.js';
 import { getClarificationSchemaYaml, getModuleSchemaYaml, getPlanFrontmatterSchemaYaml } from '../schemas.js';
 
 export interface PlannerOptions extends CompileOptions {
@@ -67,8 +67,18 @@ export function formatProfileDescriptions(profiles: Record<string, ResolvedProfi
  * Includes available profiles as JSON so the agent can reference exact field names.
  */
 export function formatProfileGenerationSection(profiles: Record<string, ResolvedProfileConfig>): string {
-  const profilesJson = JSON.stringify(profiles, null, 2);
-  const schemaYaml = getProfileSchemaYaml();
+  // Strip build/review/agents from each profile — the planner only controls compile-time config.
+  // Per-plan build/review is handled by module planners via <build-config> blocks.
+  const compileOnlyProfiles: Record<string, { description: string; compile: string[]; extends?: string }> = {};
+  for (const [name, profile] of Object.entries(profiles)) {
+    compileOnlyProfiles[name] = {
+      description: profile.description,
+      compile: profile.compile,
+      ...(profile.extends ? { extends: profile.extends } : {}),
+    };
+  }
+  const profilesJson = JSON.stringify(compileOnlyProfiles, null, 2);
+  const schemaYaml = getCompileOnlyProfileSchemaYaml();
 
   return `### Profile Generation
 
@@ -117,25 +127,6 @@ Build stages control the post-implementation pipeline. You can add, remove, or r
 
 **Parallel groups**: Wrap stage names in an inner array to run them concurrently. Only stages with no data dependencies should be parallelized. Example: \`[["implement", "doc-update"], "review"]\` runs implement and doc-update in parallel, then review sequentially after both complete.`;
 
-}
-
-/**
- * Format a markdown section describing parallel build lanes in the profile.
- * Returns empty string when the profile has no parallel groups in its build stages.
- */
-export function formatParallelLanes(profile: ResolvedProfileConfig): string {
-  const parallelGroups = profile.build.filter((spec: BuildStageSpec) => Array.isArray(spec)) as string[][];
-  if (parallelGroups.length === 0) return '';
-
-  const lanes = parallelGroups
-    .map((group) => group.map((s) => `\`${s}\``).join(', '))
-    .join('; ');
-
-  return `## Parallel Build Lanes
-
-This profile runs some build stages in parallel: ${lanes}
-
-Documentation updates are handled by a separate **doc-updater** agent that runs alongside the builder. The builder should **not** modify documentation files - the doc-updater agent will handle that independently based on the plan content.`;
 }
 
 /**
@@ -188,18 +179,6 @@ export async function* runPlanner(
       profileGeneration = formatProfileGenerationSection(options.profiles);
     }
 
-    // Compute parallel lanes notice from the first profile that has parallel groups
-    let parallelLanes = '';
-    if (options.profiles) {
-      for (const profile of Object.values(options.profiles)) {
-        const notice = formatParallelLanes(profile);
-        if (notice) {
-          parallelLanes = notice;
-          break;
-        }
-      }
-    }
-
     return loadPrompt('planner', {
       source: sourceContent,
       planSetName,
@@ -207,7 +186,7 @@ export async function* runPlanner(
       priorClarifications: formatPriorClarifications(allClarifications),
       profiles: options.profiles ? formatProfileDescriptions(options.profiles) : '',
       profileGeneration,
-      parallelLanes,
+      parallelLanes: '',
       clarification_schema: getClarificationSchemaYaml(),
       module_schema: getModuleSchemaYaml(),
       plan_frontmatter_schema: getPlanFrontmatterSchemaYaml(),

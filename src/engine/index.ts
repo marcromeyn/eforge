@@ -44,7 +44,7 @@ export { ClaudeSDKBackend } from './backends/claude-sdk.js';
 export type { ClaudeSDKBackendOptions } from './backends/claude-sdk.js';
 
 // --- agents/common ---
-export { parseClarificationBlocks, parseProfileBlock, parseGeneratedProfileBlock, parseStalenessBlock } from './agents/common.js';
+export { parseClarificationBlocks, parseProfileBlock, parseGeneratedProfileBlock, parseStalenessBlock, parseBuildConfigBlock } from './agents/common.js';
 export type { ProfileSelection, GeneratedProfileBlock } from './agents/common.js';
 export type { StalenessVerdict as StalenessVerdictResult } from './agents/common.js';
 
@@ -52,7 +52,7 @@ export type { StalenessVerdict as StalenessVerdictResult } from './agents/common
 export { loadState, saveState, updatePlanStatus, isResumable } from './state.js';
 
 // --- planner ---
-export { runPlanner, formatParallelLanes } from './agents/planner.js';
+export { runPlanner } from './agents/planner.js';
 export type { PlannerOptions } from './agents/planner.js';
 
 // --- agents/common (evaluation parsing) ---
@@ -127,7 +127,7 @@ export { withHooks, matchesPattern } from './hooks.js';
 
 // --- config ---
 export type { EforgeConfig, PartialEforgeConfig, PluginConfig, ProfileConfig, ResolvedProfileConfig, AgentProfileConfig, ReviewProfileConfig, PartialProfileConfig, BuildStageSpec } from './config.js';
-export { DEFAULT_CONFIG, DEFAULT_BUILD, DEFAULT_BUILD_WITH_DOCS, DEFAULT_REVIEW, BUILTIN_PROFILES, AGENT_ROLES, eforgeConfigSchema, resolvedProfileConfigSchema, buildStageSpecSchema, reviewProfileConfigSchema, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, resolveProfileExtensions, parseProfilesFile, validateProfileConfig, validateConfigFile, resolveGeneratedProfile } from './config.js';
+export { DEFAULT_CONFIG, DEFAULT_BUILD, DEFAULT_BUILD_WITH_DOCS, DEFAULT_REVIEW, BUILTIN_PROFILES, AGENT_ROLES, eforgeConfigSchema, resolvedProfileConfigSchema, buildStageSpecSchema, reviewProfileConfigSchema, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, resolveProfileExtensions, parseProfilesFile, validateProfileConfig, validateConfigFile, resolveGeneratedProfile, getCompileOnlyProfileSchemaYaml } from './config.js';
 export type { TracingContext, SpanHandle, ToolCallHandle } from './tracing.js';
 export { createTracingContext, createNoopTracingContext } from './tracing.js';
 

@@ -37,7 +37,7 @@ import { runPlanReview } from './agents/plan-reviewer.js';
 import { runPlanEvaluate, runCohesionEvaluate, runArchitectureEvaluate } from './agents/plan-evaluator.js';
 import { runCohesionReview } from './agents/cohesion-reviewer.js';
 import { runArchitectureReview } from './agents/architecture-reviewer.js';
-import { parseModulesBlock } from './agents/common.js';
+import { parseModulesBlock, parseBuildConfigBlock } from './agents/common.js';
 import { compileExpedition } from './compiler.js';
 import { resolveDependencyGraph, injectProfileIntoOrchestrationYaml, parseOrchestrationConfig, writePlanArtifacts, extractPlanTitle, detectValidationCommands } from './plan.js';
 import { runParallel, type ParallelTask } from './concurrency.js';
@@ -616,6 +616,15 @@ registerCompileStage('module-planning', async function* modulePlanningStage(ctx)
               maxTurns: agentConfig.maxTurns,
             })) {
               modTracker.handleEvent(event);
+
+              // Intercept <build-config> blocks from module planner messages
+              if (event.type === 'agent:message') {
+                const buildConfig = parseBuildConfigBlock(event.content);
+                if (buildConfig) {
+                  ctx.moduleBuildConfigs.set(mod.id, buildConfig);
+                }
+              }
+
               yield event;
             }
             modTracker.cleanup();

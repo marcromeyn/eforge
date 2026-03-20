@@ -3,9 +3,10 @@
  * These parse structured blocks from free-text agent responses
  * regardless of which LLM backend produced them.
  */
-import type { z } from 'zod/v4';
+import { z } from 'zod/v4';
 import type { ClarificationQuestion, ExpeditionModule } from '../events.js';
-import type { ResolvedProfileConfig, ReviewProfileConfig } from '../config.js';
+import type { ResolvedProfileConfig, ReviewProfileConfig, BuildStageSpec } from '../config.js';
+import { buildStageSpecSchema, reviewProfileConfigSchema } from '../config.js';
 import type { stalenessVerdictSchema, evaluationEvidenceSchema, evaluationVerdictSchema } from '../schemas.js';
 
 /**
@@ -357,4 +358,43 @@ export function parseEvaluationBlock(text: string): EvaluationVerdict[] {
   }
 
   return verdicts;
+}
+
+// ---------------------------------------------------------------------------
+// Build Config Parsing
+// ---------------------------------------------------------------------------
+
+const buildConfigSchema = z.object({
+  build: z.array(buildStageSpecSchema),
+  review: reviewProfileConfigSchema,
+});
+
+/**
+ * Parse a `<build-config>` XML block from assistant text into per-plan build/review config.
+ *
+ * Expected format:
+ *   <build-config>
+ *   {
+ *     "build": [["implement", "doc-update"], "review-cycle"],
+ *     "review": { "strategy": "auto", "perspectives": ["code"], "maxRounds": 1, "evaluatorStrictness": "standard" }
+ *   }
+ *   </build-config>
+ *
+ * Returns null if no block found, JSON is invalid, or Zod validation fails.
+ */
+export function parseBuildConfigBlock(text: string): { build: BuildStageSpec[]; review: ReviewProfileConfig } | null {
+  const match = text.match(/<build-config>([\s\S]*?)<\/build-config>/);
+  if (!match) return null;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(match[1].trim());
+  } catch {
+    return null;
+  }
+
+  const result = buildConfigSchema.safeParse(parsed);
+  if (!result.success) return null;
+
+  return result.data;
 }

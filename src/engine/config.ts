@@ -108,6 +108,52 @@ export function getProfileSchemaYaml(): string {
   return _profileSchemaYamlCache;
 }
 
+// ---------------------------------------------------------------------------
+// Compile-only profile schema YAML (excludes build/review/agents)
+// ---------------------------------------------------------------------------
+
+let _compileOnlyProfileSchemaYamlCache: string | undefined;
+
+/**
+ * Convert a compile-only subset of the resolved profile config schema to YAML.
+ * Excludes build, review, and agents fields - those are per-plan concerns
+ * handled by module planners, not the top-level planner.
+ */
+export function getCompileOnlyProfileSchemaYaml(): string {
+  if (_compileOnlyProfileSchemaYamlCache !== undefined) return _compileOnlyProfileSchemaYamlCache;
+
+  const compileOnlySchema = z.object({
+    description: resolvedProfileConfigSchema.shape.description,
+    extends: resolvedProfileConfigSchema.shape.extends,
+    compile: resolvedProfileConfigSchema.shape.compile,
+  });
+
+  const jsonSchema = z.toJSONSchema(compileOnlySchema);
+
+  function stripInternalKeys(obj: Record<string, unknown>): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      if (key === '$schema' || key === '~standard') continue;
+      if (Array.isArray(value)) {
+        result[key] = value.map((item) =>
+          item && typeof item === 'object' && !Array.isArray(item)
+            ? stripInternalKeys(item as Record<string, unknown>)
+            : item,
+        );
+      } else if (value && typeof value === 'object') {
+        result[key] = stripInternalKeys(value as Record<string, unknown>);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
+  }
+
+  const cleaned = stripInternalKeys(jsonSchema as Record<string, unknown>);
+  _compileOnlyProfileSchemaYamlCache = stringifyYaml(cleaned);
+  return _compileOnlyProfileSchemaYamlCache;
+}
+
 const hookConfigSchema = z.object({
   event: z.string(),
   command: z.string(),
