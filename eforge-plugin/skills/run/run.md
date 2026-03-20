@@ -84,16 +84,7 @@ Tell the user:
 >
 > **Monitor**: {MONITOR_URL}
 >
-> The run executes the full lifecycle:
-> 1. **Enqueue** - formats and normalizes your source into a structured PRD
-> 2. **Profile selection** - selects a workflow profile based on task complexity
-> 3. **Planning** - generates plan files from your source
-> 4. **Plan review** - blind review of the plan artifacts
-> 5. **Building** - implements each plan in parallel on feature branches
-> 6. **Code review** - blind code review of the implementation
-> 7. **Merging** - merges completed plans back to the base branch
-> 8. **Validation** - post-merge review/fix loop (type-check, tests, lint)
-> 9. **Squash** - collapses all intermediate commits into a single content commit
+> The run formats your source into a PRD, selects a workflow profile, then compiles and builds. The pipeline varies by profile - errands skip straight to building, while excursions and expeditions go through planning and plan review first. Every profile gets blind code review (a separate agent with no builder context), merge, and post-merge validation.
 >
 > Use `/eforge:status` for a quick inline status check.
 
@@ -103,7 +94,7 @@ Tell the user:
 >
 > **Monitor**: {MONITOR_URL}
 >
-> Each queued PRD goes through the full lifecycle: enqueue formatting, planning, building, review, merging, and validation.
+> Each queued PRD goes through the same pipeline: formatting, profile selection, compile, build with blind review, merge, and validation.
 >
 > Use `/eforge:status` for a quick inline status check.
 
