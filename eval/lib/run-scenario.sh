@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Single scenario runner — sourced by run.sh
-# Usage: run_scenario <id> <fixture> <prd> <validate> <scenario_dir> <eforge_bin> <eforge_version> <eforge_commit>
+# Usage: run_scenario <id> <fixture> <prd> <validate> <scenario_dir> <eforge_bin> <eforge_version> <eforge_commit> <expect_json>
 #   validate is a ||| delimited list of commands
+#   expect_json is a JSON object with expectation config (empty {} when none defined)
 
 run_scenario() {
   local id="$1"
@@ -12,6 +13,7 @@ run_scenario() {
   local eforge_bin="$6"
   local eforge_version="$7"
   local eforge_commit="$8"
+  local expect_json="${9:-{}}"
 
   local fixture_dir="$FIXTURES_DIR/$fixture"
 
@@ -91,6 +93,14 @@ run_scenario() {
     done
   fi
 
+  # Step 4c: Preserve orchestration.yaml before workspace cleanup
+  # There may be multiple plan sets; copy the first one found
+  local orch_file
+  orch_file="$(find "$workspace/plans" -name 'orchestration.yaml' -print -quit 2>/dev/null || true)"
+  if [[ -n "$orch_file" && -f "$orch_file" ]]; then
+    cp "$orch_file" "$scenario_dir/orchestration.yaml"
+  fi
+
   local end_time
   end_time=$(date +%s)
   local duration=$((end_time - start_time))
@@ -106,6 +116,21 @@ run_scenario() {
     "$scenario_dir/eforge.log" \
     "$validation_results" \
     "$scenario_dir/monitor.db"
+
+  # Step 5b: Check expectations (writes expectations key into result.json)
+  if [[ "$expect_json" != "{}" ]]; then
+    echo "  Checking expectations..."
+    local expect_exit=0
+    npx tsx "$SCRIPT_DIR/lib/check-expectations.ts" \
+      "$scenario_dir/result.json" \
+      "$expect_json" \
+      "$scenario_dir" || expect_exit=$?
+    if [[ $expect_exit -eq 0 ]]; then
+      echo "  Expectations: PASS"
+    else
+      echo "  Expectations: FAIL"
+    fi
+  fi
 
   echo "  Result: $scenario_dir/result.json"
   echo "  Duration: $((duration / 60))m $((duration % 60))s"

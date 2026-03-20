@@ -3,7 +3,7 @@
 # Fixtures live in eval/fixtures/<fixture>/ as plain project files (no .git).
 
 scenarios:
-  - id: todo-api-health-check
+  - id: todo-api-errand-health-check
     fixture: todo-api
     prd: docs/add-health-check.md
     validate:
@@ -13,7 +13,7 @@ scenarios:
       - test -f .eforge/hook-events.log && grep -q EFORGE_CWD .eforge/hook-events.log
     description: "Add GET /health endpoint to Express API"
 
-  - id: todo-api-auth
+  - id: todo-api-excursion-jwt-auth
     fixture: todo-api
     prd: docs/add-jwt-auth.md
     validate:
@@ -23,7 +23,7 @@ scenarios:
       - test -f .eforge/hook-events.log && grep -q EFORGE_CWD .eforge/hook-events.log
     description: "Add JWT auth middleware + protected routes"
 
-  - id: workspace-api-engagement
+  - id: workspace-api-excursion-engagement
     fixture: workspace-api
     prd: docs/add-engagement-features.md
     validate:

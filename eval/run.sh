@@ -12,7 +12,7 @@ MAX_RUNS=5  # Keep only the most recent N runs; older ones are pruned automatica
 source "$SCRIPT_DIR/lib/run-scenario.sh"
 
 # Parse scenarios.yaml into tab-separated fields using node
-# Fields: id, fixture, prd, validate (||| delimited), description
+# Fields: id, fixture, prd, validate (||| delimited), description, expect (JSON)
 parse_scenarios() {
   NODE_PATH="$REPO_ROOT/node_modules" node -e "
     const fs = require('fs');
@@ -20,7 +20,8 @@ parse_scenarios() {
     const data = yaml.parse(fs.readFileSync('$SCENARIOS_FILE', 'utf8'));
     for (const s of data.scenarios) {
       const validate = (s.validate || []).join('|||');
-      console.log([s.id, s.fixture, s.prd, validate, s.description].join('\t'));
+      const expect = JSON.stringify(s.expect || {});
+      console.log([s.id, s.fixture, s.prd, validate, s.description, expect].join('\t'));
     }
   "
 }
@@ -65,12 +66,13 @@ print_summary() {
     console.log('Eforge Eval Results (' + s.timestamp + ')');
     console.log('eforge@' + s.eforgeVersion + ' (' + s.eforgeCommit + ')');
     console.log('');
-    console.log(pad('Scenario', 35) + pad('Eforge', 10) + pad('Validate', 12) + pad('Tokens', 10) + pad('Cache', 10) + pad('Cost', 10) + 'Duration');
-    console.log('-'.repeat(100));
+    console.log(pad('Scenario', 35) + pad('Eforge', 10) + pad('Validate', 12) + pad('Expect', 10) + pad('Tokens', 10) + pad('Cache', 10) + pad('Cost', 10) + 'Duration');
+    console.log('-'.repeat(110));
     for (const r of s.scenarios) {
       const eforge = r.eforgeExitCode === 0 ? 'PASS' : 'FAIL';
       const allValid = r.validation && Object.values(r.validation).every(v => v.passed);
       const validate = r.eforgeExitCode !== 0 ? '-' : (allValid ? 'PASS' : 'FAIL');
+      const expect = !r.expectations ? '-' : (r.expectations.passed ? 'PASS' : 'FAIL');
       const tokens = r.metrics && r.metrics.tokens ? Math.round(r.metrics.tokens.total / 1000) + 'k' : '-';
       const cache = r.metrics && r.metrics.tokens && r.metrics.tokens.input > 0 && r.metrics.tokens.cacheRead
         ? Math.round(r.metrics.tokens.cacheRead / r.metrics.tokens.input * 100) + '%'
@@ -79,7 +81,7 @@ print_summary() {
       const mins = Math.floor(r.durationSeconds / 60);
       const secs = r.durationSeconds % 60;
       const duration = mins + 'm ' + secs + 's';
-      console.log(pad(r.scenario, 35) + pad(eforge, 10) + pad(validate, 12) + pad(tokens, 10) + pad(cache, 10) + pad(cost, 10) + duration);
+      console.log(pad(r.scenario, 35) + pad(eforge, 10) + pad(validate, 12) + pad(expect, 10) + pad(tokens, 10) + pad(cache, 10) + pad(cost, 10) + duration);
     }
     console.log('');
     console.log('Passed: ' + s.passed + '/' + s.totalScenarios);
@@ -189,7 +191,7 @@ main() {
   local passed=0
   local total=0
 
-  while IFS=$'\t' read -r id fixture prd validate description; do
+  while IFS=$'\t' read -r id fixture prd validate description expect_json; do
     # Filter if specified
     if [[ -n "$filter" && "$id" != "$filter" ]]; then
       continue
@@ -207,13 +209,15 @@ main() {
 
     # Run the scenario
     local result_file="$scenario_dir/result.json"
-    if run_scenario "$id" "$fixture" "$prd" "$validate" "$scenario_dir" "$eforge_bin" "$eforge_version" "$eforge_commit"; then
+    if run_scenario "$id" "$fixture" "$prd" "$validate" "$scenario_dir" "$eforge_bin" "$eforge_version" "$eforge_commit" "$expect_json"; then
       # Check if all validations passed
       local all_passed
       all_passed=$(node -e "
         const r = JSON.parse(require('fs').readFileSync('$result_file', 'utf8'));
-        const ok = r.eforgeExitCode === 0 && Object.values(r.validation || {}).every(v => v.passed);
-        console.log(ok ? 'yes' : 'no');
+        const eforgeOk = r.eforgeExitCode === 0;
+        const validateOk = Object.values(r.validation || {}).every(v => v.passed);
+        const expectOk = !r.expectations || r.expectations.passed;
+        console.log(eforgeOk && validateOk && expectOk ? 'yes' : 'no');
       ")
       if [[ "$all_passed" == "yes" ]]; then
         passed=$((passed + 1))
