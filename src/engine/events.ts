@@ -183,7 +183,7 @@ export type EforgeEvent = { sessionId?: string } & (
   | { type: 'schedule:start'; planIds: string[] }
   | { type: 'schedule:ready'; planId: string; reason: string }
   | { type: 'merge:start'; planId: string }
-  | { type: 'merge:complete'; planId: string }
+  | { type: 'merge:complete'; planId: string; commitSha?: string }
   | { type: 'merge:resolve:start'; planId: string }
   | { type: 'merge:resolve:complete'; planId: string; resolved: boolean }
 

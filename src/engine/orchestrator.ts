@@ -428,6 +428,10 @@ export class Orchestrator {
               const commitMessage = `${prefix}(${plan.id}): ${plan.name}\n\n${ATTRIBUTION}`;
               await mergeWorktree(repoRoot, plan.branch, config.baseBranch, commitMessage, contextResolver);
 
+              // Capture the squash-merge commit SHA for diff retrieval
+              const { stdout: shaOut } = await exec('git', ['rev-parse', 'HEAD'], { cwd: repoRoot });
+              const commitSha = shaOut.trim();
+
               // Best-effort branch deletion — squash merges leave branches "unmerged" so use -D (force)
               try {
                 await exec('git', ['branch', '-D', plan.branch], { cwd: repoRoot });
@@ -440,7 +444,7 @@ export class Orchestrator {
               recentlyMergedIds.push(planId);
               saveState(stateDir, state);
 
-              yield { type: 'merge:complete', planId };
+              yield { type: 'merge:complete', planId, commitSha };
             } catch (err) {
               failedMerges.add(planId);
               updatePlanStatus(state, planId, 'failed');

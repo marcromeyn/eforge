@@ -4,9 +4,13 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { resolve, dirname, extname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+const execAsync = promisify(execFile);
 import type { MonitorDB } from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -408,6 +412,132 @@ export async function startServer(
     sendJson(res, items);
   }
 
+  const MAX_DIFF_SIZE = 500 * 1024; // 500KB
+
+  /**
+   * Resolve the commit SHA for a plan's squash merge.
+   * Tries the `commitSha` field on the `merge:complete` event first,
+   * then falls back to `git log --grep` searching by plan ID in the commit message.
+   */
+  async function resolveCommitSha(sessionId: string, planId: string, cwd: string): Promise<string | null> {
+    // Try merge:complete events for this session
+    const mergeEvents = db.getEventsByTypeForSession(sessionId, 'merge:complete');
+    for (const event of mergeEvents) {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.planId === planId && data.commitSha && /^[0-9a-f]{40}$/.test(data.commitSha)) {
+          return data.commitSha;
+        }
+      } catch {
+        // skip unparseable events
+      }
+    }
+
+    // Legacy fallback: search git log for commit message containing the plan ID
+    try {
+      const { stdout } = await execAsync('git', ['log', '--grep', planId, '--format=%H', '-1'], { cwd });
+      const sha = stdout.trim();
+      if (sha && /^[0-9a-f]{40}$/.test(sha)) return sha;
+    } catch {
+      // git command failed
+    }
+
+    return null;
+  }
+
+  /**
+   * Resolve the working directory from the run's DB record for git operations.
+   */
+  function resolveCwd(sessionId: string): string | null {
+    const sessionRuns = db.getSessionRuns(sessionId);
+    // Prefer the build run, fall back to compile
+    const buildRun = [...sessionRuns].reverse().find((r) => r.command === 'build');
+    const run = buildRun ?? [...sessionRuns].reverse().find((r) => r.command === 'compile');
+    return run?.cwd ?? null;
+  }
+
+  async function serveDiff(_req: IncomingMessage, res: ServerResponse, sessionId: string, planId: string, file?: string): Promise<void> {
+    const cwd = resolveCwd(sessionId);
+    if (!cwd) {
+      res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: 'Commit not found' }));
+      return;
+    }
+
+    const commitSha = await resolveCommitSha(sessionId, planId, cwd);
+    if (!commitSha) {
+      res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: 'Commit not found' }));
+      return;
+    }
+
+    if (file) {
+      // Single-file diff
+      try {
+        const { stdout } = await execAsync('git', ['show', commitSha, '--', file], { cwd, maxBuffer: MAX_DIFF_SIZE + 1024 });
+
+        // Detect binary
+        if (stdout.includes('Binary file') && stdout.includes('differ')) {
+          sendJson(res, { diff: null, binary: true, commitSha });
+          return;
+        }
+
+        if (Buffer.byteLength(stdout, 'utf-8') > MAX_DIFF_SIZE) {
+          sendJson(res, { diff: null, tooLarge: true, commitSha });
+          return;
+        }
+
+        sendJson(res, { diff: stdout, commitSha });
+      } catch (err) {
+        if (err instanceof Error && err.message.includes('maxBuffer')) {
+          sendJson(res, { diff: null, tooLarge: true, commitSha });
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ error: 'Commit not found' }));
+        }
+      }
+      return;
+    }
+
+    // Bulk: all files for the commit
+    try {
+      // Get list of changed files
+      const { stdout: nameOutput } = await execAsync('git', ['diff-tree', '--no-commit-id', '-r', '--name-only', commitSha], { cwd });
+      const filePaths = nameOutput.trim().split('\n').filter(Boolean);
+
+      const files: Array<{ path: string; diff: string | null; tooLarge?: boolean; binary?: boolean }> = [];
+
+      for (const fp of filePaths) {
+        try {
+          const { stdout: diffOutput } = await execAsync('git', ['show', commitSha, '--', fp], { cwd, maxBuffer: MAX_DIFF_SIZE + 1024 });
+
+          if (diffOutput.includes('Binary file') && diffOutput.includes('differ')) {
+            files.push({ path: fp, diff: null, binary: true });
+            continue;
+          }
+
+          if (Buffer.byteLength(diffOutput, 'utf-8') > MAX_DIFF_SIZE) {
+            files.push({ path: fp, diff: null, tooLarge: true });
+            continue;
+          }
+
+          files.push({ path: fp, diff: diffOutput });
+        } catch (err) {
+          if (err instanceof Error && err.message.includes('maxBuffer')) {
+            files.push({ path: fp, diff: null, tooLarge: true });
+          } else {
+            files.push({ path: fp, diff: null });
+          }
+        }
+      }
+
+      sendJson(res, { files, commitSha });
+    } catch {
+      res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: 'Commit not found' }));
+    }
+  }
+
   function sendJson(res: ServerResponse, data: unknown): void {
     res.writeHead(200, {
       'Content-Type': 'application/json',
@@ -510,6 +640,26 @@ export async function startServer(
         return;
       }
       await servePlans(req, res, runId);
+    } else if (url.startsWith('/api/diff/')) {
+      // Route: /api/diff/:sessionId/:planId?file=path
+      const pathPart = url.slice('/api/diff/'.length);
+      const [routePath, queryString] = pathPart.split('?');
+      const segments = routePath.split('/');
+      const sessionIdParam = segments[0];
+      const planIdParam = segments[1];
+
+      if (!sessionIdParam || !planIdParam || !/^[\w-]+$/.test(sessionIdParam) || !/^[\w-]+$/.test(planIdParam)) {
+        res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify({ error: 'Invalid sessionId or planId' }));
+        return;
+      }
+
+      const resolvedSessionId = resolveSessionId(sessionIdParam);
+      const fileParam = queryString
+        ? new URLSearchParams(queryString).get('file') ?? undefined
+        : undefined;
+
+      await serveDiff(req, res, resolvedSessionId, planIdParam, fileParam);
     } else {
       // Serve static files (SPA)
       await serveStaticFile(req, res, url);
