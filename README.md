@@ -55,40 +55,31 @@ flowchart TD
     Formatter --> Queue["Queue"]
     Queue --> Planner
 
-    subgraph plan ["Planning"]
-        Planner["Planner"] --> PC["Commit plans"]
-        PC --> PR["Plan Reviewer (blind)"]
-        PR --> PE["Plan Evaluator"]
-        PE --> PF["Final plan commit"]
+    subgraph compile ["Compile (profile-dependent)"]
+        Planner["Planner"] --> PC["Write plans + build config"]
+        PC --> PR["Plan Review Cycle"]
     end
 
-    PF --> Orch
+    PR --> Orch
 
-    subgraph build ["Build"]
-        Orch["Orchestrator"] --> Impl["Builder"]
-        Orch --> DocUpdate["doc-update"]
-        Impl --> BC["Commit implementation"]
-        DocUpdate --> BC
-        BC --> CR["Code Reviewer (blind)"]
-        CR --> RF["review-fix"]
-        RF --> CE["Evaluator"]
-        CE --> BF["Final code commit"]
+    subgraph build ["Build (per plan, parallel)"]
+        Orch["Orchestrator"] -->|"for each plan"| BS["Run plan's build stages"]
+        BS --> SM["Squash merge\n(topological order)"]
     end
 
-    BF --> Merge["Merge"]
+    SM --> validate
 
     subgraph validate ["Validation"]
-        Merge --> Val["Run validation commands"]
+        Val["Run validation commands"]
         Val -->|"Pass"| Done["Done"]
         Val -->|"Fail"| Fixer["Validation Fixer"]
         Fixer --> Val
     end
 ```
 
-- **Planning** - The planner explores the codebase, selects a workflow profile (errand = 1 plan, excursion = 2-3, expedition = 4+), asks clarifying questions, and writes plan files. If the work is already complete, the planner emits a skip signal and exits early. Plans go through a blind review cycle before building starts.
-- **Building** - Each plan runs in an isolated git worktree. The builder implements the plan, a blind reviewer proposes fixes in a fresh context, and the evaluator applies per-hunk verdicts - accepting strict improvements while rejecting anything that alters intent.
-- **Validation** - Runs configured commands (type-check, tests, linting). If validation fails, a fixer agent attempts minimal repairs automatically.
-- **Orchestration** - Multi-plan sets are resolved into a dependency graph, executed in parallel waves, and merged in topological order.
+- **Compile** - Profile-dependent. The planner explores the codebase, selects a workflow profile (errand = passthrough, excursion = plan + review, expedition = architecture + module planning + cohesion review), and writes plan files. Each plan carries its own build stage sequence and review config in `orchestration.yaml`. Plans go through a blind review cycle before building starts.
+- **Build** - Each plan runs its own build stages in an isolated git worktree. The default is `implement → review-cycle`, where the review cycle runs a blind code reviewer, a fixer that applies suggestions, and an evaluator that accepts strict improvements while rejecting intent changes. Plans with documentation changes use `[implement, doc-update] → review-cycle` (parallel group). Test and TDD workflows are also available. Completed plans squash-merge to the base branch in topological dependency order.
+- **Validation** - Runs configured commands (type-check, tests, linting) after all plans merge. If validation fails, a fixer agent attempts minimal repairs automatically.
 
 ![eforge monitor - timeline view](docs/images/monitor-timeline.png)
 
