@@ -110,10 +110,11 @@ export function FileHeatmap({ runState, sessionId }: FileHeatmapProps) {
           {/* File rows */}
           {visibleFiles.map((file) => {
             const planRisks = matrix.get(file.path);
+            const isFileSelected = selectedFile?.path === file.path;
             return (
               <div key={file.path} className="flex items-center gap-0.5 mb-0.5">
                 <div
-                  className="w-[216px] text-[10px] text-text-dim overflow-hidden text-ellipsis whitespace-nowrap shrink-0 cursor-pointer hover:text-text-bright"
+                  className={`w-[216px] text-[10px] overflow-hidden text-ellipsis whitespace-nowrap shrink-0 cursor-pointer hover:text-text-bright ${isFileSelected ? 'text-text-bright font-medium' : 'text-text-dim'}`}
                   title={file.path}
                   onClick={() => handleFileNameClick(file.path)}
                 >
@@ -121,7 +122,8 @@ export function FileHeatmap({ runState, sessionId }: FileHeatmapProps) {
                 </div>
                 {plans.map((plan) => {
                   const risk = planRisks?.get(plan.id) ?? 'none';
-                  const isSelected = selectedFile?.path === file.path && selectedFile?.planId === plan.id;
+                  const isSelected = selectedFile?.path === file.path &&
+                    (selectedFile?.planId === plan.id || selectedFile?.planId === null);
                   return (
                     <HeatmapCell
                       key={plan.id}

@@ -474,7 +474,7 @@ export async function startServer(
     if (file) {
       // Single-file diff
       try {
-        const { stdout } = await execAsync('git', ['show', commitSha, '--', file], { cwd, maxBuffer: MAX_DIFF_SIZE + 1024 });
+        const { stdout } = await execAsync('git', ['diff-tree', '-p', commitSha, '--', file], { cwd, maxBuffer: MAX_DIFF_SIZE + 1024 });
 
         // Detect binary
         if (stdout.includes('Binary file') && stdout.includes('differ')) {
@@ -509,7 +509,7 @@ export async function startServer(
 
       for (const fp of filePaths) {
         try {
-          const { stdout: diffOutput } = await execAsync('git', ['show', commitSha, '--', fp], { cwd, maxBuffer: MAX_DIFF_SIZE + 1024 });
+          const { stdout: diffOutput } = await execAsync('git', ['diff-tree', '-p', commitSha, '--', fp], { cwd, maxBuffer: MAX_DIFF_SIZE + 1024 });
 
           if (diffOutput.includes('Binary file') && diffOutput.includes('differ')) {
             files.push({ path: fp, diff: null, binary: true });
