@@ -90,54 +90,15 @@ flowchart TD
 ## CLI Usage
 
 ```bash
-# Normalize input and add to the PRD queue
-eforge enqueue docs/my-feature.md
-
-# Enqueue + compile + build + validate in one step
-eforge run docs/my-feature.md
-eforge run "Add a health check endpoint"
-
-# Process all PRDs from the queue
-eforge run --queue
-
-# Watch queue and process new PRDs as they arrive
-eforge run --queue --watch
-
-# Check running builds
-eforge status
-
-# List PRDs in the queue
-eforge queue list
-
-# Process specific PRD from the queue
-eforge queue run my-feature
-
-# Watch queue for new PRDs
-eforge queue run --watch
-
-# Validate eforge.yaml configuration
-eforge config validate
-
-# Show resolved configuration (all layers merged)
-eforge config show
-
-# Start or connect to the monitor dashboard
-eforge monitor
+eforge run docs/my-feature.md       # compile + build + validate
+eforge run --queue                   # process queued PRDs
+eforge enqueue docs/my-feature.md   # add to queue without building
+eforge status                        # check running builds
+eforge monitor                       # open web dashboard
+eforge config show                   # print resolved config
 ```
 
-Each command supports `--help` for the full list of options. Common flags:
-
-| Flag | Description |
-|------|-------------|
-| `--auto` | Bypass approval gates |
-| `--verbose` | Stream agent output |
-| `--dry-run` | Validate without executing |
-| `--queue` | Process all PRDs from the queue |
-| `--watch` | Watch queue for new PRDs (with `--queue`) |
-| `--poll-interval <ms>` | Poll interval for watch mode (default 5000) |
-| `--no-monitor` | Disable web monitor server (events still recorded) |
-| `--no-plugins` | Disable plugin loading |
-| `--no-generate-profile` | Disable custom profile generation (enabled by default) |
+All commands support `--help`. Notable flags: `--auto` (bypass approval gates), `--verbose` (stream agent output), `--dry-run` (compile only).
 
 ## Configuration
 
