@@ -1,36 +1,51 @@
 # eforge
 
-An autonomous build engine with blind review. You express intent - eforge plans, implements, reviews with a fresh-context agent that has zero knowledge of the builder's reasoning, and validates. No supervision required.
-
-The name combines **E** from the [Expedition-Excursion-Errand (EEE) methodology](https://www.markschaake.com/posts/expedition-excursion-errand/) with **forge** - shaping code from plans.
+An autonomous build engine with blind review. Express intent, eforge plans, implements, reviews, and validates - no supervision required.
 
 eforge builds itself.
 
-![eforge invoked from Claude Code](docs/images/claude-code-handoff.png)
-
 ![eforge monitor - full pipeline](docs/images/monitor-full-pipeline.png)
 
-## Status
+## Install
 
-eforge is a personal tool built for my own workflows. Source is public so you can read it, learn from it, and fork it. Issues and PRs are not open - this is not a community project. If it's useful to you as-is, great.
+**Prerequisites:** Node.js 22+, Anthropic API key or [Claude subscription](https://claude.ai/upgrade)
 
-## Why eforge?
+### Claude Code Plugin (recommended)
 
-A single agent writing and reviewing its own work is a developer merging their own PRs. eforge enforces separation: the builder and reviewer are independent agents with no shared context. The reviewer can't be primed by the builder's reasoning, so it catches what a self-reviewing agent won't.
+```
+/plugin marketplace add eforge-run/eforge
+/plugin install eforge@eforge
+```
 
-Beyond blind review, eforge handles the full engineering workflow autonomously. You express intent - a PRD, a markdown file, a one-line prompt - and eforge plans, implements, reviews, and validates without supervision. The developer stays at the planning layer, adding plan after plan while eforge works through the queue. Queued work is re-assessed before execution so changes from earlier builds are accounted for, not blindly applied to a codebase that has moved on.
+The first invocation downloads eforge automatically via npx - no global install needed. Plan interactively in Claude Code, then hand off to eforge for build, review, and validation.
 
-The methodology evolved through real-world use with Claude Code - first as hand-crafted skills, then as battle-tested plugins, now as a standalone engine:
+| Skill | Description |
+|-------|-------------|
+| `/eforge:run` | Enqueue + compile + build + validate in one step |
+| `/eforge:enqueue` | Normalize input and add to queue |
+| `/eforge:status` | Check build progress |
+| `/eforge:config` | Initialize or edit `eforge.yaml` with interactive guidance |
 
-1. **Plan** - a detailed, profile-aware planning session with clarification for ambiguities
-2. **Implement** - execute the plan, with documentation updates running in parallel
-3. **Blind review** - a single agent writing and reviewing its own work is a developer merging their own PRs. The reviewer gets a fresh context with zero knowledge of the builder's reasoning.
-4. **Fix & evaluate** - a fixer agent applies reviewer suggestions, then the evaluator applies per-hunk verdicts - accepting strict improvements while rejecting anything that alters intent
-5. **Validate** - verify against the original plan, fix any failures
+### Standalone CLI
 
-Every phase produces a git commit - `enqueue(feature-name)`, `plan(feature-name)`, `feat(plan-01-feature-name)` - so the full lifecycle is traceable in git history. After a successful build, plan files and the PRD are cleaned up so the repo stays clean, but the history preserves what was planned and why. Disable cleanup with `--no-cleanup` or `cleanupPlanFiles: false` to keep plan artifacts around.
+```bash
+npx eforge run "Add a health check endpoint"
+```
 
-Plan interactively in Claude Code, then hand off to eforge. Or queue multiple PRDs and let eforge process them continuously. Agents inherit your project's plugins, skills, and MCP servers automatically, each build runs in an isolated git worktree for clean feature development, and the engine is backend-flexible - the sole implementation today uses the [Claude Agent SDK](https://docs.anthropic.com/en/docs/agents-and-tools/claude-agent-sdk), but the `AgentBackend` abstraction means it can be extended to support other systems.
+Or install globally with `npm install -g eforge`.
+
+## Quick Start
+
+Give eforge a prompt, a markdown file, or a full PRD - it handles the rest:
+
+```bash
+eforge run "Add a health check endpoint"
+eforge run docs/my-feature.md
+```
+
+eforge plans the work, builds it in an isolated worktree, runs a blind code review with a fresh-context agent, evaluates the reviewer's suggestions, merges, and validates. Every phase produces a git commit so the full lifecycle is traceable in history.
+
+![eforge invoked from Claude Code](docs/images/claude-code-handoff.png)
 
 ## How It Works
 
@@ -79,47 +94,15 @@ flowchart TD
 
 ![eforge monitor - timeline view](docs/images/monitor-timeline.png)
 
-## Getting Started
+## Why Blind Review?
 
-### Install
+A single agent writing and reviewing its own work is a developer merging their own PRs. eforge enforces separation - the builder and reviewer are independent agents with no shared context. The reviewer can't be primed by the builder's reasoning, so it catches what a self-reviewing agent won't.
 
-**Prerequisites:** Node.js 22+, Anthropic API key or [Claude subscription](https://claude.ai/upgrade) (for the Agent SDK backend)
+## Status
 
-#### Claude Code Plugin (recommended)
+eforge is a personal tool - source is public so you can read, learn from, and fork it. Not accepting issues or PRs.
 
-The plugin lets you plan interactively in Claude Code and hand off to eforge for build, review, and validation. The first invocation downloads eforge automatically via npx - no global install needed.
-
-Add the marketplace and install from within Claude Code:
-
-```
-/plugin marketplace add eforge-run/eforge
-/plugin install eforge@eforge
-```
-
-Once installed, the primary entrypoint is `/eforge:run` - it takes a PRD or prompt and handles planning, building, review, and validation end-to-end.
-
-| Skill | Description |
-|-------|-------------|
-| `/eforge:enqueue` | Normalize input and add to queue |
-| `/eforge:run` | Enqueue + compile + build + validate in one step |
-| `/eforge:status` | Check build progress |
-| `/eforge:config` | Initialize or edit `eforge.yaml` with interactive guidance |
-
-#### Standalone CLI
-
-Run directly with npx (no install required):
-
-```bash
-npx eforge run docs/my-feature.md
-```
-
-Or install globally:
-
-```bash
-npm install -g eforge
-```
-
-### CLI Usage
+## CLI Usage
 
 ```bash
 # Normalize input and add to the PRD queue
@@ -183,16 +166,13 @@ All fields are optional. Defaults are shown:
 plugins:
   enabled: true               # Auto-discover Claude Code plugins
   # include:                  # Allowlist - only load these (plugin identifiers)
-  #   - "git@schaake-cc-marketplace"
   # exclude:                  # Denylist - skip these from auto-discovery
-  #   - "ui@schaake-cc-marketplace"
   # paths:                    # Additional local plugin directories
-  #   - /path/to/custom-plugin
 
 agents:
   maxTurns: 30                # Max agent turns before stopping
   permissionMode: bypass      # 'bypass' or 'default'
-  settingSources:             # Which Claude Code settings to load (user, project, local)
+  settingSources:             # Which Claude Code settings to load
     - project                 # Loads CLAUDE.md and project settings
 
 build:
@@ -200,8 +180,7 @@ build:
   maxValidationRetries: 2     # Fix attempts on validation failure (0 = no retries)
   cleanupPlanFiles: true      # Remove plan files after successful build
   # worktreeDir: /custom/path # Override worktree base directory
-  # postMergeCommands:        # Extra validation commands (appended to planner-generated ones)
-  #   - "pnpm install"
+  # postMergeCommands:        # Extra validation commands
   #   - "pnpm type-check"
   #   - "pnpm test"
 
@@ -209,41 +188,21 @@ plan:
   outputDir: plans            # Where plan artifacts are written
 
 prdQueue:
-  dir: docs/prd-queue          # Where queued PRDs are stored
-  autoRevise: false             # Auto-revise PRDs on enqueue
-  watchPollIntervalMs: 5000     # Poll interval for --watch mode
-
-langfuse:
-  # publicKey: lf_pk_...      # Or set LANGFUSE_PUBLIC_KEY env var
-  # secretKey: lf_sk_...      # Or set LANGFUSE_SECRET_KEY env var
-  host: https://cloud.langfuse.com  # Or set LANGFUSE_BASE_URL env var
+  dir: docs/prd-queue         # Where queued PRDs are stored
+  autoRevise: false           # Auto-revise PRDs on enqueue
 ```
 
 ### MCP Servers
 
 MCP servers are auto-loaded from `.mcp.json` in the project root (same format Claude Code uses). All agents receive the same MCP servers.
 
-```json
-{
-  "mcpServers": {
-    "brain": {
-      "command": "npx",
-      "args": ["brain-mcp-server"],
-      "env": { "BRAIN_DB": "/path/to/db" }
-    }
-  }
-}
-```
-
 ### Plugins
 
-Plugins are auto-discovered from `~/.claude/plugins/installed_plugins.json`. Both user-scoped (global) and project-scoped plugins matching the working directory are loaded. Plugins provide skills, hooks, and MCP servers to eforge's agents.
-
-Use `plugins.include`/`plugins.exclude` in `eforge.yaml` to filter, or `--no-plugins` to disable entirely.
+Plugins are auto-discovered from `~/.claude/plugins/installed_plugins.json`. Both user-scoped and project-scoped plugins matching the working directory are loaded. Use `plugins.include`/`plugins.exclude` in `eforge.yaml` to filter, or `--no-plugins` to disable entirely.
 
 ### Hooks
 
-Hooks are fire-and-forget shell commands triggered by eforge events - useful for logging, notifications, and external system integration. They do not block or influence the pipeline. See [docs/hooks.md](docs/hooks.md) for configuration, event patterns, and environment variables.
+Hooks are fire-and-forget shell commands triggered by eforge events - useful for logging, notifications, and external system integration. They do not block or influence the pipeline. See [docs/hooks.md](docs/hooks.md) for configuration and details.
 
 ## Architecture
 
@@ -276,27 +235,9 @@ pnpm type-check   # Type check
 pnpm test         # Run unit tests
 ```
 
-### Dogfooding
+## Name
 
-Since builds modify source code, the running Node.js process would use stale code - so local development uses project-specific Claude Code skills that rebuild between runs.
-
-**Setup** (one-time):
-
-```bash
-pnpm install && pnpm build
-pnpm link --global   # puts eforge on PATH from local build
-```
-
-After making changes, rebuild with `pnpm build` before running. The dogfood skills handle this automatically.
-
-**Skills** (available in Claude Code when working in this repo):
-
-| Skill | Description |
-|-------|-------------|
-| `/eforge-dogfood-run` | Rebuild from source, then run a single PRD or queue cycle using the local binary |
-| `/eforge-dogfood-watch` | Rebuild between each queue cycle - continuous processing with fresh builds |
-
-These are separate from the plugin skills (`/eforge:run`, etc.) which are designed for end users. The dogfood skills use the local binary on PATH so you're always testing the latest source.
+**E** from the [Expedition-Excursion-Errand (EEE) methodology](https://www.markschaake.com/posts/expedition-excursion-errand/) + **forge** - shaping code from plans.
 
 ## License
 
