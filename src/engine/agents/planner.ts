@@ -286,6 +286,9 @@ export async function* runPlanner(
     if (!needsRestart) break;
   }
 
+  // Skip was emitted — no plans to scan, no orchestration.yaml written
+  if (skipEmitted) return;
+
   yield { type: 'plan:progress', message: 'Scanning plan files...' };
 
   // Scan plan directory for generated plan files

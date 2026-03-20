@@ -50,6 +50,11 @@ describe('runPlanner wiring', () => {
     const skip = findEvent(events, 'plan:skip');
     expect(skip).toBeDefined();
     expect(skip!.reason).toBe('Already implemented in a previous PR.');
+
+    // Skip should short-circuit — no plan:complete or plan scanning
+    expect(findEvent(events, 'plan:complete')).toBeUndefined();
+    const progressEvents = filterEvents(events, 'plan:progress');
+    expect(progressEvents.every(e => e.message !== 'Scanning plan files...')).toBe(true);
   });
 
   it('triggers clarification callback and restarts with answers', async () => {
