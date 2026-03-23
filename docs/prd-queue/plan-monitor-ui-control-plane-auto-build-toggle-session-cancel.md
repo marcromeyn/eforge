@@ -1,7 +1,7 @@
 ---
 title: Plan: Monitor UI Control Plane — Auto-build Toggle + Session Cancel
 created: 2026-03-23
-status: pending
+status: running
 ---
 
 # Monitor UI Control Plane — Auto-build Toggle + Session Cancel
