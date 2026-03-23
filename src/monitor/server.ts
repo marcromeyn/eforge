@@ -48,6 +48,19 @@ export interface WorkerTracker {
   cancelWorker(sessionId: string): boolean;
 }
 
+export interface DaemonState {
+  autoBuild: boolean;
+  watcher: {
+    running: boolean;
+    pid: number | null;
+    sessionId: string | null;
+  };
+  /** Callback to spawn the watcher — set by server-main.ts */
+  onSpawnWatcher?: () => void;
+  /** Callback to kill the watcher — set by server-main.ts */
+  onKillWatcher?: () => void;
+}
+
 interface SSESubscriber {
   res: ServerResponse;
   sessionId: string;
@@ -57,7 +70,7 @@ interface SSESubscriber {
 export async function startServer(
   db: MonitorDB,
   preferredPort = 4567,
-  options?: { strictPort?: boolean; cwd?: string; workerTracker?: WorkerTracker },
+  options?: { strictPort?: boolean; cwd?: string; workerTracker?: WorkerTracker; daemonState?: DaemonState },
 ): Promise<MonitorServer> {
   const subscribers = new Set<SSESubscriber>();
 
@@ -806,7 +819,11 @@ export async function startServer(
         }
         const args = [body.source, ...(body.flags ?? [])];
         const result = options.workerTracker.spawnWorker('enqueue', args);
-        sendJson(res, { sessionId: result.sessionId, pid: result.pid });
+        sendJson(res, {
+          sessionId: result.sessionId,
+          pid: result.pid,
+          autoBuild: options.daemonState?.autoBuild ?? false,
+        });
       } catch {
         sendJsonError(res, 400, 'Invalid JSON body');
       }
@@ -844,6 +861,52 @@ export async function startServer(
         sendJson(res, { status: 'cancelled', sessionId });
       } else {
         sendJsonError(res, 404, `No active worker found for sessionId: ${sessionId}`);
+      }
+      return;
+    }
+
+    // --- Auto-build API routes ---
+    if (req.method === 'GET' && url === '/api/auto-build') {
+      if (!options?.daemonState) {
+        sendJsonError(res, 503, 'Daemon mode not active');
+        return;
+      }
+      sendJson(res, {
+        enabled: options.daemonState.autoBuild,
+        watcher: options.daemonState.watcher,
+      });
+      return;
+    }
+
+    if (req.method === 'POST' && url === '/api/auto-build') {
+      if (!options?.daemonState) {
+        sendJsonError(res, 503, 'Daemon mode not active');
+        return;
+      }
+      try {
+        const body = await parseJsonBody(req) as { enabled?: boolean };
+        if (typeof body.enabled !== 'boolean') {
+          sendJsonError(res, 400, 'Missing required field: enabled (boolean)');
+          return;
+        }
+        options.daemonState.autoBuild = body.enabled;
+        if (body.enabled) {
+          // Spawn watcher if not already running
+          if (!options.daemonState.watcher.running && options.daemonState.onSpawnWatcher) {
+            options.daemonState.onSpawnWatcher();
+          }
+        } else {
+          // Kill watcher if running
+          if (options.daemonState.watcher.running && options.daemonState.onKillWatcher) {
+            options.daemonState.onKillWatcher();
+          }
+        }
+        sendJson(res, {
+          enabled: options.daemonState.autoBuild,
+          watcher: options.daemonState.watcher,
+        });
+      } catch {
+        sendJsonError(res, 400, 'Invalid JSON body');
       }
       return;
     }

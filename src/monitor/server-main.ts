@@ -13,9 +13,10 @@
  * Usage: node dist/server-main.js <dbPath> <port> <cwd> [--persistent]
  */
 
-import { openDatabase } from './db.js';
-import { startServer, type WorkerTracker } from './server.js';
+import { openDatabase, type MonitorDB } from './db.js';
+import { startServer, type WorkerTracker, type DaemonState } from './server.js';
 import { writeLockfile, removeLockfile, isPidAlive } from './lockfile.js';
+import { loadConfig } from '../engine/config.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 
@@ -86,6 +87,19 @@ export function evaluateStateCheck(ctx: StateCheckContext): {
   }
 
   return { state, lastActivityTimestamp, hasSeenActivity };
+}
+
+function writeAutoBuildPausedEvent(db: MonitorDB, sessionId: string): void {
+  try {
+    db.insertEvent({
+      runId: sessionId,
+      type: 'daemon:auto-build:paused',
+      data: JSON.stringify({ reason: 'Watcher exited with non-zero code', timestamp: new Date().toISOString() }),
+      timestamp: new Date().toISOString(),
+    });
+  } catch {
+    // DB may not accept the event if runId doesn't match — best effort
+  }
 }
 
 async function main(): Promise<void> {
@@ -167,9 +181,98 @@ async function main(): Promise<void> {
 
   const workerTracker = persistent ? createWorkerTracker() : undefined;
 
+  // --- Watcher lifecycle for auto-build (persistent mode only) ---
+  let watcherProcess: ChildProcess | null = null;
+  let watcherKilledByUs = false;
+
+  const daemonState: DaemonState | undefined = persistent ? {
+    autoBuild: false, // will be set from config below
+    watcher: {
+      running: false,
+      pid: null,
+      sessionId: null,
+    },
+    onSpawnWatcher: () => spawnWatcher(),
+    onKillWatcher: () => killWatcher(),
+  } : undefined;
+
+  function spawnWatcher(): void {
+    if (!daemonState) return;
+    if (watcherProcess) return; // already running
+
+    watcherKilledByUs = false;
+    const sessionId = `watcher-${Date.now()}-${randomBytes(6).toString('hex')}`;
+
+    const child = spawn('eforge', ['run', '--queue', '--watch', '--auto', '--no-monitor'], {
+      cwd,
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+    watcherProcess = child;
+
+    daemonState.watcher = {
+      running: true,
+      pid: child.pid ?? null,
+      sessionId,
+    };
+
+    // Capture reference so exit/error handlers only act on THIS child,
+    // not a replacement spawned after killWatcher() + spawnWatcher().
+    const thisChild = child;
+
+    child.on('error', () => {
+      if (watcherProcess !== thisChild) return; // stale — a new watcher replaced us
+      watcherProcess = null;
+      daemonState.watcher = { running: false, pid: null, sessionId: null };
+      // Spawn failure — pause auto-build (same as non-zero exit)
+      daemonState.autoBuild = false;
+      writeAutoBuildPausedEvent(db, sessionId);
+    });
+
+    child.on('exit', (code) => {
+      if (watcherProcess !== thisChild) return; // stale — a new watcher replaced us
+      watcherProcess = null;
+      daemonState.watcher = { running: false, pid: null, sessionId: null };
+
+      if (watcherKilledByUs) {
+        // Intentional kill — do not respawn
+        return;
+      }
+
+      if (code !== 0 && code !== null) {
+        // Build failure — pause auto-build and write event to SQLite
+        daemonState.autoBuild = false;
+        writeAutoBuildPausedEvent(db, sessionId);
+        return;
+      }
+
+      // Clean exit (code 0) — respawn if autoBuild still enabled
+      if (daemonState.autoBuild) {
+        spawnWatcher();
+      }
+    });
+  }
+
+  function killWatcher(): void {
+    if (!watcherProcess) return;
+    watcherKilledByUs = true;
+    try {
+      if (watcherProcess.pid) {
+        process.kill(watcherProcess.pid, 'SIGTERM');
+      }
+    } catch {
+      // Process may have already exited
+    }
+    watcherProcess = null;
+    if (daemonState) {
+      daemonState.watcher = { running: false, pid: null, sessionId: null };
+    }
+  }
+
   let server: Awaited<ReturnType<typeof startServer>>;
   try {
-    server = await startServer(db, preferredPort, { cwd, workerTracker });
+    server = await startServer(db, preferredPort, { cwd, workerTracker, daemonState });
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'EADDRINUSE') {
       // Another server won the race — exit cleanly
@@ -186,13 +289,36 @@ async function main(): Promise<void> {
     startedAt: new Date().toISOString(),
   });
 
-  // Orphan detection loop
+  // --- Start watcher if autoBuild enabled (persistent mode) ---
+  if (persistent && daemonState) {
+    try {
+      const config = await loadConfig(cwd);
+      daemonState.autoBuild = config.prdQueue.autoBuild;
+      if (daemonState.autoBuild) {
+        spawnWatcher();
+      }
+    } catch {
+      // Config load failure — leave autoBuild disabled
+    }
+  }
+
+  // Orphan detection loop (also checks watcher health in persistent mode)
   const orphanTimer = setInterval(() => {
     try {
       const runningRuns = db.getRunningRuns();
       for (const run of runningRuns) {
         if (run.pid && !isPidAlive(run.pid)) {
           db.updateRunStatus(run.id, 'killed');
+        }
+      }
+
+      // Check watcher health in persistent mode
+      if (persistent && daemonState?.autoBuild && watcherProcess?.pid) {
+        if (!isPidAlive(watcherProcess.pid)) {
+          // Watcher died without exit event — clean up and respawn
+          watcherProcess = null;
+          daemonState.watcher = { running: false, pid: null, sessionId: null };
+          spawnWatcher();
         }
       }
     } catch {
@@ -283,6 +409,9 @@ async function main(): Promise<void> {
 
     clearInterval(orphanTimer);
     if (stateTimer) clearInterval(stateTimer);
+
+    // Kill watcher before removing lockfile
+    killWatcher();
 
     removeLockfile(cwd);
 
