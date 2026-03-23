@@ -1,12 +1,12 @@
 ---
-description: Normalize any input and add it to the eforge queue
+description: Normalize any input and add it to the eforge queue via MCP tool
 argument-hint: "<source>"
 disable-model-invocation: true
 ---
 
 # /eforge:enqueue
 
-Normalize a source document (PRD file, inline prompt, or rough notes) and add it to the eforge queue. This skill runs the eforge CLI's `enqueue` command, which uses a formatter agent to produce a well-structured PRD with frontmatter.
+Normalize a source document (PRD file, inline prompt, or rough notes) and add it to the eforge queue. Uses the eforge MCP server which delegates to the daemon's formatter agent to produce a well-structured PRD with frontmatter.
 
 ## Arguments
 
@@ -26,26 +26,9 @@ Check that `$ARGUMENTS` is provided:
 
 ### Step 2: Enqueue
 
-Resolve the eforge CLI command, preferring a local install over npx:
+Call the `mcp__eforge__eforge_enqueue` tool with `{ source: "<source>" }`.
 
-```bash
-if command -v eforge >/dev/null 2>&1; then
-  EFORGE_CMD="eforge"
-else
-  EFORGE_CMD="npx --yes eforge"
-fi
-```
-
-Run the eforge enqueue command:
-
-```bash
-$EFORGE_CMD enqueue $SOURCE
-```
-
-This will:
-1. Read the source content
-2. Run the formatter agent to normalize it into a well-structured PRD
-3. Write the formatted PRD with YAML frontmatter to the queue directory (`docs/prd-queue/` by default)
+The tool returns a JSON response confirming the enqueue operation with the PRD title and file path.
 
 ### Step 3: Report Result
 
@@ -64,5 +47,5 @@ After successful enqueue, tell the user:
 |-------|--------|
 | Source file not found | Check path, suggest alternatives |
 | No arguments provided | Check conversation for relevant files; if none, ask the user |
-| Enqueue fails | Show error output, suggest checking the source format |
-| Version mismatch (e.g. "unknown option", "unknown command", or other CLI errors suggesting the installed eforge version doesn't match the plugin) | Tell the user the CLI and plugin versions may be out of sync. Suggest `npm update -g eforge` or clearing the npx cache (`npx --yes eforge@latest --version` to force refresh). Suggest `/plugin update eforge@eforge` to update the plugin. If both are already at the latest version, suggest reporting as a bug. |
+| MCP tool returns error | Show the error message from the daemon response |
+| Daemon connection failure | The MCP proxy auto-starts the daemon; if it still fails, suggest running `eforge daemon start` manually |

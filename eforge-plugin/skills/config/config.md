@@ -1,12 +1,12 @@
 ---
-description: Initialize or edit eforge.yaml configuration
+description: Initialize or edit eforge.yaml configuration, with validation via MCP tool
 disable-model-invocation: true
 argument-hint: "[--init|--edit]"
 ---
 
 # /eforge:config
 
-Create or modify an `eforge.yaml` configuration file interactively. Supports two modes - init for new projects and edit for existing configs.
+Create or modify an `eforge.yaml` configuration file interactively. Supports two modes - init for new projects and edit for existing configs. Validation uses the eforge MCP server.
 
 ## Mode Detection
 
@@ -59,17 +59,9 @@ Save to `eforge.yaml` in the project root.
 
 ### Step 6: Validate
 
-Resolve the eforge CLI command, preferring a local install over npx:
+Call the `mcp__eforge__eforge_config` tool with `{ action: "validate" }`.
 
-```bash
-if command -v eforge >/dev/null 2>&1; then
-  EFORGE_CMD="eforge"
-else
-  EFORGE_CMD="npx --yes eforge"
-fi
-```
-
-Run `$EFORGE_CMD config validate` via Bash to verify the config is valid. If validation fails, show the errors and offer to fix them.
+If validation returns errors, show them to the user and offer to fix them.
 
 ## Edit Mode
 
@@ -91,17 +83,17 @@ Save the updated `eforge.yaml`.
 
 ### Step 5: Validate
 
-Resolve the eforge CLI command, preferring a local install over npx:
+Call the `mcp__eforge__eforge_config` tool with `{ action: "validate" }`.
 
-```bash
-if command -v eforge >/dev/null 2>&1; then
-  EFORGE_CMD="eforge"
-else
-  EFORGE_CMD="npx --yes eforge"
-fi
-```
+If validation returns errors, show them to the user and offer to fix them.
 
-Run `$EFORGE_CMD config validate` via Bash to verify the config is valid. If validation fails, show the errors and offer to fix them.
+## Show Resolved Config
+
+At any point, you can show the user the fully resolved configuration (all layers merged) by calling:
+
+`mcp__eforge__eforge_config` with `{ action: "show" }`
+
+This returns the merged result of defaults + global config + project config.
 
 ## Configuration Reference
 
@@ -163,7 +155,7 @@ profiles:
 
 | Condition | Action |
 |-----------|--------|
-| `eforge config validate` fails after write | Show errors, offer to fix |
+| `mcp__eforge__eforge_config` validate returns errors | Show errors, offer to fix |
 | User provides invalid profile stage name | Warn and suggest valid stage names |
 | YAML syntax error in existing file | Report the error, offer to recreate |
-| Version mismatch (e.g. "unknown option", "unknown command", or other CLI errors suggesting the installed eforge version doesn't match the plugin) | Tell the user the CLI and plugin versions may be out of sync. Suggest `npm update -g eforge` or clearing the npx cache (`npx --yes eforge@latest --version` to force refresh). Suggest `/plugin update eforge@eforge` to update the plugin. If both are already at the latest version, suggest reporting as a bug. |
+| MCP tool connection failure | The MCP proxy auto-starts the daemon; if it still fails, suggest running `eforge daemon start` manually |

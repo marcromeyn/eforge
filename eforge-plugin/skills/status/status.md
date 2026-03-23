@@ -1,40 +1,34 @@
 ---
-description: Read eforge state file and render inline status with plan progress and monitor link
+description: Check eforge run status and queue state via MCP tools
 disable-model-invocation: true
 ---
 
 # /eforge:status
 
-Quick inline status check - reads `.eforge/state.json` directly without invoking the eforge CLI.
+Quick inline status check — queries the eforge daemon via MCP tools for current run state and queue contents.
 
 ## Workflow
 
-### Step 1: Read State
+### Step 1: Get Run Status
 
-Read the state file:
+Call the `mcp__eforge__eforge_status` tool (no parameters needed).
 
-```bash
-cat .eforge/state.json
-```
-
-If the file doesn't exist, report:
+- If the response indicates no active sessions, report:
 
 > No active eforge builds. Start a planning conversation to create a plan, then use `/eforge:enqueue` to queue it or `/eforge:run` to execute immediately.
 
-**Stop here** if no state file exists.
+- **Stop here** if no active sessions.
 
 ### Step 2: Render Status
 
-Parse the JSON and display:
+Parse the JSON response and display:
 
-**Plan Set**: `{setName}`
+**Session**: `{sessionId}`
 **Status**: `{status}` (running / completed / failed)
-**Started**: `{startedAt}`
-**Duration**: Calculate from `startedAt` to now if status is `running`
 
 #### Plan Progress
 
-Render a table of per-plan statuses:
+If the response contains plan-level status, render a table:
 
 | Plan | Branch | Status | Dependencies |
 |------|--------|--------|-------------|
@@ -42,38 +36,30 @@ Render a table of per-plan statuses:
 
 Status values: `pending`, `running`, `completed`, `failed`, `blocked`, `merged`
 
-Completed plans count: `{completedPlans.length}` / `{total plans}`
-
 ### Step 3: Queue State
 
-Check for pending PRDs in the queue directory. Use the Glob tool to find PRD files:
+Call the `mcp__eforge__eforge_queue_list` tool (no parameters needed).
 
-```
-docs/prd-queue/*.md
-```
+Parse the response. If PRD files are found, display a summary:
 
-If PRD files are found, read each file and parse the YAML frontmatter. Display a summary:
-
-**Queue**: `{pendingCount}` pending PRD(s)
+**Queue**: `{count}` pending PRD(s)
 
 For each pending PRD, show the title. If there are more than 5, show the first 5 and a count of remaining.
 
-### Step 4: Monitor Link
+### Step 4: Summary
 
 If the overall status is `running`, show:
 
-> **Monitor**: http://localhost:4567
->
-> The monitor dashboard shows real-time progress: event timeline, per-plan status, token/cost tracking, and run history.
+> The daemon is processing the build in the background. Use `/eforge:status` again to refresh.
 
-If the status is `completed` or `failed`, omit the monitor link and show a summary instead:
+If the status is `completed` or `failed`:
 - **Completed**: "All plans completed successfully. Post-merge validation was included in the run."
-- **Failed**: Show which plans failed and suggest checking logs.
+- **Failed**: Show which plans failed and suggest checking events with `mcp__eforge__eforge_events`.
 
 ## Error Handling
 
 | Condition | Action |
 |-----------|--------|
-| `.eforge/state.json` missing | Report no active builds, suggest starting a planning conversation |
-| State file is malformed JSON | Report parse error, suggest running `eforge status` CLI directly |
-| State file exists but empty | Treat as missing state |
+| MCP tool returns error | Show the error, suggest running `eforge daemon start` manually |
+| Daemon not running | The MCP proxy auto-starts the daemon; if it still fails, suggest running `eforge daemon start` manually |
+| Response is malformed | Report parse error, suggest running `eforge status` CLI directly |
