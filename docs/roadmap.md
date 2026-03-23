@@ -21,7 +21,7 @@
 
 **Goal**: Verify requirement fulfillment in multi-plan builds.
 
-- **Acceptance validation agent** — Post-build agent that checks whether the implementation satisfies the original PRD requirements, not just mechanical correctness (type-check, tests). Closes the loop between what was asked for and what was built.
+- **Requirement-level validation coverage** — The test-writer and tester agents now generate and run acceptance tests from PRD criteria. Extend this to measure coverage gaps: detect PRD requirements that lack corresponding test cases and flag builds where acceptance coverage is incomplete.
 
 ---
 
@@ -29,7 +29,7 @@
 
 **Goal**: Evolve the monitor into a persistent per-project daemon with MCP server interface for multi-session coordination and build control.
 
-- **Control plane** — Build cancellation via MCP tool and web UI, queue auto-build mode with `--watch`, queue priority/reordering
+- **Control plane** — Build cancellation via MCP tool and web UI, queue priority/reordering
 - **Re-guidance** — Build interruption with amended context, daemon-to-worker IPC for mid-build guidance changes
 
 ---
@@ -49,7 +49,7 @@
 **Goal**: Full lifecycle coverage, CI support, provider flexibility.
 
 - **OpenRouter backend** — `AgentBackend` implementation using the `openai` npm package pointed at OpenRouter's API, unlocking 400+ models (GPT-4, Gemini, Llama, etc.) as the second provider. Requires a self-managed agent loop and tool executors since OpenRouter is a chat completion API, not an agentic framework.
-- **Monorepo** — Migrate to pnpm workspaces so the engine, eval harness, eforge-plugin, monitor UI, and marketing site each get their own package with isolated deps and build configs
+- **Monorepo** — Extend pnpm workspaces (currently only monitor UI) so the engine, eval harness, eforge-plugin, and marketing site each get their own package with isolated deps and build configs
 
 ---
 
