@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from 'react';
-import { CheckCircle2, XCircle, Loader2, Square } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { CheckCircle2, XCircle, Loader2, Square, X } from 'lucide-react';
 import type { RunInfo, SessionMetadata } from '@/lib/types';
 import { useApi } from '@/hooks/use-api';
 import { cancelSession } from '@/lib/api';
@@ -106,9 +106,13 @@ function SessionItem({ group, isActive, onSelect, daemonActive, metadata }: {
   );
 }
 
+const PAGE_SIZE = 25;
+
 export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger, daemonActive }: SidebarProps) {
   const { data: runs, refetch } = useApi<RunInfo[]>('/api/runs');
   const { data: metadataMap, refetch: refetchMetadata } = useApi<Record<string, SessionMetadata>>('/api/session-metadata');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // Refetch when trigger changes
   useEffect(() => {
@@ -124,6 +128,37 @@ export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger, dae
     [allGroups],
   );
 
+  const visibleGroups = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    // When searching, show all matches (no pagination)
+    if (query) {
+      return sessionGroups.filter((group) =>
+        group.label.toLowerCase().includes(query),
+      );
+    }
+
+    // Paginated view
+    const sliced = sessionGroups.slice(0, visibleCount);
+
+    // Ensure the currently selected session is always visible
+    if (currentSessionId) {
+      const isVisible = sliced.some((g) => g.key === currentSessionId);
+      if (!isVisible) {
+        const selected = sessionGroups.find((g) => g.key === currentSessionId);
+        if (selected) {
+          sliced.push(selected);
+        }
+      }
+    }
+
+    return sliced;
+  }, [sessionGroups, searchQuery, visibleCount, currentSessionId]);
+
+  const isSearching = searchQuery.trim().length > 0;
+  const remainingCount = sessionGroups.length - visibleCount;
+  const showMoreButton = !isSearching && remainingCount > 0;
+
   return (
     <aside className="bg-card border-r border-border overflow-y-auto px-3 py-3">
       <EnqueueSection
@@ -132,7 +167,32 @@ export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger, dae
         onSelectSession={onSelectSession}
       />
       <QueueSection refreshTrigger={refreshTrigger} />
-      {sessionGroups.map((group, index) => (
+      <div className="relative mb-2">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            if (!e.target.value.trim()) {
+              setVisibleCount(PAGE_SIZE);
+            }
+          }}
+          placeholder="Search builds..."
+          className="w-full text-[11px] bg-bg-tertiary text-foreground placeholder:text-text-dim/50 border border-border/40 rounded-md px-2.5 py-1.5 pr-7 outline-none focus:ring-1 focus:ring-cyan/40"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => {
+              setSearchQuery('');
+              setVisibleCount(PAGE_SIZE);
+            }}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 text-text-dim hover:text-foreground transition-colors cursor-pointer"
+          >
+            <X size={12} />
+          </button>
+        )}
+      </div>
+      {visibleGroups.map((group, index) => (
         <div key={group.key}>
           {index > 0 && <div className="border-t border-border/40 my-0.5" />}
           <SessionItem
@@ -144,6 +204,14 @@ export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger, dae
           />
         </div>
       ))}
+      {showMoreButton && (
+        <button
+          onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+          className="w-full text-[11px] text-text-dim hover:text-foreground py-2 mt-1 rounded-md hover:bg-bg-tertiary transition-colors cursor-pointer"
+        >
+          Show {Math.min(PAGE_SIZE, remainingCount)} more ({remainingCount} remaining)
+        </button>
+      )}
     </aside>
   );
 }
