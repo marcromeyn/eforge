@@ -1,7 +1,7 @@
 ---
 title: Plan: Move Timeline to Pinned Bottom Console Panel
 created: 2026-03-23
-status: pending
+status: running
 ---
 
 # Move Timeline to Pinned Bottom Console Panel
