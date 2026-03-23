@@ -44,6 +44,7 @@ export interface MonitorDB {
     timestamp: string;
   }): number;
   updateRunStatus(runId: string, status: string, completedAt?: string): void;
+  updateRunPlanSet(runId: string, planSet: string): void;
   getRuns(): RunRecord[];
   getRunningRuns(): RunRecord[];
   getRun(runId: string): RunRecord | undefined;
@@ -120,6 +121,9 @@ export function openDatabase(dbPath: string): MonitorDB {
     updateRunStatusNoCa: db.prepare(
       `UPDATE runs SET status = ? WHERE id = ?`,
     ),
+    updateRunPlanSet: db.prepare(
+      `UPDATE runs SET plan_set = ? WHERE id = ?`,
+    ),
     getRuns: db.prepare(
       `SELECT id, session_id as sessionId, plan_set as planSet, command, status, started_at as startedAt, completed_at as completedAt, cwd, pid FROM runs ORDER BY started_at DESC`,
     ),
@@ -184,6 +188,10 @@ export function openDatabase(dbPath: string): MonitorDB {
       } else {
         stmts.updateRunStatusNoCa.run(status, runId);
       }
+    },
+
+    updateRunPlanSet(runId, planSet) {
+      stmts.updateRunPlanSet.run(planSet, runId);
     },
 
     getRuns() {

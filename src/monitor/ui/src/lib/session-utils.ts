@@ -10,7 +10,7 @@ export interface SessionGroup {
   completedAt?: string;
 }
 
-const commandOrder: Record<string, number> = { compile: 0, adopt: 0, run: 1, build: 2 };
+const commandOrder: Record<string, number> = { enqueue: -1, compile: 0, adopt: 0, run: 1, build: 2 };
 
 function sortRuns(runs: RunInfo[]): RunInfo[] {
   return [...runs].sort((a, b) => {

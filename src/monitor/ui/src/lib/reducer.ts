@@ -44,6 +44,9 @@ export interface RunState {
   profileInfo: ProfileInfo | null;
   endTime: number | null;
   mergeCommits: Record<string, string>;
+  enqueueStatus: 'running' | 'complete' | null;
+  enqueueTitle: string | null;
+  enqueueSource: string | null;
 }
 
 export const initialRunState: RunState = {
@@ -66,6 +69,9 @@ export const initialRunState: RunState = {
   profileInfo: null,
   endTime: null,
   mergeCommits: {},
+  enqueueStatus: null,
+  enqueueTitle: null,
+  enqueueSource: null,
 };
 
 export type RunAction =
@@ -95,10 +101,27 @@ function processEvent(
     earlyOrchestration: OrchestrationConfig | null;
     profileInfo: ProfileInfo | null;
     mergeCommits: Record<string, string>;
+    enqueueStatus: 'running' | 'complete' | null;
+    enqueueTitle: string | null;
+    enqueueSource: string | null;
   },
 ): void {
+  if (event.type === 'session:start' && 'timestamp' in event && state.startTime === null) {
+    state.startTime = new Date(event.timestamp as string).getTime();
+  }
+
   if (event.type === 'phase:start' && 'timestamp' in event && state.startTime === null) {
     state.startTime = new Date(event.timestamp).getTime();
+  }
+
+  if (event.type === 'enqueue:start') {
+    state.enqueueStatus = 'running';
+    state.enqueueSource = (event as { source: string }).source;
+  }
+
+  if (event.type === 'enqueue:complete') {
+    state.enqueueStatus = 'complete';
+    state.enqueueTitle = (event as { title: string }).title;
   }
 
   if (event.type === 'session:end') {
@@ -275,7 +298,7 @@ function processEvent(
 export function eforgeReducer(state: RunState, action: RunAction): RunState {
   switch (action.type) {
     case 'RESET':
-      return { ...initialRunState, fileChanges: new Map(), reviewIssues: {}, agentThreads: [], expeditionModules: [], moduleStatuses: {}, earlyOrchestration: null, profileInfo: null, mergeCommits: {} };
+      return { ...initialRunState, fileChanges: new Map(), reviewIssues: {}, agentThreads: [], expeditionModules: [], moduleStatuses: {}, earlyOrchestration: null, profileInfo: null, mergeCommits: {}, enqueueStatus: null, enqueueTitle: null, enqueueSource: null };
 
     case 'BATCH_LOAD': {
       const acc = {
@@ -297,6 +320,9 @@ export function eforgeReducer(state: RunState, action: RunAction): RunState {
         earlyOrchestration: null as OrchestrationConfig | null,
         profileInfo: null as ProfileInfo | null,
         mergeCommits: {} as Record<string, string>,
+        enqueueStatus: null as 'running' | 'complete' | null,
+        enqueueTitle: null as string | null,
+        enqueueSource: null as string | null,
       };
 
       for (const { event } of action.events) {

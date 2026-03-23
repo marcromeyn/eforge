@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { EforgeEvent } from '../engine/events.js';
 import type { MonitorDB } from './db.js';
 
@@ -13,10 +14,13 @@ export async function* withRecording(
   pid?: number,
 ): AsyncGenerator<EforgeEvent> {
   let runId: string | undefined;
+  let enqueueRunId: string | undefined;
+  let bufferedSessionStart: EforgeEvent | undefined;
 
   for await (const event of events) {
     if (event.type === 'phase:start') {
       runId = event.runId;
+      enqueueRunId = undefined; // phase:start takes over from enqueue tracking
       db.insertRun({
         id: event.runId,
         sessionId: event.sessionId,
@@ -27,11 +31,58 @@ export async function* withRecording(
         cwd,
         pid,
       });
+      // Flush buffered session:start if present
+      if (bufferedSessionStart) {
+        db.insertEvent({
+          runId: event.runId,
+          type: bufferedSessionStart.type,
+          planId: extractPlanId(bufferedSessionStart),
+          agent: extractAgent(bufferedSessionStart),
+          data: JSON.stringify(bufferedSessionStart),
+          timestamp: 'timestamp' in bufferedSessionStart ? (bufferedSessionStart as { timestamp: string }).timestamp : new Date().toISOString(),
+        });
+        bufferedSessionStart = undefined;
+      }
     }
 
-    if (runId) {
+    if (event.type === 'session:start' && !runId && !enqueueRunId) {
+      bufferedSessionStart = event;
+    }
+
+    if (event.type === 'enqueue:start') {
+      enqueueRunId = randomUUID();
+      const sessionId = bufferedSessionStart && 'sessionId' in bufferedSessionStart
+        ? (bufferedSessionStart as { sessionId: string }).sessionId
+        : undefined;
+      db.insertRun({
+        id: enqueueRunId,
+        sessionId,
+        planSet: event.source,
+        command: 'enqueue',
+        status: 'running',
+        startedAt: new Date().toISOString(),
+        cwd,
+        pid,
+      });
+      // Flush buffered session:start
+      if (bufferedSessionStart) {
+        db.insertEvent({
+          runId: enqueueRunId,
+          type: bufferedSessionStart.type,
+          planId: extractPlanId(bufferedSessionStart),
+          agent: extractAgent(bufferedSessionStart),
+          data: JSON.stringify(bufferedSessionStart),
+          timestamp: 'timestamp' in bufferedSessionStart ? (bufferedSessionStart as { timestamp: string }).timestamp : new Date().toISOString(),
+        });
+        bufferedSessionStart = undefined;
+      }
+    }
+
+    const activeRunId = runId ?? enqueueRunId;
+
+    if (activeRunId && event.type !== 'session:start') {
       db.insertEvent({
-        runId,
+        runId: activeRunId,
         type: event.type,
         planId: extractPlanId(event),
         agent: extractAgent(event),
@@ -40,8 +91,22 @@ export async function* withRecording(
       });
     }
 
+    if (event.type === 'enqueue:complete' && enqueueRunId) {
+      db.updateRunPlanSet(enqueueRunId, event.title);
+      db.updateRunStatus(enqueueRunId, 'completed', new Date().toISOString());
+    }
+
     if (event.type === 'phase:end' && runId) {
       db.updateRunStatus(runId, event.result.status, event.timestamp);
+    }
+
+    if (event.type === 'session:end' && enqueueRunId && !runId) {
+      if ('result' in event && event.result) {
+        const result = event.result as { status: string };
+        if (result.status === 'failed') {
+          db.updateRunStatus(enqueueRunId, 'failed', 'timestamp' in event ? (event as { timestamp: string }).timestamp : new Date().toISOString());
+        }
+      }
     }
 
     yield event;

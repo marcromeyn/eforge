@@ -85,6 +85,8 @@ function eventSummary(event: EforgeEvent): string {
     case 'validation:fix:complete': return `Fix attempt ${event.attempt} complete`;
     case 'approval:needed': return `Approval needed: ${event.action}`;
     case 'approval:response': return event.approved ? 'Approved' : 'Rejected';
+    case 'enqueue:start': return `Enqueuing from: ${event.source}`;
+    case 'enqueue:complete': return `Enqueued: ${event.title} → ${event.filePath}`;
     default: return event.type;
   }
 }

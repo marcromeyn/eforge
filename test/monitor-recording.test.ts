@@ -79,6 +79,56 @@ describe('ensureMonitor with noServer', () => {
   });
 });
 
+describe('enqueue recording', () => {
+  const makeTempDir = useTempDir();
+
+  it('records enqueue event stream as a run with command enqueue', async () => {
+    const cwd = makeTempDir();
+    mkdirSync(resolve(cwd, '.eforge'), { recursive: true });
+    const dbPath = resolve(cwd, '.eforge', 'monitor.db');
+    const db = openDatabase(dbPath);
+
+    const sessionId = 'test-session-enqueue';
+    const now = new Date().toISOString();
+
+    const events: EforgeEvent[] = [
+      { type: 'session:start', sessionId, timestamp: now } as unknown as EforgeEvent,
+      { type: 'enqueue:start', source: '/tmp/my-prd.md' } as unknown as EforgeEvent,
+      { type: 'agent:start', agentId: 'a1', agent: 'formatter', timestamp: now } as unknown as EforgeEvent,
+      { type: 'agent:result', agent: 'formatter', result: { durationMs: 100, durationApiMs: 80, numTurns: 1, totalCostUsd: 0.01, usage: { input: 100, output: 50, total: 150 }, modelUsage: {} } } as unknown as EforgeEvent,
+      { type: 'agent:stop', agentId: 'a1', agent: 'formatter', timestamp: now } as unknown as EforgeEvent,
+      { type: 'enqueue:complete', id: 'prd-001', filePath: '/tmp/queue/prd-001.md', title: 'My Great Feature' } as unknown as EforgeEvent,
+      { type: 'session:end', sessionId, result: { status: 'completed', summary: 'Enqueued' }, timestamp: now } as unknown as EforgeEvent,
+    ];
+
+    async function* fakeEvents(): AsyncGenerator<EforgeEvent> {
+      for (const e of events) yield e;
+    }
+
+    const { withRecording } = await import('../src/monitor/recorder.js');
+    const wrapped = withRecording(fakeEvents(), db, cwd);
+    const collected: EforgeEvent[] = [];
+    for await (const event of wrapped) {
+      collected.push(event);
+    }
+
+    expect(collected).toHaveLength(7);
+
+    // Find the enqueue run
+    const runs = db.getRuns();
+    const enqueueRun = runs.find((r) => r.command === 'enqueue');
+    expect(enqueueRun).toBeDefined();
+    expect(enqueueRun!.status).toBe('completed');
+    expect(enqueueRun!.planSet).toBe('My Great Feature');
+
+    // All 7 events should be stored (session:start is buffered then flushed)
+    const dbEvents = db.getEvents(enqueueRun!.id);
+    expect(dbEvents).toHaveLength(7);
+
+    db.close();
+  });
+});
+
 describe('buildMonitor wiring', () => {
   const makeTempDir = useTempDir();
 

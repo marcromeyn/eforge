@@ -275,6 +275,51 @@ describe('eforgeReducer', () => {
   });
 });
 
+describe('enqueue events in reducer', () => {
+  it('sets enqueueStatus to running on enqueue:start', () => {
+    const event: EforgeEvent = {
+      type: 'enqueue:start',
+      source: '/tmp/my-prd.md',
+    } as unknown as EforgeEvent;
+    const result = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event,
+      eventId: 'eq-1',
+    });
+    expect(result.enqueueStatus).toBe('running');
+    expect(result.enqueueSource).toBe('/tmp/my-prd.md');
+  });
+
+  it('sets enqueueStatus to complete and enqueueTitle on enqueue:complete', () => {
+    let state = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event: { type: 'enqueue:start', source: '/tmp/my-prd.md' } as unknown as EforgeEvent,
+      eventId: 'eq-1',
+    });
+    state = eforgeReducer(state, {
+      type: 'ADD_EVENT',
+      event: { type: 'enqueue:complete', id: 'prd-001', filePath: '/tmp/queue/prd-001.md', title: 'My Feature' } as unknown as EforgeEvent,
+      eventId: 'eq-2',
+    });
+    expect(state.enqueueStatus).toBe('complete');
+    expect(state.enqueueTitle).toBe('My Feature');
+  });
+
+  it('sets startTime from session:start when no phase:start has arrived', () => {
+    const event: EforgeEvent = {
+      type: 'session:start',
+      sessionId: 'session-1',
+      timestamp: '2024-06-01T12:00:00Z',
+    } as unknown as EforgeEvent;
+    const result = eforgeReducer(initialRunState, {
+      type: 'ADD_EVENT',
+      event,
+      eventId: 'ss-1',
+    });
+    expect(result.startTime).toBe(new Date('2024-06-01T12:00:00Z').getTime());
+  });
+});
+
 describe('getSummaryStats', () => {
   it('returns defaults for empty state', () => {
     const stats = getSummaryStats(initialRunState);

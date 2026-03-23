@@ -27,6 +27,7 @@ const AGENT_COLORS: Record<string, { bg: string; border: string }> = {
   'parallel-reviewer': { bg: 'bg-green/30',   border: 'border-green/50' },
   'doc-updater':       { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
   'validation-fixer':  { bg: 'bg-red/30',     border: 'border-red/50' },
+  formatter:           { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
 };
 
 const FALLBACK_COLOR = { bg: 'bg-cyan/30', border: 'border-cyan/50' };
