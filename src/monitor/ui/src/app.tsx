@@ -113,6 +113,14 @@ export function App() {
     }
   }, [runState.events.length]);
 
+  // Refresh sidebar when session completes — immune to React 18 batching
+  // since isComplete is a stable derived boolean, not dependent on event ordering
+  useEffect(() => {
+    if (runState.isComplete) {
+      setSidebarRefresh((c) => c + 1);
+    }
+  }, [runState.isComplete]);
+
   // Fetch orchestration data when session changes
   useEffect(() => {
     if (!currentSessionId) {
