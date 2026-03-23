@@ -6,6 +6,7 @@ dist/
 .eforge-logs/
 .mcp.json
 .schaake-os-track
+.orchestration-logs/
 
 # Eval
 eval/results/
