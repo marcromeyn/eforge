@@ -56,3 +56,42 @@ export async function fetchPlanDiffs(
   if (!res.ok) throw new Error(`Failed to fetch plan diffs: ${res.status}`);
   return res.json();
 }
+
+export interface AutoBuildState {
+  enabled: boolean;
+  watcher: { running: boolean; pid: number | null; sessionId: string | null };
+}
+
+export async function fetchAutoBuild(): Promise<AutoBuildState | null> {
+  try {
+    const res = await fetch('/api/auto-build');
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function setAutoBuild(enabled: boolean): Promise<AutoBuildState | null> {
+  try {
+    const res = await fetch('/api/auto-build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function cancelSession(sessionId: string): Promise<{ status: string; sessionId: string } | null> {
+  try {
+    const res = await fetch(`/api/cancel/${sessionId}`, { method: 'POST' });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}

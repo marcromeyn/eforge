@@ -1,7 +1,8 @@
 import { useEffect, useMemo } from 'react';
-import { CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, Square } from 'lucide-react';
 import type { RunInfo } from '@/lib/types';
 import { useApi } from '@/hooks/use-api';
+import { cancelSession } from '@/lib/api';
 import { groupRunsBySessions, type SessionGroup } from '@/lib/session-utils';
 import { formatRelativeTime, formatRunDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -11,6 +12,7 @@ interface SidebarProps {
   currentSessionId: string | null;
   onSelectSession: (sessionId: string) => void;
   refreshTrigger: number;
+  daemonActive: boolean;
 }
 
 function StatusIcon({ status }: { status: SessionGroup['status'] }) {
@@ -24,14 +26,16 @@ function StatusIcon({ status }: { status: SessionGroup['status'] }) {
   }
 }
 
-function SessionItem({ group, isActive, onSelect }: {
+function SessionItem({ group, isActive, onSelect, daemonActive }: {
   group: SessionGroup;
   isActive: boolean;
   onSelect: () => void;
+  daemonActive: boolean;
 }) {
   const relative = formatRelativeTime(group.startedAt);
   const duration = formatRunDuration(group.startedAt, group.completedAt);
   const runCount = group.runs.length;
+  const showCancel = group.status === 'running' && group.isSession && daemonActive;
 
   return (
     <div
@@ -51,7 +55,21 @@ function SessionItem({ group, isActive, onSelect }: {
             <span className="text-[11px] font-medium text-foreground truncate">
               {group.label}
             </span>
-            <span className="text-[11px] text-text-dim">{relative}</span>
+            <div className="flex items-center gap-1.5">
+              {showCancel && (
+                <button
+                  title="Cancel this session"
+                  className="text-text-dim hover:text-red-400 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    cancelSession(group.key);
+                  }}
+                >
+                  <Square size={14} />
+                </button>
+              )}
+              <span className="text-[11px] text-text-dim">{relative}</span>
+            </div>
           </div>
           <div className="flex items-center justify-between gap-2 mt-1">
             <span className="text-[11px] text-text-dim whitespace-nowrap">{duration}</span>
@@ -67,7 +85,7 @@ function SessionItem({ group, isActive, onSelect }: {
   );
 }
 
-export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger }: SidebarProps) {
+export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger, daemonActive }: SidebarProps) {
   const { data: runs, refetch } = useApi<RunInfo[]>('/api/runs');
 
   // Refetch when trigger changes
@@ -91,6 +109,7 @@ export function Sidebar({ currentSessionId, onSelectSession, refreshTrigger }: S
           group={group}
           isActive={group.key === currentSessionId}
           onSelect={() => onSelectSession(group.key)}
+          daemonActive={daemonActive}
         />
       ))}
     </aside>

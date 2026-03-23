@@ -14,6 +14,7 @@ import { FileHeatmap } from '@/components/heatmap';
 import { PlanPreviewProvider, PlanPreviewPanel } from '@/components/preview';
 import { useEforgeEvents } from '@/hooks/use-eforge-events';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
+import { useAutoBuild } from '@/hooks/use-auto-build';
 import { getSummaryStats } from '@/lib/reducer';
 import { fetchLatestSessionId, fetchOrchestration } from '@/lib/api';
 import type { OrchestrationConfig, PipelineStage } from '@/lib/types';
@@ -30,6 +31,7 @@ export function App() {
   const userSelectedRef = useRef<string | null>(null);
   const { runState, connectionStatus, shutdownCountdown } = useEforgeEvents(currentSessionId);
   const { containerRef, autoScroll, enableAutoScroll } = useAutoScroll([runState.events.length]);
+  const { state: autoBuildState, toggling: autoBuildToggling, toggle: onToggleAutoBuild } = useAutoBuild();
 
   const stats = getSummaryStats(runState);
   const hasEvents = runState.events.length > 0;
@@ -187,12 +189,13 @@ export function App() {
   return (
     <PlanPreviewProvider>
       <AppLayout
-        header={<Header connectionStatus={connectionStatus} />}
+        header={<Header connectionStatus={connectionStatus} autoBuildState={autoBuildState} autoBuildToggling={autoBuildToggling} onToggleAutoBuild={onToggleAutoBuild} />}
         sidebar={
           <Sidebar
             currentSessionId={currentSessionId}
             onSelectSession={handleSelectSession}
             refreshTrigger={sidebarRefresh}
+            daemonActive={autoBuildState !== null}
           />
         }
       >
