@@ -1,37 +1,20 @@
 # Eforge Roadmap
 
-## Hardening
-
-**Goal**: Stabilize what exists before building new features - expand eval coverage, tune profiles with evidence, and fix rough edges in the monitor.
-
-- **Eval scenario breadth** - More fixtures and scenarios across all three profiles (errand, excursion, expedition) so regressions surface before they ship
-- **Profile tuning** - Use eval results and Langfuse traces to refine agent parameters, stage composition, and review strategies in built-in profiles
-
----
-
 ## Eval & Observability
 
-**Goal**: Use evaluation data and runtime observability to drive continuous improvement of workflow profiles and agent behavior.
+**Goal**: Use evaluation data and runtime observability to drive evidence-based improvement of workflow profiles and agent behavior.
 
-- **Comparative profile tuning** — Run profiles head-to-head on the same PRDs (the scenario harness already tracks pass/fail, token usage, cost, and duration per scenario). Add code quality metrics. Use outcome data to refine profiles from intuition toward evidence.
-
----
-
-## Parallel Execution Reliability
-
-**Goal**: Verify requirement fulfillment in multi-plan builds.
-
-- **Requirement-level validation coverage** — The test-writer and tester agents now generate and run acceptance tests from PRD criteria. Extend this to measure coverage gaps: detect PRD requirements that lack corresponding test cases and flag builds where acceptance coverage is incomplete.
+- **Code quality metrics** — Add static analysis metrics (complexity, duplication, lint violations) to the eval harness so profile tuning goes beyond pass/fail, tokens, and cost
+- **Comparative profile tuning** — Run profiles head-to-head on the same PRDs and use outcome data (including code quality) to refine profiles from intuition toward evidence
+- **Acceptance coverage gaps** — Detect PRD requirements that lack corresponding test cases and flag builds where acceptance coverage is incomplete
 
 ---
 
 ## Daemon & MCP Server
 
-**Goal**: Make the daemon the single orchestration authority. Everything flows through the queue; the daemon watches and auto-builds; the web UI is the control surface.
+**Goal**: Extend the daemon as the single orchestration authority with richer controls and safety checks.
 
-- **Queue-first architecture** — `eforge run` becomes enqueue + daemon auto-build. The daemon starts in watch mode by default, polling the queue and building PRDs as they arrive. No more foreground CLI builds — the daemon owns all execution.
-- **Auto-build toggle** — Auto-build is on by default. Users can pause/resume via web UI toggle or MCP tool. When paused, PRDs accumulate in the queue until resumed.
-- **Web UI control plane** — Dashboard controls for: auto-build on/off, build cancellation, queue reordering/priority, session status. The web UI becomes the primary management interface alongside MCP tools.
+- **Queue reordering & priority** — Web UI and MCP controls for reordering queued PRDs and setting build priority
 - **Re-guidance** — Build interruption with amended context, daemon-to-worker IPC for mid-build guidance changes
 - **Plugin–engine version compatibility** — Add `version` to the daemon health endpoint and `minEngineVersion` to plugin.json. The MCP proxy checks compatibility at startup and warns (or refuses) if the installed eforge version is too old for the plugin.
 
