@@ -39,16 +39,6 @@
 
 ---
 
-## Rebrand to eforge.build
-
-**Goal**: Align domain, GitHub org, and messaging with the "agentic build system" positioning.
-
-- **Domain migration** — Move from eforge.run to eforge.build across all references (package.json homepage, README, CLAUDE.md, git commit attribution, plugin marketplace manifest)
-- **GitHub org rename** — Rename `eforge-run` org to `eforge-build`, update all repo URLs and plugin registry references
-- **npm package** — Publish under new homepage; old URLs should redirect
-
----
-
 ## Marketing Site (eforge.build)
 
 **Goal**: Public-facing site for docs, demos, and project visibility.

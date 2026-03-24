@@ -24,9 +24,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/eforge-run/eforge.git"
+    "url": "git+https://github.com/eforge-build/eforge.git"
   },
-  "homepage": "https://eforge.run",
+  "homepage": "https://eforge.build",
   "publishConfig": {
     "access": "public"
   },

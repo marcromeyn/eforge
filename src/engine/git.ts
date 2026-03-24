@@ -12,7 +12,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 const exec = promisify(execFile);
 
-export const ATTRIBUTION = 'Forged by eforge https://eforge.run';
+export const ATTRIBUTION = 'Forged by eforge https://eforge.build';
 
 /** Stale lock threshold in milliseconds (5 seconds). */
 const STALE_LOCK_THRESHOLD_MS = 5_000;

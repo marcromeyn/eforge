@@ -19,7 +19,7 @@ AI coding agents are fast but sloppy. They generate code, ship it, and move on. 
 ### Claude Code Plugin (recommended)
 
 ```
-/plugin marketplace add eforge-run/eforge
+/plugin marketplace add eforge-build/eforge
 /plugin install eforge@eforge
 ```
 
