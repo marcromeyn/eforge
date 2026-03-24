@@ -625,7 +625,7 @@ export class EforgeEngine {
 
       // Per-PRD session: each PRD gets its own sessionId for monitor grouping
       const prdSessionId = randomUUID();
-      let prdResult: { status: 'completed' | 'failed'; summary: string } = {
+      let prdResult: { status: 'completed' | 'failed' | 'skipped'; summary: string } = {
         status: 'failed',
         summary: 'Session terminated abnormally',
       };
@@ -645,6 +645,8 @@ export class EforgeEngine {
 
         // Compile (plan) the PRD
         let compileFailed = false;
+        let planSkipped = false;
+        let skipReason = '';
         const planSetName = options.name ?? prd.id;
 
         for await (const event of this.compile(prd.filePath, {
@@ -659,10 +661,20 @@ export class EforgeEngine {
           if (event.type === 'phase:end' && event.result.status === 'failed') {
             compileFailed = true;
           }
+          if (event.type === 'plan:skip') {
+            planSkipped = true;
+            skipReason = event.reason;
+          }
         }
 
         if (compileFailed) {
           prdResult = { status: 'failed', summary: 'Compile failed' };
+          continue;
+        }
+
+        if (planSkipped) {
+          prdResult = { status: 'skipped', summary: skipReason };
+          skipped++;
           continue;
         }
 
