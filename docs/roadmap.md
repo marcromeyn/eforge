@@ -26,7 +26,7 @@
 
 - **CLI `--attach` support** - Accept image/PDF file paths on `eforge run` and `eforge enqueue`, save to temp dir, inject prompt hints so planner and builder agents read them
 - **Queue attachment storage** - Companion directory alongside PRD files so attachments persist through enqueue-then-run workflows
-- **Plugin skill forwarding** - Update `/eforge:run` and `/eforge:enqueue` skills to accept and forward `--attach` arguments
+- **Plugin skill forwarding** - Update `/eforge:build` skill to accept and forward `--attach` arguments
 
 ---
 
@@ -34,7 +34,7 @@
 
 **Goal**: Full lifecycle coverage, CI support, provider flexibility.
 
-- **OpenRouter backend** — `AgentBackend` implementation using the `openai` npm package pointed at OpenRouter's API, unlocking 400+ models (GPT-4, Gemini, Llama, etc.) as the second provider. Requires a self-managed agent loop and tool executors since OpenRouter is a chat completion API, not an agentic framework.
+- **Multi-provider backend via pi-mono** — `AgentBackend` implementation using `@mariozechner/pi-ai` (unified LLM streaming with first-class OpenRouter support, 20+ providers) and `@mariozechner/pi-agent-core` (agent loop with tool execution). Translation layer from pi's `AgentEvent`s to eforge's `EforgeEvent`s, plus an MCP bridge to expose MCP server tools as pi `AgentTool` instances. Unlocks GPT-4, Gemini, Llama, and 400+ models via OpenRouter.
 - **Monorepo** — Extend pnpm workspaces (currently only monitor UI) so the engine, eval harness, eforge-plugin, and marketing site each get their own package with isolated deps and build configs
 
 ---
