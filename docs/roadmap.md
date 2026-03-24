@@ -33,6 +33,7 @@
 - **Auto-build toggle** — Auto-build is on by default. Users can pause/resume via web UI toggle or MCP tool. When paused, PRDs accumulate in the queue until resumed.
 - **Web UI control plane** — Dashboard controls for: auto-build on/off, build cancellation, queue reordering/priority, session status. The web UI becomes the primary management interface alongside MCP tools.
 - **Re-guidance** — Build interruption with amended context, daemon-to-worker IPC for mid-build guidance changes
+- **Plugin–engine version compatibility** — Add `version` to the daemon health endpoint and `minEngineVersion` to plugin.json. The MCP proxy checks compatibility at startup and warns (or refuses) if the installed eforge version is too old for the plugin.
 
 ---
 
