@@ -4,15 +4,15 @@
 
 An agentic build system. PRD in, reviewed and validated code out.
 
-`eforge` takes a prompt or requirements doc, plans the implementation against your codebase, builds it in isolated git worktrees, runs a blind code review with a fresh-context agent, and validates the result. No supervision required.
+`eforge` lets you stay at the planning level. Describe what you want built - a prompt, a markdown file, a full PRD - and hand it off. eforge handles the orchestration of planning, implementation, code review, and validation across specialized agents without you managing any of it.
 
 ![eforge monitor - full pipeline](docs/images/monitor-full-pipeline.png)
 
-## Why
+## How I Use It
 
-AI coding agents are fast but sloppy. They generate code, ship it, and move on. Nobody reviews. Nobody validates. The result is a growing pile of code that *looks* right but hasn't been stress-tested.
+Plan a feature interactively in Claude Code, then hand it off with `/eforge:build`. The plugin enqueues the PRD and a daemon picks it up - compile, build, review, validate. A web monitor (default `localhost:4567`) tracks progress, cost, and token usage in real time.
 
-`eforge` treats AI-generated code the way CI/CD treats human-written code: with a structured pipeline that plans, builds, reviews, and validates before anything lands on your branch. The reviewer runs in a fresh context with zero knowledge of how the code was written - it evaluates the output independently. An evaluator then applies per-hunk verdicts on the reviewer's suggestions, accepting strict improvements while rejecting anything that alters intent.
+I do this throughout the day. Each build lands on the current branch before the next one starts, so later builds plan against the updated codebase, not a stale snapshot.
 
 ## Install
 
@@ -92,17 +92,11 @@ flowchart TD
 - **Excursion** - Multi-file features. Planner writes a plan, blind review cycle, then build.
 - **Expedition** - Large cross-cutting work. Architecture doc, module decomposition, cohesion review across plans, parallel builds in dependency order.
 
-**Blind review** - Every build gets reviewed by a separate agent with no builder context. A fixer applies suggestions, then an evaluator accepts strict improvements while rejecting intent changes. This is the quality gate.
+**Blind review** - Every build gets reviewed by a separate agent with no builder context. A fixer applies suggestions, then an evaluator accepts strict improvements while rejecting intent changes.
 
 **Parallel orchestration** - Expedition plans run in isolated git worktrees, merge in topological dependency order, then run post-merge validation with auto-fix.
 
 ![eforge monitor - timeline view](docs/images/monitor-timeline.png)
-
-## The Workflow
-
-The way I actually use `eforge`: plan a feature interactively in Claude Code, then hand it off with `/eforge:build`. The plugin enqueues the PRD and a daemon picks it up automatically — compile, build, review, validate. The daemon serves a web monitor (default `localhost:4567`) where you can watch builds in real time.
-
-I do this throughout the day. Each build lands on main before the next one starts, so later builds plan against the updated codebase, not a stale snapshot.
 
 ## Architecture
 
@@ -129,7 +123,7 @@ Configured via `eforge.yaml` (searched upward from cwd), environment variables, 
 
 ## Status
 
-`eforge` is a personal tool that I use daily to build real features (including itself). Source is public so you can read, learn from, and fork it. Not accepting issues or PRs at this time.
+This is a young project moving fast. I use it daily to build real features (including itself), but expect rough edges - bugs are likely, change is expected, and YMMV. Source is public so you can read, learn from, and fork it. Not accepting issues or PRs at this time.
 
 ## Development
 
