@@ -33,6 +33,7 @@ export interface StateCheckContext {
   lastActivityTimestamp: number;
   hasSeenActivity: boolean;
   serverStartedAt: number;
+  idleFallbackMs: number;
   getRunningRuns: () => { id: string }[];
   getLatestEventTimestamp: () => string | undefined;
   transitionToCountdown: () => void;
@@ -79,7 +80,7 @@ export function evaluateStateCheck(ctx: StateCheckContext): {
     }
 
     const idleMs = Date.now() - lastActivityTimestamp;
-    if (idleMs >= IDLE_FALLBACK_MS) {
+    if (idleMs >= ctx.idleFallbackMs) {
       ctx.transitionToCountdown();
       state = 'COUNTDOWN';
     }
@@ -340,7 +341,7 @@ async function main(): Promise<void> {
     startedAt: new Date().toISOString(),
   });
 
-  // --- Start watcher if autoBuild enabled (persistent mode) ---
+  // --- Start watcher if autoBuild enabled + idle shutdown (persistent mode) ---
   if (persistent && daemonState) {
     try {
       const config = await loadConfig(cwd);
@@ -348,8 +349,12 @@ async function main(): Promise<void> {
       if (daemonState.autoBuild) {
         spawnWatcher();
       }
+      // Enable idle auto-shutdown for persistent mode when configured (0 = disabled)
+      if (config.daemon.idleShutdownMs > 0) {
+        setupStateMachine(config.daemon.idleShutdownMs);
+      }
     } catch {
-      // Config load failure — leave autoBuild disabled
+      // Config load failure — leave autoBuild disabled, no idle shutdown
     }
   }
 
@@ -381,8 +386,7 @@ async function main(): Promise<void> {
   let stateTimer: ReturnType<typeof setInterval> | undefined;
   let isShuttingDown = false;
 
-  if (!persistent) {
-    // --- Ephemeral mode: State machine ---
+  function setupStateMachine(idleFallbackMs: number): void {
     let state: ServerState = 'WATCHING';
     let countdownStartedAt = 0;
     let lastActivityTimestamp = Date.now();
@@ -431,6 +435,7 @@ async function main(): Promise<void> {
           lastActivityTimestamp,
           hasSeenActivity,
           serverStartedAt,
+          idleFallbackMs,
           getRunningRuns: () => db.getRunningRuns(),
           getLatestEventTimestamp: () => db.getLatestEventTimestamp(),
           transitionToCountdown,
@@ -452,6 +457,11 @@ async function main(): Promise<void> {
       }
     }, STATE_CHECK_INTERVAL_MS);
     stateTimer.unref();
+  }
+
+  if (!persistent) {
+    // --- Ephemeral mode: State machine with default idle threshold ---
+    setupStateMachine(IDLE_FALLBACK_MS);
   }
 
   function shutdown(): void {

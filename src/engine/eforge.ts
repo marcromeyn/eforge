@@ -896,6 +896,7 @@ function mergeConfig(base: EforgeConfig, overrides: Partial<EforgeConfig>): Efor
     plan: overrides.plan ? { ...base.plan, ...overrides.plan } : base.plan,
     plugins: overrides.plugins ? { ...base.plugins, ...overrides.plugins } : base.plugins,
     prdQueue: overrides.prdQueue ? { ...base.prdQueue, ...overrides.prdQueue } : base.prdQueue,
+    daemon: overrides.daemon ? { ...base.daemon, ...overrides.daemon } : base.daemon,
     hooks: overrides.hooks ?? base.hooks,
     profiles: overrides.profiles ?? base.profiles,
   };

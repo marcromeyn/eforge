@@ -134,7 +134,7 @@ eforge loads config from two levels, merged together:
 **Priority chain** (lowest → highest): defaults → global config → project config → env vars → CLI overrides
 
 **Merge strategy**:
-- Object sections (`langfuse`, `agents`, `build`, `plan`, `plugins`, `prdQueue`): shallow merge per-field — project overrides global, global fields survive if project doesn't define them. `prdQueue` has `dir` (queue directory path), `autoRevise` (boolean), `autoBuild` (boolean, default `true` — daemon automatically builds after enqueue), and `watchPollIntervalMs` (poll interval for watch mode, default 5000) fields.
+- Object sections (`langfuse`, `agents`, `build`, `plan`, `plugins`, `prdQueue`, `daemon`): shallow merge per-field — project overrides global, global fields survive if project doesn't define them. `prdQueue` has `dir` (queue directory path), `autoRevise` (boolean), `autoBuild` (boolean, default `true` — daemon automatically builds after enqueue), and `watchPollIntervalMs` (poll interval for watch mode, default 5000) fields. `daemon` has `idleShutdownMs` (idle timeout in milliseconds before auto-shutdown, default `7_200_000` / 2 hours; set to `0` to disable and run forever).
 - `hooks` array: **concatenate** (global hooks fire first, then project hooks)
 - Arrays inside objects (`postMergeCommands`, `plugins.include/exclude/paths`, `settingSources`): project replaces global
 

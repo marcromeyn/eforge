@@ -193,6 +193,9 @@ export const eforgeConfigSchema = z.object({
     autoBuild: z.boolean().optional(),
     watchPollIntervalMs: z.number().int().positive().optional(),
   }).optional(),
+  daemon: z.object({
+    idleShutdownMs: z.number().int().nonnegative().optional(),
+  }).optional(),
   hooks: z.array(hookConfigSchema).optional(),
   profiles: z.record(z.string(), partialProfileConfigSchema).optional(),
 });
@@ -220,6 +223,7 @@ export interface EforgeConfig {
   plan: { outputDir: string };
   plugins: PluginConfig;
   prdQueue: { dir: string; autoRevise: boolean; autoBuild: boolean; watchPollIntervalMs: number };
+  daemon: { idleShutdownMs: number };
   hooks: readonly HookConfig[];
   profiles: Record<string, ResolvedProfileConfig>;
 }
@@ -276,6 +280,7 @@ export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   plan: Object.freeze({ outputDir: 'plans' }),
   plugins: Object.freeze({ enabled: true }),
   prdQueue: Object.freeze({ dir: 'docs/prd-queue', autoRevise: false, autoBuild: true, watchPollIntervalMs: 5000 }),
+  daemon: Object.freeze({ idleShutdownMs: 7_200_000 }),
   hooks: Object.freeze([]),
   profiles: BUILTIN_PROFILES,
 });
@@ -351,6 +356,9 @@ export function resolveConfig(
       autoBuild: fileConfig.prdQueue?.autoBuild ?? DEFAULT_CONFIG.prdQueue.autoBuild,
       watchPollIntervalMs: fileConfig.prdQueue?.watchPollIntervalMs ?? DEFAULT_CONFIG.prdQueue.watchPollIntervalMs,
     }),
+    daemon: Object.freeze({
+      idleShutdownMs: fileConfig.daemon?.idleShutdownMs ?? DEFAULT_CONFIG.daemon.idleShutdownMs,
+    }),
     hooks: Object.freeze(fileConfig.hooks ?? DEFAULT_CONFIG.hooks) as HookConfig[],
     profiles: Object.freeze(
       resolveProfileExtensions(fileConfig.profiles ?? {}, BUILTIN_PROFILES),
@@ -381,7 +389,7 @@ function parseRawConfig(data: Record<string, unknown>): PartialEforgeConfig {
  */
 function parseRawConfigFallback(data: Record<string, unknown>): PartialEforgeConfig {
   const result: PartialEforgeConfig = {};
-  const sections = ['langfuse', 'agents', 'build', 'plan', 'plugins', 'prdQueue', 'hooks', 'profiles'] as const;
+  const sections = ['langfuse', 'agents', 'build', 'plan', 'plugins', 'prdQueue', 'daemon', 'hooks', 'profiles'] as const;
   for (const key of sections) {
     if (data[key] === undefined) continue;
     const sectionSchema = eforgeConfigSchema.shape[key];
@@ -406,6 +414,7 @@ function stripUndefinedSections(config: PartialEforgeConfig): PartialEforgeConfi
   if (config.plan !== undefined) out.plan = config.plan;
   if (config.plugins !== undefined) out.plugins = config.plugins;
   if (config.prdQueue !== undefined) out.prdQueue = config.prdQueue;
+  if (config.daemon !== undefined) out.daemon = config.daemon;
   if (config.hooks !== undefined) out.hooks = config.hooks;
   if (config.profiles !== undefined) out.profiles = config.profiles;
   return out;
@@ -453,6 +462,9 @@ export function mergePartialConfigs(
   }
   if (global.prdQueue || project.prdQueue) {
     result.prdQueue = { ...global.prdQueue, ...project.prdQueue };
+  }
+  if (global.daemon || project.daemon) {
+    result.daemon = { ...global.daemon, ...project.daemon };
   }
 
   // hooks: concatenate (global first, then project)

@@ -115,6 +115,7 @@ describe('hasSeenActivity gate', () => {
       lastActivityTimestamp: Date.now(),
       hasSeenActivity: false,
       serverStartedAt: Date.now(),
+      idleFallbackMs: 10_000,
       getRunningRuns: () => [],
       getLatestEventTimestamp: () => undefined,
       transitionToCountdown: vi.fn(),
@@ -199,6 +200,42 @@ describe('hasSeenActivity gate', () => {
     const result = evaluateStateCheck(ctx);
 
     expect(result.hasSeenActivity).toBe(true);
+  });
+
+  it('transitions to COUNTDOWN using custom idleFallbackMs threshold', () => {
+    const serverStartedAt = Date.now() - 120_000; // started 2 min ago
+    const eventTimestamp = serverStartedAt + 5000; // event 5s after start
+    const ctx = makeContext({
+      serverStartedAt,
+      lastActivityTimestamp: eventTimestamp,
+      idleFallbackMs: 60_000, // 1 min idle threshold (persistent mode)
+      getLatestEventTimestamp: () => new Date(eventTimestamp).toISOString(),
+    });
+
+    const result = evaluateStateCheck(ctx);
+
+    expect(result.hasSeenActivity).toBe(true);
+    // 120s - 5s = 115s idle, exceeds 60s threshold
+    expect(ctx.transitionToCountdown).toHaveBeenCalled();
+    expect(result.state).toBe('COUNTDOWN');
+  });
+
+  it('does not transition when idle time is below custom idleFallbackMs threshold', () => {
+    const serverStartedAt = Date.now() - 30_000; // started 30s ago
+    const eventTimestamp = Date.now() - 10_000; // event 10s ago
+    const ctx = makeContext({
+      serverStartedAt,
+      lastActivityTimestamp: eventTimestamp,
+      hasSeenActivity: true,
+      idleFallbackMs: 60_000, // 1 min idle threshold
+      getLatestEventTimestamp: () => new Date(eventTimestamp).toISOString(),
+    });
+
+    const result = evaluateStateCheck(ctx);
+
+    // 10s idle < 60s threshold — should stay WATCHING
+    expect(result.state).toBe('WATCHING');
+    expect(ctx.transitionToCountdown).not.toHaveBeenCalled();
   });
 });
 
