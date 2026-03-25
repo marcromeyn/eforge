@@ -947,10 +947,7 @@ export async function startServer(
             options.daemonState.onSpawnWatcher();
           }
         } else {
-          // Kill watcher if running
-          if (options.daemonState.watcher.running && options.daemonState.onKillWatcher) {
-            options.daemonState.onKillWatcher();
-          }
+          // Toggle OFF — let the running build finish naturally (no kill)
         }
         sendJson(res, {
           enabled: options.daemonState.autoBuild,

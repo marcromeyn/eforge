@@ -20,6 +20,7 @@ import { loadConfig } from '../engine/config.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 
+let respawnDelayMs = 5000;
 const ORPHAN_CHECK_INTERVAL_MS = 5000;
 const STATE_CHECK_INTERVAL_MS = 2000;
 const COUNTDOWN_WITH_SUBSCRIBERS_MS = 60_000;
@@ -244,13 +245,14 @@ async function main(): Promise<void> {
     watcherKilledByUs = false;
     const sessionId = `watcher-${Date.now()}-${randomBytes(6).toString('hex')}`;
 
-    const child = spawn('eforge', ['run', '--queue', '--watch', '--auto', '--no-monitor'], {
+    const child = spawn('eforge', ['run', '--queue', '--auto', '--no-monitor'], {
       cwd,
       detached: true,
       stdio: 'ignore',
     });
     child.unref();
     watcherProcess = child;
+    daemonState.autoBuild = false;
 
     daemonState.watcher = {
       running: true,
@@ -297,10 +299,12 @@ async function main(): Promise<void> {
         return;
       }
 
-      // Clean exit (code 0) — respawn if autoBuild still enabled
-      if (daemonState.autoBuild) {
-        spawnWatcher();
-      }
+      // Clean exit (code 0) — delayed respawn if autoBuild re-enabled
+      setTimeout(() => {
+        if (daemonState.autoBuild && !watcherProcess) {
+          spawnWatcher();
+        }
+      }, respawnDelayMs);
     });
   }
 
@@ -345,6 +349,7 @@ async function main(): Promise<void> {
   if (persistent && daemonState) {
     try {
       const config = await loadConfig(cwd);
+      respawnDelayMs = config.prdQueue.watchPollIntervalMs;
       daemonState.autoBuild = config.prdQueue.autoBuild;
       if (daemonState.autoBuild) {
         spawnWatcher();
@@ -369,12 +374,12 @@ async function main(): Promise<void> {
       }
 
       // Check watcher health in persistent mode
-      if (persistent && daemonState?.autoBuild && watcherProcess?.pid) {
+      if (persistent && daemonState?.watcher.running && watcherProcess?.pid) {
         if (!isPidAlive(watcherProcess.pid)) {
-          // Watcher died without exit event — clean up and respawn
+          // Watcher died without exit event — clean up
           watcherProcess = null;
           daemonState.watcher = { running: false, pid: null, sessionId: null };
-          spawnWatcher();
+          updateLockfile(cwd, { watcherPid: undefined });
         }
       }
     } catch {
