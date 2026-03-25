@@ -50,7 +50,7 @@ export interface OrchestrationConfig {
   mode: (typeof ORCHESTRATION_MODES)[number];
   baseBranch: string;
   profile: ResolvedProfileConfig;
-  plans: Array<{ id: string; name: string; dependsOn: string[]; branch: string; build: BuildStageSpec[]; review: ReviewProfileConfig }>;
+  plans: Array<{ id: string; name: string; dependsOn: string[]; branch: string; build: BuildStageSpec[]; review: ReviewProfileConfig; maxContinuations?: number }>;
   validate?: string[];
 }
 
@@ -160,6 +160,7 @@ export type EforgeEvent = { sessionId?: string; runId?: string } & (
   | { type: 'build:start'; planId: string }
   | { type: 'build:implement:start'; planId: string }
   | { type: 'build:implement:progress'; planId: string; message: string }
+  | { type: 'build:implement:continuation'; planId: string; attempt: number; maxContinuations: number }
   | { type: 'build:implement:complete'; planId: string }
   | { type: 'build:files_changed'; planId: string; files: string[] }
   | { type: 'build:review:start'; planId: string }

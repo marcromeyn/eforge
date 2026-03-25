@@ -1,7 +1,7 @@
 ---
 title: Builder Continuation on maxTurns Exhaustion
 created: 2026-03-25
-status: pending
+status: running
 ---
 
 # Builder Continuation on maxTurns Exhaustion

@@ -1,7 +1,7 @@
 ---
 title: Fix activity indicators not showing in pipeline bars
 created: 2026-03-25
-status: pending
+status: failed
 ---
 
 # Fix activity indicators not showing in pipeline bars

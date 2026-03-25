@@ -255,6 +255,12 @@ export function renderEvent(event: EforgeEvent): void {
       break;
     }
 
+    case 'build:implement:continuation': {
+      const s = spinners.get(`build:${event.planId}`);
+      if (s) s.text = `${chalk.cyan(event.planId)} \u2014 continuing (attempt ${event.attempt}/${event.maxContinuations})`;
+      break;
+    }
+
     case 'build:implement:complete': {
       const s = spinners.get(`build:${event.planId}`);
       if (s) s.text = `${chalk.cyan(event.planId)} \u2014 implementation complete`;

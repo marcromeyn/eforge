@@ -193,6 +193,7 @@ export async function parseOrchestrationConfig(yamlPath: string): Promise<Orches
           branch: typeof p.branch === 'string' ? p.branch : '',
           build: buildResult.data,
           review: reviewResult.data,
+          ...(typeof p.max_continuations === 'number' ? { maxContinuations: p.max_continuations } : {}),
         };
       })
     : [];

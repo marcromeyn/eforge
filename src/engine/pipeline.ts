@@ -729,14 +729,27 @@ function hasTestStages(build: BuildStageSpec[]): boolean {
   });
 }
 
+/**
+ * Build a continuation diff string from a worktree, truncating large diffs
+ * to a file-list summary to avoid filling the continuation builder's context.
+ */
+async function buildContinuationDiff(cwd: string, baseBranch: string): Promise<string> {
+  const DIFF_CHAR_LIMIT = 50_000;
+  const { stdout: diff } = await exec('git', ['diff', `${baseBranch}...HEAD`], { cwd });
+  if (diff.length <= DIFF_CHAR_LIMIT) return diff;
+
+  // Large diff — fall back to file-list summary with per-file stats
+  const { stdout: stat } = await exec('git', ['diff', '--stat', `${baseBranch}...HEAD`], { cwd });
+  return `[Diff too large (${diff.length} chars) — showing file summary instead]\n\n${stat}`;
+}
+
 registerBuildStage('implement', async function* implementStage(ctx) {
   const agentConfig = resolveAgentConfig('builder', ctx.config);
   const maxTurns = agentConfig.maxTurns;
 
-  const implSpan = ctx.tracing.createSpan('builder', { planId: ctx.planId, phase: 'implement' });
-  implSpan.setInput({ planId: ctx.planId, phase: 'implement' });
-  const implTracker = createToolTracker(implSpan);
-  let implFailed = false;
+  // Resolve maxContinuations: per-plan > global config > default (3)
+  const planEntry = ctx.orchConfig.plans.find((p) => p.id === ctx.planId);
+  const maxContinuations = planEntry?.maxContinuations ?? ctx.config.agents.maxContinuations;
 
   // Extract parallel stage groups from ctx.build for lane awareness
   const parallelStages = ctx.build
@@ -744,38 +757,107 @@ registerBuildStage('implement', async function* implementStage(ctx) {
 
   const verificationScope = hasTestStages(ctx.build) ? 'build-only' : 'full';
 
-  try {
-    for await (const event of builderImplement(ctx.planFile, {
-      backend: ctx.backend,
-      cwd: ctx.worktreePath,
-      verbose: ctx.verbose,
-      abortController: ctx.abortController,
-      maxTurns,
-      parallelStages,
-      verificationScope,
-    })) {
-      implTracker.handleEvent(event);
-      yield event;
-      if (event.type === 'build:failed') {
-        implFailed = true;
+  for (let attempt = 0; attempt <= maxContinuations; attempt++) {
+    const implSpan = ctx.tracing.createSpan('builder', { planId: ctx.planId, phase: 'implement', ...(attempt > 0 && { attempt }) });
+    implSpan.setInput({ planId: ctx.planId, phase: 'implement', ...(attempt > 0 && { attempt }) });
+    const implTracker = createToolTracker(implSpan);
+    let implFailed = false;
+    let failedError = '';
+
+    // Build continuation context for retry attempts
+    let continuationContext: { attempt: number; maxContinuations: number; completedDiff: string } | undefined;
+    if (attempt > 0) {
+      try {
+        const completedDiff = await buildContinuationDiff(ctx.worktreePath, ctx.orchConfig.baseBranch);
+        continuationContext = { attempt, maxContinuations, completedDiff };
+      } catch {
+        // If we can't build the diff, continue without it
+        continuationContext = { attempt, maxContinuations, completedDiff: '[Unable to generate diff]' };
       }
     }
-  } catch (err) {
-    implTracker.cleanup();
-    implSpan.error(err as Error);
-    yield { type: 'build:failed', planId: ctx.planId, error: (err as Error).message };
-    ctx.buildFailed = true;
-    return;
-  }
 
-  if (implFailed) {
+    try {
+      for await (const event of builderImplement(ctx.planFile, {
+        backend: ctx.backend,
+        cwd: ctx.worktreePath,
+        verbose: ctx.verbose,
+        abortController: ctx.abortController,
+        maxTurns,
+        parallelStages,
+        verificationScope,
+        continuationContext,
+      })) {
+        implTracker.handleEvent(event);
+        if (event.type === 'build:failed') {
+          implFailed = true;
+          failedError = event.error;
+        } else {
+          yield event;
+        }
+      }
+    } catch (err) {
+      implTracker.cleanup();
+      implSpan.error(err as Error);
+      yield { type: 'build:failed', planId: ctx.planId, error: (err as Error).message } as EforgeEvent;
+      ctx.buildFailed = true;
+      return;
+    }
+
+    if (implFailed) {
+      implTracker.cleanup();
+
+      // Check if this is an error_max_turns failure eligible for continuation
+      const isMaxTurns = failedError.includes('error_max_turns');
+      if (isMaxTurns && attempt < maxContinuations) {
+        // Check if the worktree has changes worth checkpointing
+        let hasChanges = false;
+        try {
+          const { stdout: status } = await exec('git', ['status', '--porcelain'], { cwd: ctx.worktreePath });
+          hasChanges = status.trim().length > 0;
+        } catch {
+          // If we can't check, assume no changes
+        }
+
+        if (!hasChanges) {
+          // No changes to checkpoint — fail immediately
+          implSpan.error('Implementation failed: error_max_turns with no changes');
+          yield { type: 'build:failed', planId: ctx.planId, error: failedError } as EforgeEvent;
+          ctx.buildFailed = true;
+          return;
+        }
+
+        // Checkpoint progress: stage all and commit
+        try {
+          await exec('git', ['add', '-A'], { cwd: ctx.worktreePath });
+          await forgeCommit(ctx.worktreePath, `wip(${ctx.planId}): continuation checkpoint (attempt ${attempt + 1})`);
+        } catch (checkpointErr) {
+          // If commit fails, emit build:failed and stop
+          const msg = `Continuation checkpoint failed: ${(checkpointErr as Error).message}`;
+          implSpan.error(msg);
+          yield { type: 'build:failed', planId: ctx.planId, error: msg } as EforgeEvent;
+          ctx.buildFailed = true;
+          return;
+        }
+
+        implSpan.end();
+
+        // Yield continuation event and retry
+        yield { type: 'build:implement:continuation', planId: ctx.planId, attempt: attempt + 1, maxContinuations } as EforgeEvent;
+        continue; // Next iteration of the continuation loop
+      }
+
+      // Non-max_turns error or exhausted continuations — fail
+      implSpan.error('Implementation failed');
+      yield { type: 'build:failed', planId: ctx.planId, error: failedError } as EforgeEvent;
+      ctx.buildFailed = true;
+      return;
+    }
+
+    // Success — clean exit from the loop
     implTracker.cleanup();
-    implSpan.error('Implementation failed');
-    ctx.buildFailed = true;
-    return; // Skip remaining stages
+    implSpan.end();
+    break;
   }
-  implTracker.cleanup();
-  implSpan.end();
 
   // Emit files changed by implementation (non-critical)
   try {

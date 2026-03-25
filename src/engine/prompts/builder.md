@@ -10,6 +10,8 @@ You are working in a git worktree. All changes should be made within this workin
 - **Plan Name**: {{plan_name}}
 - **Branch**: {{plan_branch}}
 
+{{continuation_context}}
+
 ## Plan Content
 
 {{plan_content}}

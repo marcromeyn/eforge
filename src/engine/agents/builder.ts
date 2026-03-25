@@ -25,6 +25,12 @@ export interface BuilderOptions {
   parallelStages?: string[][];
   /** Verification scope: 'full' runs all checks, 'build-only' skips tests (handled by test stages) */
   verificationScope?: 'full' | 'build-only';
+  /** Continuation context when retrying after maxTurns exhaustion */
+  continuationContext?: {
+    attempt: number;
+    maxContinuations: number;
+    completedDiff: string;
+  };
 }
 
 /**
@@ -96,6 +102,22 @@ export async function* builderImplement(
     ? VERIFICATION_BUILD_ONLY
     : VERIFICATION_FULL;
 
+  let continuationContextText = '';
+  if (options.continuationContext) {
+    const { attempt, maxContinuations, completedDiff } = options.continuationContext;
+    continuationContextText = `## Continuation Context
+
+**This is continuation attempt ${attempt} of ${maxContinuations}.**
+
+The previous builder run was interrupted because it ran out of conversation turns. All progress has been committed. Do NOT redo any of the completed work shown below — pick up where it left off.
+
+<completed_diff>
+${completedDiff}
+</completed_diff>
+
+Review the diff above, then continue implementing the remaining parts of the plan. Use the Agent tool to parallelize bulk edits when many files remain.`;
+  }
+
   const prompt = await loadPrompt('builder', {
     plan_id: plan.id,
     plan_name: plan.name,
@@ -103,6 +125,7 @@ export async function* builderImplement(
     plan_branch: plan.branch,
     parallelLanes,
     verification_scope: verificationScopeText,
+    continuation_context: continuationContextText,
   });
 
   try {
