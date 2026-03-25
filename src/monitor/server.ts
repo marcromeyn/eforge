@@ -75,6 +75,26 @@ export async function startServer(
 ): Promise<MonitorServer> {
   const subscribers = new Set<SSESubscriber>();
 
+  // Resolve git remote once at startup
+  const cwd = options?.cwd;
+  let cachedGitRemote: string | null = null;
+  if (cwd) {
+    try {
+      const { stdout } = await execAsync('git', ['remote', 'get-url', 'origin'], { cwd });
+      cachedGitRemote = stdout.trim() || null;
+    } catch {
+      cachedGitRemote = null;
+    }
+  }
+
+  function serveProjectContext(_req: IncomingMessage, res: ServerResponse): void {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    });
+    res.end(JSON.stringify({ cwd: cwd ?? null, gitRemote: cachedGitRemote }));
+  }
+
   function resolveSessionId(id: string): string {
     const run = db.getRun(id);
     return run?.sessionId ?? id;
@@ -912,7 +932,9 @@ export async function startServer(
       return;
     }
 
-    if (url === '/api/health') {
+    if (url === '/api/project-context') {
+      serveProjectContext(req, res);
+    } else if (url === '/api/health') {
       serveHealth(req, res);
     } else if (url === '/api/config/show') {
       try {

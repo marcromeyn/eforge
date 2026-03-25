@@ -19,8 +19,9 @@ import { useEforgeEvents } from '@/hooks/use-eforge-events';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
 import { useAutoBuild } from '@/hooks/use-auto-build';
 import { getSummaryStats } from '@/lib/reducer';
-import { fetchLatestSessionId, fetchOrchestration } from '@/lib/api';
+import { fetchLatestSessionId, fetchOrchestration, fetchProjectContext } from '@/lib/api';
 import type { OrchestrationConfig, PipelineStage } from '@/lib/types';
+import type { ProjectContext } from '@/components/layout/header';
 
 type ContentTab = 'plans' | 'graph' | 'changes';
 
@@ -38,6 +39,14 @@ export function App() {
   const { runState, connectionStatus, shutdownCountdown } = useEforgeEvents(currentSessionId);
   const { containerRef, autoScroll, enableAutoScroll } = useAutoScroll([runState.events.length]);
   const { state: autoBuildState, toggling: autoBuildToggling, toggle: onToggleAutoBuild } = useAutoBuild();
+  const [projectContext, setProjectContext] = useState<ProjectContext | null>(null);
+
+  // Fetch project context once on mount
+  useEffect(() => {
+    fetchProjectContext()
+      .then(setProjectContext)
+      .catch(() => {});
+  }, []);
 
   // Persist panel layout to localStorage
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
@@ -229,7 +238,7 @@ export function App() {
   return (
     <PlanPreviewProvider>
       <AppLayout
-        header={<Header connectionStatus={connectionStatus} autoBuildState={autoBuildState} autoBuildToggling={autoBuildToggling} onToggleAutoBuild={onToggleAutoBuild} />}
+        header={<Header connectionStatus={connectionStatus} autoBuildState={autoBuildState} autoBuildToggling={autoBuildToggling} onToggleAutoBuild={onToggleAutoBuild} projectContext={projectContext} />}
         sidebar={
           <Sidebar
             currentSessionId={currentSessionId}
@@ -243,15 +252,17 @@ export function App() {
         <ResizablePanelGroup orientation="vertical" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
           {/* Upper panel: summary + tabs */}
           <ResizablePanel id="upper" defaultSize={65} minSize={30}>
-            <main className="overflow-y-auto px-6 py-5 flex flex-col gap-4 h-full">
+            <main className="overflow-y-auto px-6 py-3 flex flex-col gap-4 h-full">
               {!hasEvents ? (
                 <div className="flex items-center justify-center h-full text-text-dim text-sm">
                   Waiting for events...
                 </div>
               ) : (
                 <>
-                  <SummaryCards {...stats} isComplete={runState.resultStatus === 'completed'} isFailed={runState.resultStatus === 'failed'} />
-                  <ActivityHeatstrip events={runState.events} startTime={runState.startTime} endTime={runState.endTime} />
+                  <div className="flex flex-col gap-2">
+                    <SummaryCards {...stats} isComplete={runState.resultStatus === 'completed'} isFailed={runState.resultStatus === 'failed'} />
+                    <ActivityHeatstrip events={runState.events} startTime={runState.startTime} endTime={runState.endTime} />
+                  </div>
                   <ThreadPipeline agentThreads={runState.agentThreads} startTime={runState.startTime} endTime={runState.endTime} planStatuses={runState.planStatuses} reviewIssues={runState.reviewIssues} profileInfo={runState.profileInfo} />
 
                   {/* Content tabs */}

@@ -86,6 +86,12 @@ export async function setAutoBuild(enabled: boolean): Promise<AutoBuildState | n
   }
 }
 
+export async function fetchProjectContext(): Promise<{ cwd: string | null; gitRemote: string | null }> {
+  const res = await fetch('/api/project-context');
+  if (!res.ok) throw new Error(`Failed to fetch project context: ${res.status}`);
+  return res.json();
+}
+
 export async function cancelSession(sessionId: string): Promise<{ status: string; sessionId: string } | null> {
   try {
     const res = await fetch(`/api/cancel/${sessionId}`, { method: 'POST' });

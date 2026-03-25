@@ -18,40 +18,12 @@ interface SummaryCardsProps {
   isFailed?: boolean;
 }
 
-function SummaryCard({ label, value, icon, accent, subtitle, children }: {
-  label: string;
-  value?: string;
-  icon?: React.ReactNode;
-  accent?: 'green' | 'red' | 'blue';
-  subtitle?: string;
-  children?: React.ReactNode;
-}) {
-  return (
-    <div className={cn(
-      'bg-card border rounded-lg px-4 py-3 min-w-[130px] shadow-sm shadow-black/20',
-      accent === 'green' && 'border-green/30',
-      accent === 'red' && 'border-red/30',
-      accent === 'blue' && 'border-blue/30',
-      !accent && 'border-border',
-    )}>
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-[11px] text-text-dim uppercase tracking-wide">{label}</span>
-      </div>
-      <div className={cn(
-        'text-lg font-bold mt-1',
-        accent === 'green' && 'text-green',
-        accent === 'red' && 'text-red',
-        accent === 'blue' && 'text-blue',
-        !accent && 'text-text-bright',
-      )}>
-        {children ?? value}
-      </div>
-      {subtitle && (
-        <div className="text-[10px] text-text-dim mt-0.5">{subtitle}</div>
-      )}
-    </div>
-  );
+function StatGroup({ children }: { children: React.ReactNode }) {
+  return <div className="flex items-center gap-1.5">{children}</div>;
+}
+
+function Separator() {
+  return <span className="text-text-dim/30 mx-1">·</span>;
 }
 
 export function SummaryCards({
@@ -79,42 +51,67 @@ export function SummaryCards({
   const formatCost = useCallback((n: number) => `$${(n / 10000).toFixed(4)}`, []);
 
   return (
-    <div className="flex gap-3 flex-wrap">
-      <SummaryCard
-        label="Status"
-        value={statusLabel}
-        icon={statusIcon}
-        accent={statusAccent}
-      />
-      <SummaryCard
-        label="Duration"
-        value={duration}
-        icon={<Clock className="w-3 h-3 text-text-dim" />}
-      />
+    <div className="flex items-center gap-1.5 flex-wrap text-xs">
+      <StatGroup>
+        {statusIcon}
+        <span className={cn(
+          'font-semibold',
+          statusAccent === 'green' && 'text-green',
+          statusAccent === 'red' && 'text-red',
+          statusAccent === 'blue' && 'text-blue',
+        )}>
+          {statusLabel}
+        </span>
+      </StatGroup>
+
+      <Separator />
+
+      <StatGroup>
+        <Clock className="w-3 h-3 text-text-dim" />
+        <span className="text-text-bright">{duration}</span>
+      </StatGroup>
+
       {plansTotal > 0 && (
-        <SummaryCard
-          label="Plans"
-          value={`${plansCompleted}/${plansTotal}${plansFailed ? ` (${plansFailed} failed)` : ''}`}
-          icon={<Layers className="w-3 h-3 text-text-dim" />}
-          accent={plansFailed > 0 ? 'red' : plansCompleted === plansTotal ? 'green' : undefined}
-        />
+        <>
+          <Separator />
+          <StatGroup>
+            <Layers className="w-3 h-3 text-text-dim" />
+            <span className={cn(
+              plansFailed > 0 ? 'text-red' : plansCompleted === plansTotal ? 'text-green' : 'text-text-bright',
+            )}>
+              {plansCompleted}/{plansTotal}{plansFailed ? ` (${plansFailed} failed)` : ''}
+            </span>
+          </StatGroup>
+        </>
       )}
+
       {tokensIn + tokensOut > 0 && (
-        <SummaryCard
-          label="Tokens"
-          icon={<Zap className="w-3 h-3 text-text-dim" />}
-          subtitle={cacheRead > 0 && tokensIn > 0 ? `${Math.round(cacheRead / tokensIn * 100)}% cached` : undefined}
-        >
-          <AnimatedCounter value={tokensIn + tokensOut} format={formatTokens} />
-        </SummaryCard>
+        <>
+          <Separator />
+          <StatGroup>
+            <Zap className="w-3 h-3 text-text-dim" />
+            <span className="text-text-bright">
+              <AnimatedCounter value={tokensIn + tokensOut} format={formatTokens} />
+            </span>
+            {cacheRead > 0 && tokensIn > 0 && (
+              <span className="text-text-dim text-[10px]">
+                ({Math.round(cacheRead / tokensIn * 100)}% cached)
+              </span>
+            )}
+          </StatGroup>
+        </>
       )}
+
       {totalCost > 0 && (
-        <SummaryCard
-          label="Cost"
-          icon={<DollarSign className="w-3 h-3 text-text-dim" />}
-        >
-          <AnimatedCounter value={Math.round(totalCost * 10000)} format={formatCost} />
-        </SummaryCard>
+        <>
+          <Separator />
+          <StatGroup>
+            <DollarSign className="w-3 h-3 text-text-dim" />
+            <span className="text-text-bright">
+              <AnimatedCounter value={Math.round(totalCost * 10000)} format={formatCost} />
+            </span>
+          </StatGroup>
+        </>
       )}
     </div>
   );

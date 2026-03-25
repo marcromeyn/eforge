@@ -6,7 +6,7 @@ An agentic build system. PRD in, reviewed and validated code out.
 
 `eforge` lets you stay at the planning level. Describe what you want built - a prompt, a markdown file, a full PRD - and hand it off. eforge handles the orchestration of planning, implementation, code review, and validation across specialized agents without you managing any of it.
 
-![eforge monitor - full pipeline](docs/images/monitor-full-pipeline.png)
+![eforge dashboard - full pipeline](docs/images/monitor-full-pipeline.png)
 
 ## How I Use It
 
@@ -96,7 +96,7 @@ flowchart TD
 
 **Parallel orchestration** - Expedition plans run in isolated git worktrees, merge in topological dependency order, then run post-merge validation with auto-fix.
 
-![eforge monitor - timeline view](docs/images/monitor-timeline.png)
+![eforge dashboard - timeline view](docs/images/monitor-timeline.png)
 
 ![eforge commits from an expedition build](docs/images/eforge-commits.png)
 

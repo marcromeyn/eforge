@@ -3,17 +3,48 @@ import type { ConnectionStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 
+export interface ProjectContext {
+  cwd: string | null;
+  gitRemote: string | null;
+}
+
 interface HeaderProps {
   connectionStatus: ConnectionStatus;
   autoBuildState: AutoBuildState | null;
   autoBuildToggling: boolean;
   onToggleAutoBuild: () => void;
+  projectContext?: ProjectContext | null;
 }
 
-export function Header({ connectionStatus, autoBuildState, autoBuildToggling, onToggleAutoBuild }: HeaderProps) {
+function extractOwnerRepo(gitRemote: string): string | null {
+  const match = gitRemote.match(/(?:github\.com[:/])([^/]+\/[^/.]+?)(?:\.git)?$/);
+  return match ? match[1] : null;
+}
+
+function getProjectLabel(projectContext: ProjectContext | null | undefined): string | null {
+  if (!projectContext) return null;
+  if (projectContext.gitRemote) {
+    const ownerRepo = extractOwnerRepo(projectContext.gitRemote);
+    if (ownerRepo) return ownerRepo;
+  }
+  if (projectContext.cwd) {
+    const parts = projectContext.cwd.split('/');
+    return parts[parts.length - 1] || null;
+  }
+  return null;
+}
+
+export function Header({ connectionStatus, autoBuildState, autoBuildToggling, onToggleAutoBuild, projectContext }: HeaderProps) {
+  const projectLabel = getProjectLabel(projectContext);
+
   return (
     <header className="col-span-full bg-card border-b border-border px-6 py-3.5 flex items-center gap-3 shadow-sm shadow-black/30">
-      <h1 className="text-base font-bold text-text-bright tracking-tight">eforge monitor</h1>
+      <h1 className="text-base font-bold text-text-bright tracking-tight">eforge</h1>
+      {projectLabel && (
+        <span className="text-xs text-text-dim">
+          {projectLabel}
+        </span>
+      )}
       <div className="ml-auto text-xs flex items-center gap-2">
         {autoBuildState !== null && (
           <label className={cn('flex items-center gap-1.5 text-text-dim', autoBuildToggling ? 'cursor-not-allowed opacity-50' : 'cursor-pointer')}>
