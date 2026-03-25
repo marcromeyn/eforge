@@ -34,6 +34,49 @@ export async function* withSessionId(
 }
 
 /**
+ * Async generator middleware that stamps `runId` on every event.
+ *
+ * Tracks the current run via `phase:start` / `phase:end` boundaries.
+ * Events between `phase:start` and `phase:end` get `runId` set to the phase's run ID.
+ * Events outside any phase (queue events, inter-session gaps) are not stamped.
+ * `session:end` arrives after `phase:end`, so it gets stamped with `lastRunId`
+ * from the most recent phase — ensuring the recorder can associate it with the final run.
+ */
+export async function* withRunId(
+  events: AsyncGenerator<EforgeEvent>,
+): AsyncGenerator<EforgeEvent> {
+  let currentRunId: string | undefined;
+  let lastRunId: string | undefined;
+
+  for await (const event of events) {
+    if (event.type === 'phase:start' && 'runId' in event) {
+      currentRunId = (event as { runId: string }).runId;
+      lastRunId = currentRunId;
+    }
+
+    if (event.type === 'phase:end') {
+      // Stamp phase:end with the current runId before clearing
+      yield { ...event, runId: currentRunId ?? event.runId } as EforgeEvent;
+      currentRunId = undefined;
+      continue;
+    }
+
+    if (event.type === 'session:end' && !currentRunId && lastRunId) {
+      // session:end arrives after phase:end — stamp with lastRunId
+      yield { ...event, runId: lastRunId } as EforgeEvent;
+      lastRunId = undefined;
+      continue;
+    }
+
+    if (currentRunId) {
+      yield { ...event, runId: currentRunId } as EforgeEvent;
+    } else {
+      yield event;
+    }
+  }
+}
+
+/**
  * Async generator wrapper that guarantees session:start/session:end envelope.
  *
  * Emits session:start before the first event, stamps sessionId on all events,

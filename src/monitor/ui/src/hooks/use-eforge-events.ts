@@ -86,13 +86,14 @@ export function useEforgeEvents(sessionId: string | null): UseEforgeEventsResult
           } catch { /* skip unparseable */ }
         }
 
-        dispatch({ type: 'BATCH_LOAD', events: parsed });
+        dispatch({ type: 'BATCH_LOAD', events: parsed, serverStatus: data.status });
         setConnectionStatus('connected');
 
         const lastEventId = data.events.length > 0 ? data.events[data.events.length - 1].id : 0;
         const hasSessionEnd = parsed.some((ev) => ev.event.type === 'session:end');
+        const isServerComplete = data.status === 'completed' || data.status === 'failed';
 
-        if (hasSessionEnd) {
+        if (hasSessionEnd || isServerComplete) {
           // Session is done — cache it and skip SSE
           const finalState = parsed.reduce(
             (st, ev) => eforgeReducer(st, { type: 'ADD_EVENT', ...ev }),

@@ -13,13 +13,11 @@ export async function* withRecording(
   cwd: string,
   pid?: number,
 ): AsyncGenerator<EforgeEvent> {
-  let runId: string | undefined;
   let enqueueRunId: string | undefined;
   let bufferedSessionStart: EforgeEvent | undefined;
 
   for await (const event of events) {
     if (event.type === 'phase:start') {
-      runId = event.runId;
       enqueueRunId = undefined; // phase:start takes over from enqueue tracking
       db.insertRun({
         id: event.runId,
@@ -45,7 +43,7 @@ export async function* withRecording(
       }
     }
 
-    if (event.type === 'session:start' && !runId && !enqueueRunId) {
+    if (event.type === 'session:start' && !event.runId && !enqueueRunId) {
       bufferedSessionStart = event;
     }
 
@@ -78,7 +76,7 @@ export async function* withRecording(
       }
     }
 
-    const activeRunId = runId ?? enqueueRunId;
+    const activeRunId = event.runId ?? enqueueRunId;
 
     if (activeRunId && event.type !== 'session:start') {
       db.insertEvent({
@@ -100,12 +98,11 @@ export async function* withRecording(
       db.updateRunStatus(enqueueRunId, 'failed', new Date().toISOString());
     }
 
-    if (event.type === 'phase:end' && runId) {
-      db.updateRunStatus(runId, event.result.status, event.timestamp);
-      runId = undefined;
+    if (event.type === 'phase:end' && event.runId) {
+      db.updateRunStatus(event.runId, event.result.status, event.timestamp);
     }
 
-    if (event.type === 'session:end' && enqueueRunId && !runId) {
+    if (event.type === 'session:end' && enqueueRunId && !event.runId) {
       if ('result' in event && event.result) {
         const result = event.result as { status: string };
         if (result.status === 'failed') {
@@ -115,7 +112,6 @@ export async function* withRecording(
     }
 
     if (event.type === 'session:end') {
-      runId = undefined;
       enqueueRunId = undefined;
     }
 

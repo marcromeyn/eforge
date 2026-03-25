@@ -13,7 +13,7 @@ import {
 import type { EforgeConfig, HookConfig } from '../engine/config.js';
 import type { EforgeEvent } from '../engine/events.js';
 import { withHooks } from '../engine/hooks.js';
-import { withSessionId, runSession } from '../engine/session.js';
+import { withSessionId, withRunId, runSession } from '../engine/session.js';
 import { initDisplay, renderEvent, renderStatus, renderDryRun, renderLangfuseStatus, renderQueueList, stopAllSpinners } from './display.js';
 import { createClarificationHandler, createApprovalHandler } from './interactive.js';
 import { ensureMonitor, signalMonitorShutdown, type Monitor } from '../monitor/index.js';
@@ -74,6 +74,7 @@ function wrapEvents(
   sessionOpts?: import('../engine/session.js').SessionOptions,
 ): AsyncGenerator<EforgeEvent> {
   let wrapped = sessionOpts ? withSessionId(events, sessionOpts) : events;
+  wrapped = withRunId(wrapped);
   if (hooks.length > 0) {
     wrapped = withHooks(wrapped, hooks, process.cwd());
   }

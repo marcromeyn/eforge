@@ -120,7 +120,7 @@ export interface EforgeStatus {
   completedPlans: string[];
 }
 
-export type EforgeEvent = { sessionId?: string } & (
+export type EforgeEvent = { sessionId?: string; runId?: string } & (
   // Session lifecycle (one per eforge invocation, wraps all phases)
   | { type: 'session:start'; sessionId: string; timestamp: string }
   | { type: 'session:end'; sessionId: string; result: EforgeResult; timestamp: string }
