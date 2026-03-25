@@ -285,6 +285,129 @@ describe('queue cycle event scoping', () => {
   });
 });
 
+describe('multi-phase session recording with withRunId', () => {
+  const makeTempDir = useTempDir();
+
+  it('session:end IS present in SQLite events after compile + build phases', async () => {
+    const cwd = makeTempDir();
+    mkdirSync(resolve(cwd, '.eforge'), { recursive: true });
+    const dbPath = resolve(cwd, '.eforge', 'monitor.db');
+    const db = openDatabase(dbPath);
+
+    const now = new Date().toISOString();
+
+    // Simulate a multi-phase session: compile then build
+    async function* multiPhaseEvents(): AsyncGenerator<EforgeEvent> {
+      yield { type: 'session:start', sessionId: 'session-multi', timestamp: now } as unknown as EforgeEvent;
+      // Compile phase
+      yield { type: 'phase:start', runId: 'run-compile', sessionId: 'session-multi', planSet: 'test-set', command: 'compile', timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'plan:start', source: 'test.md' } as unknown as EforgeEvent;
+      yield { type: 'phase:end', runId: 'run-compile', sessionId: 'session-multi', result: { status: 'completed' }, timestamp: now } as unknown as EforgeEvent;
+      // Build phase
+      yield { type: 'phase:start', runId: 'run-build', sessionId: 'session-multi', planSet: 'test-set', command: 'build', timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'build:start', planId: 'plan-01' } as unknown as EforgeEvent;
+      yield { type: 'build:complete', planId: 'plan-01' } as unknown as EforgeEvent;
+      yield { type: 'phase:end', runId: 'run-build', sessionId: 'session-multi', result: { status: 'completed' }, timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'session:end', sessionId: 'session-multi', result: { status: 'completed', summary: 'All done' }, timestamp: now } as unknown as EforgeEvent;
+    }
+
+    // Run through withRunId then withRecording
+    const { withRunId } = await import('../src/engine/session.js');
+    const { withRecording } = await import('../src/monitor/recorder.js');
+    const stamped = withRunId(multiPhaseEvents());
+    const recorded = withRecording(stamped, db, cwd);
+
+    const collected: EforgeEvent[] = [];
+    for await (const event of recorded) {
+      collected.push(event);
+    }
+
+    expect(collected).toHaveLength(9);
+
+    // Both runs should exist
+    const runs = db.getRuns();
+    const compileRun = runs.find((r) => r.id === 'run-compile');
+    const buildRun = runs.find((r) => r.id === 'run-build');
+    expect(compileRun).toBeDefined();
+    expect(buildRun).toBeDefined();
+    expect(compileRun!.status).toBe('completed');
+    expect(buildRun!.status).toBe('completed');
+
+    // session:end should be recorded under the build run (via withRunId's lastRunId)
+    const buildEvents = db.getEvents('run-build');
+    const buildEventTypes = buildEvents.map((e) => e.type);
+    expect(buildEventTypes).toContain('session:end');
+
+    db.close();
+  });
+});
+
+describe('queue cycle recording with session:end presence', () => {
+  const makeTempDir = useTempDir();
+
+  it('session:end events ARE present per run in the DB', async () => {
+    const cwd = makeTempDir();
+    mkdirSync(resolve(cwd, '.eforge'), { recursive: true });
+    const dbPath = resolve(cwd, '.eforge', 'monitor.db');
+    const db = openDatabase(dbPath);
+
+    const now = new Date().toISOString();
+
+    // Simulate a queue cycle with 2 PRD sessions, using withRunId
+    async function* queueCycleEvents(): AsyncGenerator<EforgeEvent> {
+      // --- PRD 1 session ---
+      yield { type: 'session:start', sessionId: 'session-1', timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'phase:start', runId: 'run-1', sessionId: 'session-1', planSet: 'prd-1', command: 'build', timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'build:start', planId: 'plan-01' } as unknown as EforgeEvent;
+      yield { type: 'phase:end', runId: 'run-1', sessionId: 'session-1', result: { status: 'completed' }, timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'session:end', sessionId: 'session-1', result: { status: 'completed', summary: 'Done' }, timestamp: now } as unknown as EforgeEvent;
+
+      // --- Queue-level events between sessions ---
+      yield { type: 'queue:watch:cycle', processed: 1, skipped: 0 } as unknown as EforgeEvent;
+
+      // --- PRD 2 session ---
+      yield { type: 'session:start', sessionId: 'session-2', timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'phase:start', runId: 'run-2', sessionId: 'session-2', planSet: 'prd-2', command: 'build', timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'build:start', planId: 'plan-02' } as unknown as EforgeEvent;
+      yield { type: 'phase:end', runId: 'run-2', sessionId: 'session-2', result: { status: 'completed' }, timestamp: now } as unknown as EforgeEvent;
+      yield { type: 'session:end', sessionId: 'session-2', result: { status: 'completed', summary: 'Done' }, timestamp: now } as unknown as EforgeEvent;
+    }
+
+    const { withRunId } = await import('../src/engine/session.js');
+    const { withRecording } = await import('../src/monitor/recorder.js');
+    const stamped = withRunId(queueCycleEvents());
+    const recorded = withRecording(stamped, db, cwd);
+
+    const collected: EforgeEvent[] = [];
+    for await (const event of recorded) {
+      collected.push(event);
+    }
+
+    // Both runs should exist
+    const runs = db.getRuns();
+    const run1 = runs.find((r) => r.id === 'run-1');
+    const run2 = runs.find((r) => r.id === 'run-2');
+    expect(run1).toBeDefined();
+    expect(run2).toBeDefined();
+
+    // session:end should be present in run-1's events
+    const run1Events = db.getEvents('run-1');
+    const run1Types = run1Events.map((e) => e.type);
+    expect(run1Types).toContain('session:end');
+
+    // session:end should be present in run-2's events
+    const run2Events = db.getEvents('run-2');
+    const run2Types = run2Events.map((e) => e.type);
+    expect(run2Types).toContain('session:end');
+
+    // Queue-level events should NOT be in either run
+    expect(run1Types).not.toContain('queue:watch:cycle');
+    expect(run2Types).not.toContain('queue:watch:cycle');
+
+    db.close();
+  });
+});
+
 describe('buildMonitor wiring', () => {
   const makeTempDir = useTempDir();
 
