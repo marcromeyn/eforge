@@ -19,7 +19,7 @@ interface PlanCardProps {
   review?: ReviewProfileConfig;
 }
 
-function StatusBadge({ status }: { status?: PipelineStage }) {
+export function StatusBadge({ status }: { status?: PipelineStage }) {
   if (!status) return null;
   const cls: Record<string, string> = {
     plan: 'bg-yellow/15 text-yellow',
@@ -36,7 +36,7 @@ function StatusBadge({ status }: { status?: PipelineStage }) {
   );
 }
 
-function ModuleStatusBadge({ status }: { status?: ModuleStatus }) {
+export function ModuleStatusBadge({ status }: { status?: ModuleStatus }) {
   if (!status) return null;
   if (status === 'planning') {
     return (

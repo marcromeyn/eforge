@@ -1,8 +1,16 @@
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import type { PipelineStage } from '@/lib/types';
+import type { ModuleStatus } from '@/lib/reducer';
 
 interface ContentPreview {
   title: string;
   content: string;
+}
+
+interface RuntimeData {
+  planStatuses: Record<string, PipelineStage>;
+  fileChanges: Map<string, string[]>;
+  moduleStatuses: Record<string, ModuleStatus>;
 }
 
 interface PlanPreviewContextValue {
@@ -11,6 +19,10 @@ interface PlanPreviewContextValue {
   contentPreview: ContentPreview | null;
   openContentPreview: (title: string, content: string) => void;
   closePreview: () => void;
+  planStatuses: Record<string, PipelineStage>;
+  fileChanges: Map<string, string[]>;
+  moduleStatuses: Record<string, ModuleStatus>;
+  setRuntimeData: (data: RuntimeData) => void;
 }
 
 const PlanPreviewContext = createContext<PlanPreviewContextValue | null>(null);
@@ -18,6 +30,9 @@ const PlanPreviewContext = createContext<PlanPreviewContextValue | null>(null);
 export function PlanPreviewProvider({ children }: { children: ReactNode }) {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [contentPreview, setContentPreview] = useState<ContentPreview | null>(null);
+  const [planStatuses, setPlanStatuses] = useState<Record<string, PipelineStage>>({});
+  const [fileChanges, setFileChanges] = useState<Map<string, string[]>>(new Map());
+  const [moduleStatuses, setModuleStatuses] = useState<Record<string, ModuleStatus>>({});
 
   const openPreview = useCallback((planId: string) => {
     setContentPreview(null);
@@ -34,8 +49,14 @@ export function PlanPreviewProvider({ children }: { children: ReactNode }) {
     setContentPreview(null);
   }, []);
 
+  const setRuntimeData = useCallback((data: RuntimeData) => {
+    setPlanStatuses(data.planStatuses);
+    setFileChanges(data.fileChanges);
+    setModuleStatuses(data.moduleStatuses);
+  }, []);
+
   return (
-    <PlanPreviewContext.Provider value={{ selectedPlanId, openPreview, contentPreview, openContentPreview, closePreview }}>
+    <PlanPreviewContext.Provider value={{ selectedPlanId, openPreview, contentPreview, openContentPreview, closePreview, planStatuses, fileChanges, moduleStatuses, setRuntimeData }}>
       {children}
     </PlanPreviewContext.Provider>
   );

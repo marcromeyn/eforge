@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { usePlanPreview } from './plan-preview-context';
 import { PlanMetadata } from './plan-metadata';
 import { PlanBodyHighlight } from './plan-body-highlight';
+import { BuildConfigSection } from '@/components/plans/build-config';
+import { StatusBadge, ModuleStatusBadge } from '@/components/plans/plan-card';
 import { splitPlanContent, parseFrontmatterFields } from '@/lib/plan-content';
 import { useApi } from '@/hooks/use-api';
 import { cn } from '@/lib/utils';
@@ -12,7 +14,7 @@ interface PlanPreviewPanelProps {
 }
 
 export function PlanPreviewPanel({ sessionId }: PlanPreviewPanelProps) {
-  const { selectedPlanId, contentPreview, closePreview } = usePlanPreview();
+  const { selectedPlanId, contentPreview, closePreview, planStatuses, fileChanges, moduleStatuses } = usePlanPreview();
   const isOpen = selectedPlanId !== null || contentPreview !== null;
   const { data: plans, loading, error } = useApi<PlanData[]>(
     selectedPlanId && sessionId ? `/api/plans/${sessionId}` : null,
@@ -45,6 +47,11 @@ export function PlanPreviewPanel({ sessionId }: PlanPreviewPanelProps) {
         };
       })()
     : null;
+
+  // Runtime data for selected plan
+  const planStatus = selectedPlanId ? planStatuses[selectedPlanId] : undefined;
+  const planFileChanges = selectedPlanId ? fileChanges.get(selectedPlanId) : undefined;
+  const moduleStatus = selectedPlanId ? moduleStatuses[selectedPlanId] : undefined;
 
   // Escape key to close
   useEffect(() => {
@@ -93,6 +100,8 @@ export function PlanPreviewPanel({ sessionId }: PlanPreviewPanelProps) {
             <h2 className="text-sm font-semibold text-foreground truncate">
               {contentPreview?.title ?? selectedPlan?.name ?? 'Plan Preview'}
             </h2>
+            {selectedPlan && planType === 'plan' && <StatusBadge status={planStatus} />}
+            {selectedPlan && planType === 'module' && <ModuleStatusBadge status={moduleStatus} />}
           </div>
           <button
             onClick={closePreview}
@@ -131,6 +140,19 @@ export function PlanPreviewPanel({ sessionId }: PlanPreviewPanelProps) {
           {!contentPreview && !loading && !error && selectedPlan && (
             <>
               {metadata && <PlanMetadata {...metadata} />}
+              <BuildConfigSection build={selectedPlan.build} review={selectedPlan.review} />
+              {planFileChanges && planFileChanges.length > 0 && (
+                <div>
+                  <div className="text-[10px] uppercase tracking-wide text-text-dim mb-1">Files Changed</div>
+                  <div className="flex flex-wrap gap-1">
+                    {planFileChanges.map((f) => (
+                      <span key={f} className="text-[10px] font-mono bg-bg-tertiary px-1.5 py-0.5 rounded text-text-dim">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <PlanBodyHighlight content={selectedPlan.body} />
             </>
           )}
