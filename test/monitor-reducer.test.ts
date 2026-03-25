@@ -320,6 +320,116 @@ describe('enqueue events in reducer', () => {
   });
 });
 
+describe('BATCH_LOAD with serverStatus', () => {
+  it('sets resultStatus and isComplete from serverStatus when no session:end event', () => {
+    const events = [
+      {
+        event: {
+          type: 'phase:start' as const,
+          runId: 'run-1',
+          planSet: 'test',
+          command: 'build' as const,
+          timestamp: '2024-01-01T00:00:00Z',
+        },
+        eventId: '1',
+      },
+    ];
+    const result = eforgeReducer(initialRunState, {
+      type: 'BATCH_LOAD',
+      events,
+      serverStatus: 'completed',
+    });
+    expect(result.resultStatus).toBe('completed');
+    expect(result.isComplete).toBe(true);
+  });
+
+  it('sets resultStatus to failed from serverStatus when no session:end event', () => {
+    const events = [
+      {
+        event: {
+          type: 'phase:start' as const,
+          runId: 'run-1',
+          planSet: 'test',
+          command: 'build' as const,
+          timestamp: '2024-01-01T00:00:00Z',
+        },
+        eventId: '1',
+      },
+    ];
+    const result = eforgeReducer(initialRunState, {
+      type: 'BATCH_LOAD',
+      events,
+      serverStatus: 'failed',
+    });
+    expect(result.resultStatus).toBe('failed');
+    expect(result.isComplete).toBe(true);
+  });
+
+  it('preserves resultStatus from session:end when no serverStatus provided', () => {
+    const events: Array<{ event: EforgeEvent; eventId: string }> = [
+      {
+        event: {
+          type: 'session:end',
+          sessionId: 'session-1',
+          result: { status: 'completed', summary: 'Done' },
+          timestamp: '2024-01-01T00:01:00Z',
+        } as unknown as EforgeEvent,
+        eventId: '1',
+      },
+    ];
+    const result = eforgeReducer(initialRunState, {
+      type: 'BATCH_LOAD',
+      events,
+    });
+    expect(result.resultStatus).toBe('completed');
+    expect(result.isComplete).toBe(true);
+  });
+
+  it('does not override session:end result with serverStatus', () => {
+    const events: Array<{ event: EforgeEvent; eventId: string }> = [
+      {
+        event: {
+          type: 'session:end',
+          sessionId: 'session-1',
+          result: { status: 'failed', summary: 'Build failed' },
+          timestamp: '2024-01-01T00:01:00Z',
+        } as unknown as EforgeEvent,
+        eventId: '1',
+      },
+    ];
+    const result = eforgeReducer(initialRunState, {
+      type: 'BATCH_LOAD',
+      events,
+      serverStatus: 'completed',
+    });
+    // session:end already set isComplete, so serverStatus override is skipped
+    expect(result.resultStatus).toBe('failed');
+    expect(result.isComplete).toBe(true);
+  });
+
+  it('ignores serverStatus when it is "running"', () => {
+    const events = [
+      {
+        event: {
+          type: 'phase:start' as const,
+          runId: 'run-1',
+          planSet: 'test',
+          command: 'build' as const,
+          timestamp: '2024-01-01T00:00:00Z',
+        },
+        eventId: '1',
+      },
+    ];
+    const result = eforgeReducer(initialRunState, {
+      type: 'BATCH_LOAD',
+      events,
+      serverStatus: 'running',
+    });
+    expect(result.resultStatus).toBeNull();
+    expect(result.isComplete).toBe(false);
+  });
+});
+
 describe('getSummaryStats', () => {
   it('returns defaults for empty state', () => {
     const stats = getSummaryStats(initialRunState);

@@ -76,7 +76,7 @@ export const initialRunState: RunState = {
 
 export type RunAction =
   | { type: 'ADD_EVENT'; event: EforgeEvent; eventId: string }
-  | { type: 'BATCH_LOAD'; events: Array<{ event: EforgeEvent; eventId: string }> }
+  | { type: 'BATCH_LOAD'; events: Array<{ event: EforgeEvent; eventId: string }>; serverStatus?: string }
   | { type: 'RESET' };
 
 /** Process a single event into mutable state accumulators */
@@ -334,6 +334,14 @@ export function eforgeReducer(state: RunState, action: RunAction): RunState {
 
       for (const { event } of action.events) {
         processEvent(event, acc);
+      }
+
+      // Apply server status as authoritative override when events are incomplete
+      if (action.serverStatus && !acc.isComplete) {
+        if (action.serverStatus === 'completed' || action.serverStatus === 'failed') {
+          acc.isComplete = true;
+          acc.resultStatus = action.serverStatus;
+        }
       }
 
       return {
