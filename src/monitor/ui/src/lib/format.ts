@@ -51,3 +51,27 @@ export function formatRunDuration(startedAt: string, completedAt?: string): stri
   const end = completedAt ? new Date(completedAt).getTime() : Date.now();
   return formatDuration(end - start);
 }
+
+export function shortenPath(path: string, maxChars: number = 50): string {
+  if (!path) return '';
+  if (path.length <= maxChars) return path;
+
+  const segments = path.split('/');
+  if (segments.length <= 1) return path;
+
+  const filename = segments[segments.length - 1];
+  // Build from right to left, always keeping filename
+  let result = filename;
+
+  for (let i = segments.length - 2; i >= 0; i--) {
+    const candidate = segments.slice(i).join('/');
+    if (('…/' + candidate).length > maxChars) break;
+    result = candidate;
+  }
+
+  // If we kept all segments, return the original path
+  if (result === path) return path;
+
+  // If we couldn't add any parent dirs, still return …/filename
+  return '…/' + result;
+}
