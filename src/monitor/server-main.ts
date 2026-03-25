@@ -252,7 +252,6 @@ async function main(): Promise<void> {
     });
     child.unref();
     watcherProcess = child;
-    daemonState.autoBuild = false;
 
     daemonState.watcher = {
       running: true,
