@@ -1,7 +1,7 @@
 ---
 title: Remove Plans Tab, Enhance Slide-in Preview, Default to Changes Tab
 created: 2026-03-25
-status: pending
+status: running
 ---
 
 # Remove Plans Tab, Enhance Slide-in Preview, Default to Changes Tab

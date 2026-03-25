@@ -1,0 +1,33 @@
+name: remove-plans-tab-enhance-slide-in-preview-default-to-changes-tab
+description: Remove Plans tab, enhance slide-in preview panel with full plan
+  details, default to always-enabled Changes tab
+created: 2026-03-25
+compiled: 2026-03-25
+mode: errand
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm build
+plans:
+  - id: plan-01-remove-plans-tab-enhance-preview
+    name: Remove Plans Tab, Enhance Slide-in Preview, Default to Changes Tab
+    depends_on: []
+    branch: remove-plans-tab-enhance-slide-in-preview-default-to-changes-tab/remove-plans-tab-enhance-preview
+    build:
+      - implement
+      - review-cycle
+    review:
+      strategy: auto
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: standard
+profile:
+  extends: excursion
+  description: "Multi-file feature work or refactors. Use when changes touch many
+    files but are tightly coupled - e.g., type signature changes that cascade to
+    consumers, interface refactors, rename-and-update-all-callers. The key test:
+    can every piece pass type-check independently? If not, use excursion."
+  compile:
+    - planner
+    - plan-review-cycle
