@@ -1,0 +1,30 @@
+name: fix-allow-diff-viewer-to-show-diffs-before-merge
+description: Remove client-side mergeCommits guards from DiffViewer so diffs
+  render during build phase using the server's branch-based fallback
+created: 2026-03-25
+compiled: 2026-03-25
+mode: errand
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm build
+plans:
+  - id: plan-01-remove-merge-commit-guards
+    name: Remove mergeCommits guards from DiffViewer
+    depends_on: []
+    branch: fix-allow-diff-viewer-to-show-diffs-before-merge/remove-merge-commit-guards
+    build:
+      - implement
+      - review-cycle
+    review:
+      strategy: auto
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: lenient
+profile:
+  extends: errand
+  description: Small, self-contained changes. Single file or a few lines. Low
+    risk, no architectural impact.
+  compile:
+    - prd-passthrough
