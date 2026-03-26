@@ -62,8 +62,10 @@ export async function runMcpProxy(cwd: string): Promise<void> {
         .describe('PRD file path or inline description to enqueue for building'),
     },
     async ({ source }) => {
-      const result = await daemonRequest(cwd, 'POST', '/api/enqueue', { source });
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      const { data, port } = await daemonRequest(cwd, 'POST', '/api/enqueue', { source });
+      const obj = data != null && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : { data };
+      const response = { ...obj, monitorUrl: `http://localhost:${port}` };
+      return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
     },
   );
 
@@ -76,8 +78,10 @@ export async function runMcpProxy(cwd: string): Promise<void> {
       flags: z.array(z.string()).optional().describe('Optional CLI flags'),
     },
     async ({ source, flags }) => {
-      const result = await daemonRequest(cwd, 'POST', '/api/enqueue', { source, flags: sanitizeFlags(flags) });
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      const { data, port } = await daemonRequest(cwd, 'POST', '/api/enqueue', { source, flags: sanitizeFlags(flags) });
+      const obj = data != null && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : { data };
+      const response = { ...obj, monitorUrl: `http://localhost:${port}` };
+      return { content: [{ type: 'text', text: JSON.stringify(response, null, 2) }] };
     },
   );
 
@@ -91,8 +95,8 @@ export async function runMcpProxy(cwd: string): Promise<void> {
     },
     async ({ action, enabled }) => {
       if (action === 'get') {
-        const result = await daemonRequest(cwd, 'GET', '/api/auto-build');
-        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+        const { data } = await daemonRequest(cwd, 'GET', '/api/auto-build');
+        return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
       }
       // action === 'set'
       if (enabled === undefined) {
@@ -101,8 +105,8 @@ export async function runMcpProxy(cwd: string): Promise<void> {
           isError: true,
         };
       }
-      const result = await daemonRequest(cwd, 'POST', '/api/auto-build', { enabled });
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      const { data } = await daemonRequest(cwd, 'POST', '/api/auto-build', { enabled });
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     },
   );
 
@@ -112,11 +116,12 @@ export async function runMcpProxy(cwd: string): Promise<void> {
     'Get the current run status including plan progress, session state, and event summary.',
     {},
     async () => {
-      const latestRun = await daemonRequest(cwd, 'GET', '/api/latest-run') as { sessionId?: string };
-      if (!latestRun?.sessionId) {
+      const { data: latestRun } = await daemonRequest(cwd, 'GET', '/api/latest-run');
+      const latestRunObj = latestRun as { sessionId?: string };
+      if (!latestRunObj?.sessionId) {
         return { content: [{ type: 'text', text: JSON.stringify({ status: 'idle', message: 'No active eforge sessions.' }) }] };
       }
-      const summary = await daemonRequest(cwd, 'GET', `/api/run-summary/${encodeURIComponent(latestRun.sessionId)}`);
+      const { data: summary } = await daemonRequest(cwd, 'GET', `/api/run-summary/${encodeURIComponent(latestRunObj.sessionId)}`);
       return { content: [{ type: 'text', text: JSON.stringify(summary, null, 2) }] };
     },
   );
@@ -127,8 +132,8 @@ export async function runMcpProxy(cwd: string): Promise<void> {
     'List all PRDs currently in the eforge queue with their metadata.',
     {},
     async () => {
-      const result = await daemonRequest(cwd, 'GET', '/api/queue');
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      const { data } = await daemonRequest(cwd, 'GET', '/api/queue');
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     },
   );
 
@@ -141,8 +146,8 @@ export async function runMcpProxy(cwd: string): Promise<void> {
     },
     async ({ action }) => {
       const path = action === 'validate' ? '/api/config/validate' : '/api/config/show';
-      const result = await daemonRequest(cwd, 'GET', path);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      const { data } = await daemonRequest(cwd, 'GET', path);
+      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
     },
   );
 

@@ -51,7 +51,7 @@ export async function daemonRequest(
   method: string,
   path: string,
   body?: unknown,
-): Promise<unknown> {
+): Promise<{ data: unknown; port: number }> {
   const port = await ensureDaemon(cwd);
   const url = `http://127.0.0.1:${port}${path}`;
   const options: RequestInit = {
@@ -69,8 +69,8 @@ export async function daemonRequest(
     throw new Error(`Daemon returned ${res.status}: ${truncated}`);
   }
   try {
-    return JSON.parse(text);
+    return { data: JSON.parse(text), port };
   } catch {
-    return text;
+    return { data: text, port };
   }
 }

@@ -255,7 +255,8 @@ export function createProgram(abortController?: AbortController): Command {
             const { ensureDaemon, daemonRequest } = await import('./daemon-client.js');
             const cwd = process.cwd();
             await ensureDaemon(cwd);
-            const result = await daemonRequest(cwd, 'POST', '/api/enqueue', { source }) as { sessionId?: string };
+            const { data } = await daemonRequest(cwd, 'POST', '/api/enqueue', { source });
+            const result = data as { sessionId?: string };
             const sessionId = result?.sessionId ?? 'unknown';
             console.log(chalk.green(`PRD enqueued (session: ${sessionId}). Daemon will auto-build.`));
 
