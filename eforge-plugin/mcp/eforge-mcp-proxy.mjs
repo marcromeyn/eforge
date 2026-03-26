@@ -45,6 +45,10 @@ function sanitizeFlags(flags) {
   return result;
 }
 
+function monitorUrl(port) {
+  return `http://localhost:${port}`;
+}
+
 const LOCKFILE_NAME = 'daemon.lock';
 const LEGACY_LOCKFILE_NAME = 'monitor.lock';
 const DAEMON_START_TIMEOUT_MS = 15_000;
@@ -137,9 +141,9 @@ async function daemonRequest(cwd, method, path, body) {
     throw new Error(`Daemon returned ${res.status}: ${truncated}`);
   }
   try {
-    return JSON.parse(text);
+    return { data: JSON.parse(text), port };
   } catch {
-    return text;
+    return { data: text, port };
   }
 }
 
@@ -174,10 +178,10 @@ server.tool(
     if (isQueueMode) {
       // Queue mode uses a dedicated endpoint that doesn't require source
       const queueFlags = sanitized.filter((f) => f !== '--queue');
-      const result = await daemonRequest(cwd, 'POST', '/api/queue/run', {
+      const { data, port } = await daemonRequest(cwd, 'POST', '/api/queue/run', {
         flags: queueFlags.length > 0 ? queueFlags : undefined,
       });
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      return { content: [{ type: 'text', text: JSON.stringify({ ...data, monitorUrl: monitorUrl(port) }, null, 2) }] };
     }
     if (!source) {
       return {
@@ -194,8 +198,8 @@ server.tool(
         isError: true,
       };
     }
-    const result = await daemonRequest(cwd, 'POST', '/api/run', { source, flags: sanitized });
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    const { data, port } = await daemonRequest(cwd, 'POST', '/api/run', { source, flags: sanitized });
+    return { content: [{ type: 'text', text: JSON.stringify({ ...data, monitorUrl: monitorUrl(port) }, null, 2) }] };
   },
 );
 
@@ -208,8 +212,8 @@ server.tool(
     flags: z.array(z.string()).optional().describe('Optional CLI flags'),
   },
   async ({ source, flags }) => {
-    const result = await daemonRequest(cwd, 'POST', '/api/enqueue', { source, flags: sanitizeFlags(flags) });
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    const { data, port } = await daemonRequest(cwd, 'POST', '/api/enqueue', { source, flags: sanitizeFlags(flags) });
+    return { content: [{ type: 'text', text: JSON.stringify({ ...data, monitorUrl: monitorUrl(port) }, null, 2) }] };
   },
 );
 
@@ -219,11 +223,11 @@ server.tool(
   'Get the current run status including plan progress, session state, and event summary.',
   {},
   async () => {
-    const latestRun = await daemonRequest(cwd, 'GET', '/api/latest-run');
+    const { data: latestRun } = await daemonRequest(cwd, 'GET', '/api/latest-run');
     if (!latestRun?.sessionId) {
       return { content: [{ type: 'text', text: JSON.stringify({ status: 'idle', message: 'No active eforge sessions.' }) }] };
     }
-    const state = await daemonRequest(cwd, 'GET', `/api/run-state/${encodeURIComponent(latestRun.sessionId)}`);
+    const { data: state } = await daemonRequest(cwd, 'GET', `/api/run-state/${encodeURIComponent(latestRun.sessionId)}`);
     return { content: [{ type: 'text', text: JSON.stringify(state, null, 2) }] };
   },
 );
@@ -234,8 +238,8 @@ server.tool(
   'List all PRDs currently in the eforge queue with their metadata (title, status, priority).',
   {},
   async () => {
-    const result = await daemonRequest(cwd, 'GET', '/api/queue');
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    const { data } = await daemonRequest(cwd, 'GET', '/api/queue');
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   },
 );
 
@@ -249,7 +253,7 @@ server.tool(
   async ({ runId }) => {
     // Events endpoint is SSE — not consumable via a single HTTP fetch.
     // Return a run-state snapshot instead, which includes recent events.
-    const state = await daemonRequest(cwd, 'GET', `/api/run-state/${encodeURIComponent(runId)}`);
+    const { data: state } = await daemonRequest(cwd, 'GET', `/api/run-state/${encodeURIComponent(runId)}`);
     return { content: [{ type: 'text', text: JSON.stringify(state, null, 2) }] };
   },
 );
@@ -262,8 +266,8 @@ server.tool(
     runId: z.string().describe('The run ID to fetch plans for'),
   },
   async ({ runId }) => {
-    const result = await daemonRequest(cwd, 'GET', `/api/plans/${encodeURIComponent(runId)}`);
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    const { data } = await daemonRequest(cwd, 'GET', `/api/plans/${encodeURIComponent(runId)}`);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   },
 );
 
@@ -281,8 +285,8 @@ server.tool(
     if (file) {
       path += `?file=${encodeURIComponent(file)}`;
     }
-    const result = await daemonRequest(cwd, 'GET', path);
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    const { data } = await daemonRequest(cwd, 'GET', path);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   },
 );
 
@@ -297,8 +301,8 @@ server.tool(
   },
   async ({ action }) => {
     const path = action === 'validate' ? '/api/config/validate' : '/api/config/show';
-    const result = await daemonRequest(cwd, 'GET', path);
-    return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    const { data } = await daemonRequest(cwd, 'GET', path);
+    return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }] };
   },
 );
 
