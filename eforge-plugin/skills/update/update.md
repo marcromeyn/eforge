@@ -38,7 +38,15 @@ After the install completes, run `eforge --version` again to confirm the new ver
 
 ### Step 5: Restart the Daemon
 
-Stop and restart the eforge daemon so it picks up the new CLI version:
+**Before stopping the daemon**, call the `mcp__eforge__eforge_status` tool to check for active builds.
+
+- If the response contains `status: 'running'`, **abort the update immediately** and tell the user:
+
+> An eforge build is currently running. The daemon cannot be safely restarted while builds are in progress. Please wait until all builds complete, then re-run `/eforge:update`.
+
+**Stop here. Do not proceed to `eforge daemon stop`.**
+
+- If the status is anything other than `'running'`, proceed to stop and restart the daemon:
 
 ```bash
 eforge daemon stop
@@ -79,3 +87,4 @@ Report the update results:
 | `npm view eforge version` fails | Report network or registry error; suggest retrying |
 | `npm install -g` fails | Show error output; suggest checking permissions or using `sudo` |
 | Daemon stop/start fails | Show error output; suggest running `eforge daemon start` manually |
+| Active build detected (`status: 'running'`) | Abort the update; tell the user to wait until all builds complete before retrying |
