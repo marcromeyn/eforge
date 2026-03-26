@@ -17,4 +17,6 @@ WORKDIR /workspace
 # Initialize a minimal test project
 RUN git init && git commit --allow-empty -m "init"
 
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["entrypoint.sh"]
 CMD ["bash"]

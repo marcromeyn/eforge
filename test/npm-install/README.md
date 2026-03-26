@@ -8,6 +8,8 @@ Local development puts eforge on PATH via `pnpm build`, so `npx -y eforge` resol
 
 ## Usage
 
+All commands run from `test/npm-install/`.
+
 ```bash
 # Build and start
 docker compose up -d --build
@@ -15,7 +17,7 @@ docker compose up -d --build
 # Attach
 docker compose exec eforge-test bash
 
-# First time: authenticate Claude Code (opens URL in your browser)
+# First time only: complete Claude Code setup (opens URL in your browser)
 claude
 
 # Add the eforge plugin from marketplace
@@ -31,13 +33,17 @@ exit
 # Stop (auth persists)
 docker compose down
 
-# Destroy auth volume (to re-authenticate)
+# Destroy auth volume (to start fresh)
 docker compose down -v
 ```
 
 ## Auth persistence
 
-Claude Code credentials are stored in a named Docker volume (`claude-auth`) mounted at `/root/.claude`. This persists between `docker compose down` / `up` cycles. Only `docker compose down -v` deletes it.
+Claude Code stores state in two places:
+- `~/.claude/` - credentials, plugins, session data
+- `~/.claude.json` - onboarding state, account info, feature flags
+
+Both are persisted via a named Docker volume (`claude-auth`) mounted at `/root/.claude`. An entrypoint script symlinks `~/.claude.json` into the volume so it survives container recreation. Auth and setup persist across `docker compose down` / `up --build` cycles. Only `docker compose down -v` resets everything.
 
 ## Verifying the npm version
 

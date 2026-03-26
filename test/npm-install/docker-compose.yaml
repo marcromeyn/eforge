@@ -1,3 +1,5 @@
+name: eforge-npm-test
+
 services:
   eforge-test:
     build:
