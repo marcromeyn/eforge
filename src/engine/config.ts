@@ -280,7 +280,7 @@ export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
   build: Object.freeze({ parallelism: availableParallelism(), worktreeDir: undefined, postMergeCommands: undefined, maxValidationRetries: 2, cleanupPlanFiles: true }),
   plan: Object.freeze({ outputDir: 'plans' }),
   plugins: Object.freeze({ enabled: true }),
-  prdQueue: Object.freeze({ dir: 'docs/prd-queue', autoRevise: false, autoBuild: true, watchPollIntervalMs: 5000 }),
+  prdQueue: Object.freeze({ dir: 'docs/prd-queue', autoRevise: true, autoBuild: true, watchPollIntervalMs: 5000 }),
   daemon: Object.freeze({ idleShutdownMs: 7_200_000 }),
   hooks: Object.freeze([]),
   profiles: BUILTIN_PROFILES,

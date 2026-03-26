@@ -33,7 +33,7 @@ plan:
 
 prdQueue:
   dir: docs/prd-queue         # Where queued PRDs are stored
-  autoRevise: false           # Auto-revise PRDs on enqueue
+  autoRevise: true            # Auto-revise stale PRDs before building
   watchPollIntervalMs: 5000   # Poll interval for watch mode (ms)
 ```
 
