@@ -1,0 +1,34 @@
+name: fix-monitor-port-collisions-across-simultaneous-projects
+description: Add global monitor port registry to prevent port collisions across
+  simultaneous eforge builds in different projects
+created: 2026-03-28
+compiled: 2026-03-28
+mode: monitor-port-registry
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm test
+plans:
+  - id: plan-01-port-registry
+    name: Global Monitor Port Registry
+    depends_on: []
+    branch: fix-monitor-port-collisions-across-simultaneous-projects/port-registry
+    build:
+      - implement
+      - review-cycle
+      - test-cycle
+    review:
+      strategy: auto
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: standard
+profile:
+  extends: excursion
+  description: "Multi-file feature work or refactors. Use when changes touch many
+    files but are tightly coupled - e.g., type signature changes that cascade to
+    consumers, interface refactors, rename-and-update-all-callers. The key test:
+    can every piece pass type-check independently? If not, use excursion."
+  compile:
+    - planner
+    - plan-review-cycle
