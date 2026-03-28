@@ -1,0 +1,30 @@
+name: fix-build-stage-breadcrumbs-missing-from-pipeline-view
+description: Enrich /api/orchestration endpoint with build and review fields so
+  BuildStageProgress breadcrumbs render in the pipeline view
+created: 2026-03-28
+compiled: 2026-03-28
+mode: trivial-server-fix
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm build
+plans:
+  - id: plan-01-enrich-orchestration-endpoint
+    name: Enrich Orchestration Endpoint with Build and Review Fields
+    depends_on: []
+    branch: fix-build-stage-breadcrumbs-missing-from-pipeline-view/enrich-orchestration-endpoint
+    build:
+      - implement
+      - review-cycle
+    review:
+      strategy: auto
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: lenient
+profile:
+  extends: errand
+  description: Small, self-contained changes. Single file or a few lines. Low
+    risk, no architectural impact.
+  compile:
+    - prd-passthrough
