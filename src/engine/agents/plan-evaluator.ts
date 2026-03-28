@@ -151,7 +151,7 @@ async function* runEvaluate(
       }
     }
   } catch (err) {
-    yield { timestamp: new Date().toISOString(), type: config.completeEvent, accepted: 0, rejected: 0 };
+    yield { timestamp: new Date().toISOString(), type: config.completeEvent, accepted: 0, rejected: 0, verdicts: [] };
     throw err;
   }
 
@@ -159,7 +159,7 @@ async function* runEvaluate(
   const accepted = verdicts.filter((v) => v.action === 'accept').length;
   const rejected = verdicts.filter((v) => v.action === 'reject' || v.action === 'review').length;
 
-  yield { timestamp: new Date().toISOString(), type: config.completeEvent, accepted, rejected };
+  yield { timestamp: new Date().toISOString(), type: config.completeEvent, accepted, rejected, verdicts: verdicts.map(v => ({ file: v.file, action: v.action, reason: v.reason })) };
 }
 
 /**

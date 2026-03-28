@@ -190,6 +190,6 @@ export async function* builderEvaluate(
   const accepted = verdicts.filter((v) => v.action === 'accept').length;
   const rejected = verdicts.filter((v) => v.action === 'reject' || v.action === 'review').length;
 
-  yield { timestamp: new Date().toISOString(), type: 'build:evaluate:complete', planId: plan.id, accepted, rejected };
+  yield { timestamp: new Date().toISOString(), type: 'build:evaluate:complete', planId: plan.id, accepted, rejected, verdicts: verdicts.map(v => ({ file: v.file, action: v.action, reason: v.reason })) };
 }
 

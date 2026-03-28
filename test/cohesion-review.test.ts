@@ -173,6 +173,9 @@ describe('runCohesionEvaluate wiring', () => {
     expect(complete).toBeDefined();
     expect(complete!.accepted).toBe(1);
     expect(complete!.rejected).toBe(0);
+    expect(complete!.verdicts).toEqual([
+      { file: 'plans/mod-a.md', action: 'accept', reason: 'mod-a uses types from mod-b' },
+    ]);
     // agent:result should always be yielded
     expect(findEvent(events, 'agent:result')).toBeDefined();
   });
@@ -222,6 +225,12 @@ describe('runCohesionEvaluate wiring', () => {
     expect(complete).toBeDefined();
     expect(complete!.accepted).toBe(2);
     expect(complete!.rejected).toBe(2); // reject + review both count as rejected
+    expect(complete!.verdicts).toEqual([
+      { file: 'plans/a.md', action: 'accept', reason: 'Good fix' },
+      { file: 'plans/b.md', action: 'accept', reason: 'Also good' },
+      { file: 'plans/c.md', action: 'reject', reason: 'Alters approach' },
+      { file: 'plans/d.md', action: 'review', reason: 'Debatable' },
+    ]);
   });
 
   it('emits zero counts and re-throws on error', async () => {

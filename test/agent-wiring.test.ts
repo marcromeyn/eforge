@@ -414,6 +414,13 @@ describe('builderEvaluate wiring', () => {
     expect(complete).toBeDefined();
     expect(complete!.accepted).toBe(2);
     expect(complete!.rejected).toBe(2); // reject + review both count as rejected
+    expect(complete!.verdicts).toHaveLength(4);
+    expect(complete!.verdicts).toEqual([
+      { file: 'a.ts', action: 'accept', reason: 'Good change' },
+      { file: 'b.ts', action: 'accept', reason: 'Also good' },
+      { file: 'c.ts', action: 'reject', reason: 'Unnecessary' },
+      { file: 'd.ts', action: 'review', reason: 'Needs discussion' },
+    ]);
   });
 
   // builderEvaluate catches errors and yields build:failed (no re-throw) —
@@ -481,6 +488,10 @@ describe('runPlanEvaluate wiring', () => {
     expect(complete).toBeDefined();
     expect(complete!.accepted).toBe(1);
     expect(complete!.rejected).toBe(1);
+    expect(complete!.verdicts).toEqual([
+      { file: 'plans/a.md', action: 'accept', reason: 'Good fix' },
+      { file: 'plans/b.md', action: 'reject', reason: 'Over-scoped' },
+    ]);
   });
 
   // runPlanEvaluate re-throws after yielding a zero-count complete event —
@@ -703,6 +714,11 @@ describe('runArchitectureEvaluate wiring', () => {
     expect(complete).toBeDefined();
     expect(complete!.accepted).toBe(2);
     expect(complete!.rejected).toBe(1);
+    expect(complete!.verdicts).toEqual([
+      { file: 'plans/my-plan/architecture.md', action: 'accept', reason: 'Good clarification' },
+      { file: 'plans/my-plan/architecture.md', action: 'reject', reason: 'Changes module decomposition' },
+      { file: 'plans/my-plan/architecture.md', action: 'accept', reason: 'Missing contract added' },
+    ]);
   });
 
   it('emits zero counts and re-throws on error', async () => {
