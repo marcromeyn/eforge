@@ -16,6 +16,7 @@
 import { openDatabase, type MonitorDB } from './db.js';
 import { startServer, type WorkerTracker, type DaemonState } from './server.js';
 import { writeLockfile, removeLockfile, updateLockfile, isPidAlive } from './lockfile.js';
+import { registerPort, deregisterPort } from './registry.js';
 import { loadConfig } from '../engine/config.js';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -351,6 +352,9 @@ async function main(): Promise<void> {
     startedAt: new Date().toISOString(),
   });
 
+  // Register in global port registry
+  registerPort(cwd, server.port, process.pid);
+
   // --- Start watcher if autoBuild enabled + idle shutdown (persistent mode) ---
   if (persistent && daemonState) {
     try {
@@ -486,6 +490,7 @@ async function main(): Promise<void> {
     // Kill watcher before removing lockfile
     killWatcher();
 
+    deregisterPort(cwd);
     removeLockfile(cwd);
 
     server.stop().then(() => {

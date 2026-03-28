@@ -6,10 +6,12 @@ import type { EforgeEvent } from '../engine/events.js';
 import { openDatabase, type MonitorDB } from './db.js';
 import { withRecording } from './recorder.js';
 import { readLockfile, isServerAlive, killPidIfAlive, removeLockfile } from './lockfile.js';
+import { allocatePort } from './registry.js';
 
 export type { MonitorDB } from './db.js';
 export type { MonitorServer } from './server.js';
 export { withRecording } from './recorder.js';
+export { allocatePort } from './registry.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -50,7 +52,7 @@ export async function ensureMonitor(cwd: string, options?: EnsureMonitorOptions)
     return buildMonitor(db, null, cwd);
   }
 
-  const preferredPort = options?.port ?? DEFAULT_PORT;
+  const preferredPort = allocatePort(cwd, options?.port);
 
   // Check if a server is already alive
   const existingLock = readLockfile(cwd);

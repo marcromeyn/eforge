@@ -56,7 +56,11 @@ async function withMonitor<T>(
   const monitor = await ensureMonitor(process.cwd(), { noServer: noServer ?? false });
   activeMonitor = monitor;
   if (monitor.server) {
-    console.error(chalk.dim(`  Monitor: ${monitor.server.url}`));
+    if (monitor.server.port !== 4567) {
+      console.error(chalk.green.bold(`  Monitor: ${monitor.server.url}`));
+    } else {
+      console.error(chalk.dim(`  Monitor: ${monitor.server.url}`));
+    }
   }
 
   try {
@@ -265,7 +269,11 @@ export function createProgram(abortController?: AbortController): Command {
             // Show monitor URL if daemon is running
             const lock = readLockfile(cwd);
             if (lock) {
-              console.log(chalk.dim(`  Monitor: http://localhost:${lock.port}`));
+              if (lock.port !== 4567) {
+                console.log(chalk.green.bold(`  Monitor: http://localhost:${lock.port}`));
+              } else {
+                console.log(chalk.dim(`  Monitor: http://localhost:${lock.port}`));
+              }
             }
 
             process.exit(0);
