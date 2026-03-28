@@ -1,0 +1,47 @@
+name: eval-signal-enrichment-analysis-skill
+description: Enrich evaluate:complete events with verdict details and create
+  eval analysis skill with anti-bias gating rules
+created: 2026-03-28
+compiled: 2026-03-28
+mode: signal-enrichment
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm test
+plans:
+  - id: plan-01-event-enrichment
+    name: Enrich Evaluate Complete Events with Verdict Details
+    depends_on: []
+    branch: eval-signal-enrichment-analysis-skill/event-enrichment
+    build:
+      - implement
+      - test-cycle
+      - review-cycle
+    review:
+      strategy: auto
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: standard
+  - id: plan-02-analysis-skill
+    name: Create Eval Analysis Skill
+    depends_on: []
+    branch: eval-signal-enrichment-analysis-skill/analysis-skill
+    build:
+      - implement
+      - review-cycle
+    review:
+      strategy: auto
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: standard
+profile:
+  extends: excursion
+  description: "Multi-file feature work or refactors. Use when changes touch many
+    files but are tightly coupled - e.g., type signature changes that cascade to
+    consumers, interface refactors, rename-and-update-all-callers. The key test:
+    can every piece pass type-check independently? If not, use excursion."
+  compile:
+    - planner
+    - plan-review-cycle
