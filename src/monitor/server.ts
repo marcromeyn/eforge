@@ -258,7 +258,7 @@ export async function startServer(
     res.end(JSON.stringify({ sessionId: sessionId ?? null, runId: runId ?? null }));
   }
 
-  function serveOrchestration(_req: IncomingMessage, res: ServerResponse, id: string): void {
+  async function serveOrchestration(_req: IncomingMessage, res: ServerResponse, id: string): Promise<void> {
     const sessionId = resolveSessionId(id);
     const events = db.getEventsByTypeForSession(sessionId, 'plan:complete');
     if (events.length === 0) {
@@ -282,6 +282,18 @@ export async function startServer(
         })),
         mode: data.mode || null,
       };
+
+      // Enrich plan entries with build/review config from orchestration.yaml
+      const buildConfigMap = await readBuildConfigFromOrchestration(sessionId);
+      if (buildConfigMap) {
+        for (const plan of orchestration.plans) {
+          const config = buildConfigMap.get(plan.id);
+          if (config) {
+            (plan as Record<string, unknown>).build = config.build;
+            (plan as Record<string, unknown>).review = config.review;
+          }
+        }
+      }
 
       res.writeHead(200, {
         'Content-Type': 'application/json',
@@ -1048,7 +1060,7 @@ export async function startServer(
         res.end('Invalid runId');
         return;
       }
-      serveOrchestration(req, res, runId);
+      await serveOrchestration(req, res, runId);
     } else if (url.startsWith('/api/run-summary/')) {
       const id = url.slice('/api/run-summary/'.length);
       if (!id || !/^[\w-]+$/.test(id)) {
