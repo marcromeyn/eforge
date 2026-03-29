@@ -316,7 +316,20 @@ export class PiBackend implements AgentBackend {
 
   async *run(options: AgentRunOptions, agent: AgentRole, planId?: string): AsyncGenerator<EforgeEvent> {
     const agentId = crypto.randomUUID();
-    yield { type: 'agent:start', planId, agent, agentId, timestamp: new Date().toISOString() };
+
+    // Resolve model and thinking level before agent:start so we can include model info
+    let model: Model<Api>;
+    let thinkingLevel: ThinkingLevel;
+    try {
+      model = resolveModel(options.model, this.piConfig);
+      thinkingLevel = resolveThinkingLevel(options, this.piConfig);
+    } catch (err) {
+      yield { type: 'agent:start', planId, agent, agentId, model: options.model, backend: 'pi', timestamp: new Date().toISOString() };
+      yield { type: 'agent:stop', planId, agent, agentId, model: options.model, backend: 'pi', error: err instanceof Error ? err.message : String(err), durationMs: 0, inputTokens: 0, outputTokens: 0, timestamp: new Date().toISOString() };
+      return;
+    }
+
+    yield { type: 'agent:start', planId, agent, agentId, model: model.id, backend: 'pi', timestamp: new Date().toISOString() };
 
     let error: string | undefined;
     const startTime = Date.now();
@@ -324,10 +337,6 @@ export class PiBackend implements AgentBackend {
     let session: any;
 
     try {
-      // Resolve model
-      const model = resolveModel(options.model, this.piConfig);
-      const thinkingLevel = resolveThinkingLevel(options, this.piConfig);
-
       // Resolve API key
       const apiKey = resolveApiKey(model.provider, this.piConfig);
 

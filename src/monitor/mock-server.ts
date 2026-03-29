@@ -206,7 +206,10 @@ function agentResult(agent: string, durationMs: number, planId?: string): Eforge
 /** Insert agent:start + agent:result + agent:stop for a complete agent invocation. */
 function insertAgentRun(runId: string, agent: string, startMs: number, endMs: number, planId?: string): void {
   const agentId = nextAgentId();
-  insertEvent(runId, { type: 'agent:start', agentId, agent, planId, timestamp: makeTimestamp(startMs) } as unknown as EforgeEvent, startMs);
+  const model = agent === 'planner' || agent === 'plan-reviewer' || agent === 'plan-evaluator' || agent === 'module-planner' || agent === 'cohesion-reviewer' || agent === 'cohesion-evaluator'
+    ? 'claude-sonnet-4-20250514'
+    : 'claude-sonnet-4-20250514';
+  insertEvent(runId, { type: 'agent:start', agentId, agent, planId, model, backend: 'claude-sdk', timestamp: makeTimestamp(startMs) } as unknown as EforgeEvent, startMs);
   insertEvent(runId, agentResult(agent, endMs - startMs, planId), endMs - 200);
   insertEvent(runId, { type: 'agent:stop', agentId, agent, planId, timestamp: makeTimestamp(endMs) } as unknown as EforgeEvent, endMs);
 }
@@ -214,7 +217,7 @@ function insertAgentRun(runId: string, agent: string, startMs: number, endMs: nu
 /** Insert agent:start + agent:stop with error (no result) for a failed agent invocation. */
 function insertAgentFailed(runId: string, agent: string, startMs: number, endMs: number, error: string, planId?: string): void {
   const agentId = nextAgentId();
-  insertEvent(runId, { type: 'agent:start', agentId, agent, planId, timestamp: makeTimestamp(startMs) } as unknown as EforgeEvent, startMs);
+  insertEvent(runId, { type: 'agent:start', agentId, agent, planId, model: 'claude-sonnet-4-20250514', backend: 'claude-sdk', timestamp: makeTimestamp(startMs) } as unknown as EforgeEvent, startMs);
   insertEvent(runId, { type: 'agent:stop', agentId, agent, planId, error, timestamp: makeTimestamp(endMs) } as unknown as EforgeEvent, endMs);
 }
 

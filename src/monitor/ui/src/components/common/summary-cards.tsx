@@ -16,6 +16,7 @@ interface SummaryCardsProps {
   plansTotal: number;
   isComplete?: boolean;
   isFailed?: boolean;
+  backend?: string | null;
 }
 
 function StatGroup({ children }: { children: React.ReactNode }) {
@@ -38,6 +39,7 @@ export function SummaryCards({
   plansTotal,
   isComplete,
   isFailed,
+  backend,
 }: SummaryCardsProps) {
   const statusAccent = isFailed ? 'red' : isComplete ? 'green' : 'blue';
   const statusIcon = isFailed
@@ -62,6 +64,7 @@ export function SummaryCards({
         )}>
           {statusLabel}
         </span>
+        {backend && <span className="text-text-dim text-[10px]">{backend}</span>}
       </StatGroup>
 
       <Separator />

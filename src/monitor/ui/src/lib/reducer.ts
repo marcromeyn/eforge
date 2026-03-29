@@ -22,6 +22,7 @@ export interface AgentThread {
   cacheRead: number | null;
   costUsd: number | null;
   numTurns: number | null;
+  model: string;
 }
 
 export interface RunState {
@@ -44,6 +45,7 @@ export interface RunState {
   profileInfo: ProfileInfo | null;
   endTime: number | null;
   mergeCommits: Record<string, string>;
+  backend: string | null;
   enqueueStatus: 'running' | 'complete' | 'failed' | null;
   enqueueTitle: string | null;
   enqueueSource: string | null;
@@ -69,6 +71,7 @@ export const initialRunState: RunState = {
   profileInfo: null,
   endTime: null,
   mergeCommits: {},
+  backend: null,
   enqueueStatus: null,
   enqueueTitle: null,
   enqueueSource: null,
@@ -101,6 +104,7 @@ function processEvent(
     earlyOrchestration: OrchestrationConfig | null;
     profileInfo: ProfileInfo | null;
     mergeCommits: Record<string, string>;
+    backend: string | null;
     enqueueStatus: 'running' | 'complete' | 'failed' | null;
     enqueueTitle: string | null;
     enqueueSource: string | null;
@@ -259,6 +263,10 @@ function processEvent(
 
   // Agent thread tracking
   if (event.type === 'agent:start' && 'timestamp' in event && event.timestamp) {
+    // Set session-level backend from first agent:start (remove fallback after 2026-04-29)
+    if (state.backend === null) {
+      state.backend = ('backend' in event ? (event as { backend?: string }).backend : undefined) ?? 'unknown';
+    }
     state.agentThreads.push({
       agentId: event.agentId,
       agent: event.agent,
@@ -272,6 +280,8 @@ function processEvent(
       cacheRead: null,
       costUsd: null,
       numTurns: null,
+      // Capture model from agent:start (remove fallback after 2026-04-29)
+      model: ('model' in event ? (event as { model?: string }).model : undefined) ?? 'unknown',
     });
   }
 
@@ -305,7 +315,7 @@ function processEvent(
 export function eforgeReducer(state: RunState, action: RunAction): RunState {
   switch (action.type) {
     case 'RESET':
-      return { ...initialRunState, fileChanges: new Map(), reviewIssues: {}, agentThreads: [], expeditionModules: [], moduleStatuses: {}, earlyOrchestration: null, profileInfo: null, mergeCommits: {}, enqueueStatus: null as 'running' | 'complete' | 'failed' | null, enqueueTitle: null, enqueueSource: null };
+      return { ...initialRunState, fileChanges: new Map(), reviewIssues: {}, agentThreads: [], expeditionModules: [], moduleStatuses: {}, earlyOrchestration: null, profileInfo: null, mergeCommits: {}, backend: null, enqueueStatus: null as 'running' | 'complete' | 'failed' | null, enqueueTitle: null, enqueueSource: null };
 
     case 'BATCH_LOAD': {
       const acc = {
@@ -327,6 +337,7 @@ export function eforgeReducer(state: RunState, action: RunAction): RunState {
         earlyOrchestration: null as OrchestrationConfig | null,
         profileInfo: null as ProfileInfo | null,
         mergeCommits: {} as Record<string, string>,
+        backend: null as string | null,
         enqueueStatus: null as 'running' | 'complete' | 'failed' | null,
         enqueueTitle: null as string | null,
         enqueueSource: null as string | null,

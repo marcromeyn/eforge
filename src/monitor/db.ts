@@ -64,6 +64,7 @@ export interface MonitorDB {
 export interface SessionMetadata {
   planCount: number | null;
   baseProfile: string | null;
+  backend: string | null;
 }
 
 const SCHEMA = `
@@ -170,7 +171,7 @@ export function openDatabase(dbPath: string): MonitorDB {
       `SELECT session_id as sessionId FROM runs ORDER BY started_at DESC LIMIT 1`,
     ),
     getSessionMetadataEvents: db.prepare(
-      `SELECT e.type, e.data, r.session_id as sessionId FROM events e JOIN runs r ON e.run_id = r.id WHERE e.type IN ('plan:profile', 'plan:complete') ORDER BY e.id`,
+      `SELECT e.type, e.data, r.session_id as sessionId FROM events e JOIN runs r ON e.run_id = r.id WHERE e.type IN ('plan:profile', 'plan:complete', 'agent:start') ORDER BY e.id`,
     ),
   };
 
@@ -259,7 +260,7 @@ export function openDatabase(dbPath: string): MonitorDB {
       for (const row of rows) {
         if (!row.sessionId) continue;
         if (!result[row.sessionId]) {
-          result[row.sessionId] = { planCount: null, baseProfile: null };
+          result[row.sessionId] = { planCount: null, baseProfile: null, backend: null };
         }
         const meta = result[row.sessionId];
 
@@ -274,6 +275,11 @@ export function openDatabase(dbPath: string): MonitorDB {
               meta.baseProfile = config.extends;
             } else if (profileName) {
               meta.baseProfile = profileName;
+            }
+          } else if (row.type === 'agent:start' && meta.backend === null) {
+            const backend = data.backend as string | undefined;
+            if (backend) {
+              meta.backend = backend;
             }
           } else if (row.type === 'plan:complete') {
             const plans = data.plans as unknown[] | undefined;

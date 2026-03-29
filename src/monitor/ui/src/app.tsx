@@ -283,7 +283,7 @@ function AppContent() {
             ) : (
               <>
                 <div className="flex items-center justify-between">
-                  <SummaryCards {...stats} isComplete={runState.resultStatus === 'completed'} isFailed={runState.resultStatus === 'failed'} />
+                  <SummaryCards {...stats} isComplete={runState.resultStatus === 'completed'} isFailed={runState.resultStatus === 'failed'} backend={runState.backend} />
                   {prdSource && (
                     <span
                       className="text-blue cursor-pointer hover:underline text-xs"

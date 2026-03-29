@@ -79,4 +79,5 @@ export interface ProfileInfo {
 export interface SessionMetadata {
   planCount: number | null;
   baseProfile: string | null;
+  backend: string | null;
 }

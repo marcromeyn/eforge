@@ -635,6 +635,7 @@ function PlanRow({ planId, threads, sessionStart, totalSpan, endTime, issues, di
                   </TooltipTrigger>
                   <TooltipContent side="top">
                     <div className="font-medium">{thread.agent}</div>
+                    {thread.model && <div className="opacity-50 text-[10px]">{thread.model}</div>}
                     <div className="opacity-70">{duration}</div>
                     {thread.totalTokens != null && (
                       <div className="opacity-70">
