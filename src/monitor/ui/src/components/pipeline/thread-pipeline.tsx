@@ -154,15 +154,29 @@ function ProfileHeader({ profileInfo, activeStages, completedStages, hoveredStag
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-xs">
-            {profileInfo.rationale}
+            <div>{profileInfo.rationale}</div>
+            {!profileInfo.config.extends && profileInfo.config.description && (
+              <div className="mt-1 opacity-70">{profileInfo.config.description}</div>
+            )}
           </TooltipContent>
         </Tooltip>
-        {profileInfo.config.extends && (
-          <span className={`text-[11px] ${getTierColor(profileInfo.config.extends).text}`}>
+        {profileInfo.config.extends && profileInfo.config.description && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={`text-[11px] cursor-default ${getTierColor(profileInfo.config.extends).text}`}>
+                extends <span className="font-medium">{profileInfo.config.extends}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
+              {profileInfo.config.description}
+            </TooltipContent>
+          </Tooltip>
+        )}
+        {profileInfo.config.extends && !profileInfo.config.description && (
+          <span className={`text-[11px] cursor-default ${getTierColor(profileInfo.config.extends).text}`}>
             extends <span className="font-medium">{profileInfo.config.extends}</span>
           </span>
         )}
-        <span className="text-[11px] text-text-dim">{profileInfo.config.description}</span>
       </div>
       <StageOverview compile={profileInfo.config.compile} activeStages={activeStages} completedStages={completedStages} hoveredStage={hoveredStage} onStageHover={onStageHover} />
     </div>
