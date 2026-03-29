@@ -1,0 +1,30 @@
+name: fix-pi-backend-model-resolution-to-use-piconfig-provider
+description: Fix PI backend model resolution to use piConfig.provider instead of
+  parsing provider from model string, and remove dead piConfig.model code
+created: 2026-03-29
+compiled: 2026-03-29
+mode: targeted-bugfix
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm test
+plans:
+  - id: plan-01-fix-model-resolution
+    name: Fix PI Backend Model Resolution
+    depends_on: []
+    branch: fix-pi-backend-model-resolution-to-use-piconfig-provider/fix-model-resolution
+    build:
+      - implement
+      - review-cycle
+    review:
+      strategy: single
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: standard
+profile:
+  extends: errand
+  description: Small, self-contained changes. Single file or a few lines. Low
+    risk, no architectural impact.
+  compile:
+    - prd-passthrough
