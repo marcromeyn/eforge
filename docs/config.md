@@ -22,18 +22,27 @@ agents:
   settingSources:             # Which Claude Code settings to load
     - project                 # Loads CLAUDE.md and project settings
   bare: false                 # Pass --bare to Claude Code subprocess (auto-true when ANTHROPIC_API_KEY set)
-  # model: claude-sonnet-4-20250514  # Global model override for all agents
+  # model: claude-sonnet-4-6          # Global model override for all agents (bypasses class system)
   # thinking:                 # Global thinking config
   #   type: adaptive          # 'adaptive', 'enabled' (with optional budgetTokens), or 'disabled'
   # effort: high              # Global effort level: 'low', 'medium', 'high', 'max'
+  # models:                    # Map model classes to model strings (override backend defaults)
+  #   max: claude-opus-4-6    # Used by: planner, module-planner, plan-reviewer, plan-evaluator,
+  #                           #   architecture-reviewer, architecture-evaluator, cohesion-reviewer,
+  #                           #   cohesion-evaluator
+  #   balanced: claude-sonnet-4-6  # Used by: builder, reviewer, evaluator, review-fixer,
+  #                           #   validation-fixer, merge-conflict-resolver, doc-updater,
+  #                           #   test-writer, tester, formatter, staleness-assessor
+  #   fast: claude-haiku-3-5  # Available for lightweight tasks via per-role modelClass override
+  #   auto: null              # Let the SDK choose the model
   # roles:                    # Per-agent role overrides (override global settings)
-  #   formatter:              # Per-role options: model, thinking, effort, maxBudgetUsd,
+  #   formatter:              # Per-role options: model, modelClass, thinking, effort, maxBudgetUsd,
   #     effort: low           #   fallbackModel, allowedTools, disallowedTools, maxTurns
   #   builder:                # Available roles: planner, module-planner, builder, reviewer,
-  #     model: claude-sonnet-4-20250514  #   evaluator, plan-reviewer, plan-evaluator,
+  #     model: claude-sonnet-4-6     #   evaluator, plan-reviewer, plan-evaluator,
   #     maxTurns: 50          #   architecture-reviewer, architecture-evaluator,
-  #                           #   cohesion-reviewer, cohesion-evaluator, validation-fixer,
-  #                           #   review-fixer, merge-conflict-resolver, staleness-assessor,
+  #   staleness-assessor:     #   cohesion-reviewer, cohesion-evaluator, validation-fixer,
+  #     modelClass: fast      #   review-fixer, merge-conflict-resolver, staleness-assessor,
   #                           #   formatter, doc-updater, test-writer, tester
 
 build:
@@ -59,7 +68,7 @@ daemon:
 
 pi:                            # Pi backend config (experimental/untested)
   provider: openrouter         # LLM provider
-  model: anthropic/claude-sonnet-4  # Model identifier
+  model: anthropic/claude-sonnet-4-6  # Model identifier
   thinkingLevel: medium        # 'off', 'medium', 'high'
   extensions:
     autoDiscover: true         # Auto-discover extensions from .pi/extensions/
@@ -69,6 +78,41 @@ pi:                            # Pi backend config (experimental/untested)
   retry:
     maxRetries: 3              # Max retry attempts
     backoffMs: 1000            # Backoff between retries (ms)
+```
+
+## Model Classes
+
+eforge assigns each agent role a **model class** that determines which model it uses by default. Four classes exist:
+
+| Class | Default model (claude-sdk) | Assigned roles |
+|-------|---------------------------|----------------|
+| `max` | `claude-opus-4-6` | planner, module-planner, plan-reviewer, plan-evaluator, architecture-reviewer, architecture-evaluator, cohesion-reviewer, cohesion-evaluator |
+| `balanced` | `claude-sonnet-4-6` | builder, reviewer, evaluator, review-fixer, validation-fixer, merge-conflict-resolver, doc-updater, test-writer, tester, formatter, staleness-assessor |
+| `fast` | `claude-haiku-3-5` | (none by default - available via per-role `modelClass` override) |
+| `auto` | (SDK default) | (none by default - lets the backend choose) |
+
+### Model Resolution Order
+
+Model selection follows this priority chain (highest to lowest):
+
+1. **Per-role `model`** - `agents.roles.<role>.model` - explicit model string for a specific role
+2. **Global `model`** - `agents.model` - explicit model string for all roles
+3. **User class override** - `agents.models.<class>` - custom model for the role's effective class
+4. **Backend class default** - built-in model for the class (see table above)
+
+The "effective class" for a role is determined by: per-role `modelClass` override > built-in class assignment.
+
+```yaml
+# Example: override model class defaults and reassign a role
+agents:
+  models:
+    max: claude-opus-4-6           # All 'max' class agents use this model
+    balanced: claude-sonnet-4-6    # All 'balanced' class agents use this model
+  roles:
+    staleness-assessor:
+      modelClass: fast             # Move staleness-assessor from 'balanced' to 'fast' class
+    builder:
+      model: claude-opus-4-6      # Explicit model - bypasses the class system entirely
 ```
 
 ## Profiles
