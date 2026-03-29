@@ -1,0 +1,31 @@
+name: real-time-file-change-tracking-in-monitor-ui
+description: Add throttled file change polling during build stages for real-time
+  monitor UI updates
+created: 2026-03-29
+compiled: 2026-03-29
+mode: single-file-wrapper
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm test
+  - pnpm build
+plans:
+  - id: plan-01-file-change-polling
+    name: Add throttled file change polling to build stages
+    depends_on: []
+    branch: real-time-file-change-tracking-in-monitor-ui/file-change-polling
+    build:
+      - implement
+      - review-cycle
+    review:
+      strategy: single
+      perspectives:
+        - code
+      maxRounds: 1
+      evaluatorStrictness: standard
+profile:
+  extends: errand
+  description: Small, self-contained changes. Single file or a few lines. Low
+    risk, no architectural impact.
+  compile:
+    - prd-passthrough
