@@ -94,6 +94,19 @@ For **file path sources** (Branch A from Step 1), show a brief summary of the fi
 
 ### Step 5: Enqueue & Report
 
+First, validate the project config by calling `mcp__eforge__eforge_config` with `{ action: "validate" }`.
+
+- If `valid` is `false`, display the errors and stop:
+  > **Config validation failed:**
+  >
+  > _{list each error}_
+  >
+  > Fix your config with `/eforge:config` and try again.
+
+  **Do not proceed to enqueue.**
+
+- If `valid` is `true`, continue silently.
+
 Call the `mcp__eforge__eforge_build` tool with `{ source: "<source>" }`.
 
 The tool returns a JSON response with a `sessionId` and `autoBuild` status.
@@ -116,4 +129,5 @@ If the monitor is running, also include the monitor URL.
 | No arguments and no context available | Ask the user what they want to build |
 | User cancels at confirmation | Acknowledge and stop |
 | MCP tool returns error | Show the error message from the daemon response |
+| Config validation fails | Show errors, suggest fixing config, do not enqueue |
 | Daemon connection failure | The MCP proxy auto-starts the daemon; if it still fails, suggest running `eforge daemon start` manually |
