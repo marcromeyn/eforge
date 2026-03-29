@@ -233,6 +233,7 @@ export type EforgeEvent = { sessionId?: string; runId?: string; timestamp: strin
   | { type: 'enqueue:start'; source: string }
   | { type: 'enqueue:complete'; id: string; filePath: string; title: string }
   | { type: 'enqueue:failed'; error: string }
+  | { type: 'enqueue:commit-failed'; error: string }
 
   // Queue
   | QueueEvent
@@ -245,6 +246,7 @@ export type QueueEvent =
   | { type: 'queue:prd:start'; prdId: string; title: string }
   | { type: 'queue:prd:stale'; verdict: StalenessVerdict; justification: string; revision?: string }
   | { type: 'queue:prd:skip'; prdId: string; reason: string }
+  | { type: 'queue:prd:commit-failed'; prdId: string; error: string }
   | { type: 'queue:prd:complete'; prdId: string; status: 'completed' | 'failed' | 'skipped' }
   | { type: 'queue:complete'; processed: number; skipped: number }
   | { type: 'queue:watch:waiting'; pollIntervalMs: number }

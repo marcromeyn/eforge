@@ -38,7 +38,7 @@ import { computeWorktreeBase, createMergeWorktree } from './worktree.js';
 import { deriveNameFromSource, parseOrchestrationConfig, parsePlanFile, validatePlanSet, validatePlanSetName } from './plan.js';
 import { loadState, saveState as saveEforgeState } from './state.js';
 import { runCompilePipeline, runBuildPipeline, createToolTracker, type PipelineContext, type BuildStageContext } from './pipeline.js';
-import { forgeCommit } from './git.js';
+import { forgeCommit, retryOnLock } from './git.js';
 
 const exec = promisify(execFile);
 
@@ -359,10 +359,14 @@ export class EforgeEngine {
 
       // Commit the enqueued PRD
       try {
-        await exec('git', ['add', enqueueResult.filePath], { cwd });
+        await retryOnLock(() => exec('git', ['add', enqueueResult.filePath], { cwd }), cwd);
         await forgeCommit(cwd, `enqueue(${enqueueResult.id}): ${title}`);
-      } catch {
-        // Not a git repo or nothing to commit — non-fatal
+      } catch (err) {
+        yield {
+          timestamp: new Date().toISOString(),
+          type: 'enqueue:commit-failed',
+          error: err instanceof Error ? err.message : String(err),
+        };
       }
 
       yield {
@@ -688,10 +692,15 @@ export class EforgeEngine {
             // Auto-apply revision and commit
             await writeFile(prd.filePath, revision, 'utf-8');
             try {
-              await exec('git', ['add', '--', prd.filePath], { cwd });
+              await retryOnLock(() => exec('git', ['add', '--', prd.filePath], { cwd }), cwd);
               await forgeCommit(cwd, `chore(queue): revise stale PRD ${prd.id}`);
-            } catch {
-              // Not a git repo or nothing to commit — non-fatal
+            } catch (err) {
+              yield {
+                timestamp: new Date().toISOString(),
+                type: 'queue:prd:commit-failed',
+                prdId: prd.id,
+                error: err instanceof Error ? err.message : String(err),
+              };
             }
           } else {
             // Skip — needs manual revision

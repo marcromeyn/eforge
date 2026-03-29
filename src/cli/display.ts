@@ -656,6 +656,14 @@ export function renderEvent(event: EforgeEvent): void {
       failSpinner('enqueue', `Enqueue failed: ${chalk.red(event.error)}`);
       break;
 
+    case 'enqueue:commit-failed':
+      console.log(chalk.yellow(`  ⚠ Enqueue commit failed (non-fatal): ${event.error}`));
+      break;
+
+    case 'queue:prd:commit-failed':
+      console.log(chalk.yellow(`  ⚠ PRD ${event.prdId} commit failed (non-fatal): ${event.error}`));
+      break;
+
     default: {
       const _exhaustive: never = event;
       console.log(chalk.dim(`  Unknown event: ${JSON.stringify(_exhaustive)}`));
