@@ -1,0 +1,29 @@
+name: update-readme-license-section-for-pi-backend
+description: Add Pi backend license bullet to README license section
+created: 2026-03-29
+compiled: 2026-03-29
+mode: readme-update
+base_branch: main
+validate:
+  - pnpm type-check
+  - pnpm build
+plans:
+  - id: plan-01-add-pi-backend-license
+    name: Add Pi backend license bullet to README
+    depends_on: []
+    branch: update-readme-license-section-for-pi-backend/add-pi-backend-license
+    build:
+      - implement
+    review:
+      strategy: auto
+      perspectives:
+        - docs
+      maxRounds: 1
+      evaluatorStrictness: lenient
+profile:
+  extends: docs
+  description: Documentation-only changes. Plans and implements but skips code
+    review since review categories (bugs, security, types, etc.) don't apply to
+    prose.
+  compile:
+    - prd-passthrough
