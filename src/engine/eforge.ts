@@ -168,6 +168,27 @@ export class EforgeEngine {
       }
     }
 
+    // Select Pi backend from config when no explicit backend is provided
+    if (!options.backend && config.backend === 'pi') {
+      try {
+        const { PiBackend } = await import('./backends/pi.js');
+        options = {
+          ...options,
+          backend: new PiBackend({
+            mcpServers: options.mcpServers,
+            piConfig: config.pi,
+            bare: config.agents.bare,
+          }),
+        };
+      } catch (err) {
+        throw new Error(
+          'Failed to load Pi backend. Ensure Pi SDK dependencies are installed ' +
+          '(@mariozechner/pi-ai and @mariozechner/pi-agent-core). ' +
+          `Original error: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+
     return new EforgeEngine(config, options);
   }
 
