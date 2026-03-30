@@ -12,7 +12,8 @@ import { promisify } from 'node:util';
 
 const exec = promisify(execFile);
 import type { EforgeEvent, OrchestrationConfig, EforgeState, PlanState } from './events.js';
-import { loadState, saveState, updatePlanStatus, isResumable } from './state.js';
+import { loadState, saveState, isResumable } from './state.js';
+import { transitionPlan } from './orchestrator/plan-lifecycle.js';
 import {
   computeWorktreeBase,
   createWorktree,
@@ -95,8 +96,7 @@ export function propagateFailure(
 
       const planState = state.plans[dep];
       if (planState && planState.status !== 'completed' && planState.status !== 'merged') {
-        updatePlanStatus(state, dep, 'blocked');
-        planState.error = `Blocked by failed dependency: ${failedPlanId}`;
+        transitionPlan(state, dep, 'blocked', { error: `Blocked by failed dependency: ${failedPlanId}` });
         events.push({
           timestamp: new Date().toISOString(),
           type: 'build:failed',
@@ -119,7 +119,7 @@ export function resumeState(state: EforgeState): EforgeState {
   // Reset running plans to pending for re-execution
   for (const [id, plan] of Object.entries(state.plans)) {
     if (plan.status === 'running') {
-      updatePlanStatus(state, id, 'pending');
+      transitionPlan(state, id, 'pending');
     }
   }
   // Re-evaluate blocked plans — unblock if all deps resolved
@@ -130,7 +130,7 @@ export function resumeState(state: EforgeState): EforgeState {
         return depState && (depState.status === 'completed' || depState.status === 'merged');
       });
       if (allDepsResolved) {
-        updatePlanStatus(state, planId, 'pending');
+        transitionPlan(state, planId, 'pending');
       }
     }
   }
@@ -381,7 +381,7 @@ export class Orchestrator {
             }
 
             state.plans[planId].worktreePath = worktreePath;
-            updatePlanStatus(state, planId, 'running');
+            transitionPlan(state, planId, 'running');
             saveState(stateDir, state);
 
             // Delegate to injected plan runner
@@ -389,13 +389,12 @@ export class Orchestrator {
               eventQueue.push(event);
             }
 
-            updatePlanStatus(state, planId, 'completed');
+            transitionPlan(state, planId, 'completed');
             saveState(stateDir, state);
           } catch (err) {
             // Handle all failures (worktree creation, plan runner, etc.)
             if (state.plans[planId].status !== 'failed') {
-              updatePlanStatus(state, planId, 'failed');
-              state.plans[planId].error = (err as Error).message;
+              transitionPlan(state, planId, 'failed', { error: (err as Error).message });
               saveState(stateDir, state);
             }
 
@@ -491,8 +490,7 @@ export class Orchestrator {
             const skipReason = shouldSkipMerge(planId, config.plans, failedMerges);
             if (skipReason) {
               failedMerges.add(planId);
-              updatePlanStatus(state, planId, 'failed');
-              state.plans[planId].error = skipReason;
+              transitionPlan(state, planId, 'failed', { error: skipReason });
               saveState(stateDir, state);
               yield { timestamp: new Date().toISOString(), type: 'build:failed', planId, error: skipReason };
 
@@ -517,7 +515,7 @@ export class Orchestrator {
                 const { stdout: shaOut } = await exec('git', ['rev-parse', 'HEAD'], { cwd: mergeWorktreePath });
                 const commitSha = shaOut.trim();
 
-                updatePlanStatus(state, planId, 'merged');
+                transitionPlan(state, planId, 'merged');
                 planState.merged = true;
                 recentlyMergedIds.push(planId);
                 saveState(stateDir, state);
@@ -560,7 +558,7 @@ export class Orchestrator {
                   // Branch may already be deleted or never created
                 }
 
-                updatePlanStatus(state, planId, 'merged');
+                transitionPlan(state, planId, 'merged');
                 planState.merged = true;
                 recentlyMergedIds.push(planId);
                 saveState(stateDir, state);
@@ -569,8 +567,7 @@ export class Orchestrator {
               }
             } catch (err) {
               failedMerges.add(planId);
-              updatePlanStatus(state, planId, 'failed');
-              state.plans[planId].error = `Merge failed: ${(err as Error).message}`;
+              transitionPlan(state, planId, 'failed', { error: `Merge failed: ${(err as Error).message}` });
               saveState(stateDir, state);
 
               yield {
