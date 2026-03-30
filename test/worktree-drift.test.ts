@@ -87,12 +87,11 @@ describe('recoverDriftedWorktree', () => {
     const featureBranch = 'eforge/my-feature';
     const repoPath = await setupRepo(baseDir, featureBranch);
 
-    // Add a commit, then detach HEAD
+    // Detach HEAD first, then add a commit while detached (simulates builder drifting)
+    await exec('git', ['checkout', '--detach'], { cwd: repoPath });
     writeFileSync(join(repoPath, 'detached.txt'), 'detached work\n');
     await exec('git', ['add', '.'], { cwd: repoPath });
     await exec('git', ['commit', '-m', 'detached commit'], { cwd: repoPath });
-    const { stdout: detachedSha } = await exec('git', ['rev-parse', 'HEAD'], { cwd: repoPath });
-    await exec('git', ['checkout', '--detach'], { cwd: repoPath });
 
     // Verify we're actually detached
     const { stdout: branchBefore } = await exec('git', ['branch', '--show-current'], { cwd: repoPath });

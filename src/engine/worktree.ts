@@ -373,8 +373,21 @@ export async function recoverDriftedWorktree(
     driftBranch = currentBranch;
   }
 
-  // Squash-merge drifted changes back onto the expected branch
-  await mergeWorktree(cwd, driftBranch, expectedBranch, commitMessage);
+  // Squash-merge drifted changes back onto the expected branch.
+  // If the drift branch has no net-new changes (e.g., builder switched branches
+  // but didn't commit new work), the squash merge produces nothing to commit.
+  // Treat that as a successful recovery since we're already on the expected branch.
+  try {
+    await mergeWorktree(cwd, driftBranch, expectedBranch, commitMessage);
+  } catch (err) {
+    // Check if we're on the expected branch — if so, the checkout succeeded
+    // and the only failure was "nothing to commit", which is fine for recovery.
+    const { stdout: branchAfter } = await exec('git', ['branch', '--show-current'], { cwd });
+    if (branchAfter.trim() !== expectedBranch) {
+      throw err;
+    }
+    // On expected branch with no changes to commit — recovery succeeded
+  }
 
   // Best-effort cleanup of the drift branch
   try {
