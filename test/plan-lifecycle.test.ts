@@ -82,6 +82,12 @@ describe('transitionPlan - valid transitions', () => {
     transitionPlan(state, 'p1', 'pending');
     expect(state.plans.p1.status).toBe('pending');
   });
+
+  it('running -> pending (resume resets in-progress plans)', () => {
+    const state = makeState('p1', 'running');
+    transitionPlan(state, 'p1', 'pending');
+    expect(state.plans.p1.status).toBe('pending');
+  });
 });
 
 describe('transitionPlan - invalid transitions', () => {

@@ -119,6 +119,7 @@ export function resumeState(state: EforgeState): EforgeState {
   // Reset running plans to pending for re-execution
   for (const [id, plan] of Object.entries(state.plans)) {
     if (plan.status === 'running') {
+      plan.error = undefined;
       transitionPlan(state, id, 'pending');
     }
   }

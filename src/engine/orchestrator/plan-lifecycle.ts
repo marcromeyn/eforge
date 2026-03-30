@@ -22,7 +22,7 @@ type PlanStatus = PlanState['status'];
  */
 export const VALID_TRANSITIONS: Record<PlanStatus, PlanStatus[]> = {
   pending: ['running', 'blocked'],
-  running: ['completed', 'failed'],
+  running: ['completed', 'failed', 'pending'],
   completed: ['merged', 'failed'],
   failed: ['pending'],
   blocked: ['pending'],
