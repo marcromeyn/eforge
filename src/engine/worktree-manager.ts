@@ -202,13 +202,14 @@ export class WorktreeManager {
    * Merge the feature branch into baseBranch in the user's repoRoot.
    * Delegates to mergeFeatureBranchToBase from worktree-ops.
    */
-  async mergeToBase(baseBranch: string, mergeResolver?: MergeResolver): Promise<string> {
+  async mergeToBase(baseBranch: string, mergeResolver?: MergeResolver, squashCommitMessage?: string): Promise<string> {
     return mergeFeatureBranchToBase(
       this.repoRoot,
       this.featureBranch,
       baseBranch,
       this.worktreeBase,
       mergeResolver,
+      squashCommitMessage,
     );
   }
 

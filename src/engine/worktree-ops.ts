@@ -249,6 +249,7 @@ export async function mergeFeatureBranchToBase(
   baseBranch: string,
   worktreeBase: string,
   mergeResolver?: MergeResolver,
+  squashCommitMessage?: string,
 ): Promise<string> {
   // Guard: verify we're on the expected base branch to avoid merging into the wrong target
   const { stdout: currentBranchRaw } = await exec('git', ['branch', '--show-current'], { cwd: repoRoot });
@@ -257,6 +258,47 @@ export async function mergeFeatureBranchToBase(
     throw new Error(
       `Cannot merge ${featureBranch}: expected repoRoot to be on '${baseBranch}' but found '${currentBranch}'`,
     );
+  }
+
+  // Squash merge: collapse all feature-branch commits into one clean commit on baseBranch
+  if (squashCommitMessage) {
+    try {
+      await exec('git', ['merge', '--squash', featureBranch], { cwd: repoRoot });
+      await exec('git', ['commit', '-m', squashCommitMessage], { cwd: repoRoot });
+      const { stdout: shaOut } = await exec('git', ['rev-parse', 'HEAD'], { cwd: repoRoot });
+      return shaOut.trim();
+    } catch (err) {
+      // Attempt conflict resolution via callback if provided
+      if (mergeResolver) {
+        try {
+          const conflictInfo = await gatherConflictInfo(repoRoot, featureBranch, baseBranch);
+          if (conflictInfo) {
+            const resolved = await mergeResolver(repoRoot, conflictInfo);
+            if (resolved) {
+              // Verify no remaining conflicts
+              const { stdout: remaining } = await exec(
+                'git', ['diff', '--name-only', '--diff-filter=U'],
+                { cwd: repoRoot },
+              );
+              if (remaining.trim().length === 0) {
+                await exec('git', ['commit', '-m', squashCommitMessage], { cwd: repoRoot });
+                const { stdout: shaOut } = await exec('git', ['rev-parse', 'HEAD'], { cwd: repoRoot });
+                return shaOut.trim();
+              }
+            }
+          }
+        } catch {
+          // Resolver failed - fall through to reset
+        }
+      }
+
+      try {
+        await exec('git', ['reset', '--merge'], { cwd: repoRoot });
+      } catch {
+        // Best-effort reset
+      }
+      throw err;
+    }
   }
 
   try {

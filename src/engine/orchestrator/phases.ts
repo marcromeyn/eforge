@@ -17,6 +17,7 @@ import { WorktreeManager } from '../worktree-manager.js';
 import { Semaphore, AsyncEventQueue } from '../concurrency.js';
 import type { PlanRunner, ValidationFixer } from '../orchestrator.js';
 import type { MergeResolver } from '../worktree-ops.js';
+import { ATTRIBUTION } from '../git.js';
 
 /**
  * Shared context passed between phase functions.
@@ -486,7 +487,11 @@ export async function* finalize(ctx: PhaseContext): AsyncGenerator<EforgeEvent> 
     yield { timestamp: new Date().toISOString(), type: 'merge:finalize:start', featureBranch, baseBranch: config.baseBranch };
 
     try {
-      const commitSha = await ctx.worktreeManager.mergeToBase(config.baseBranch, ctx.mergeResolver);
+      // For single-plan builds, squash all feature-branch commits into one clean commit
+      const squashCommitMessage = config.plans.length === 1
+        ? `feat(${config.plans[0].id}): ${config.plans[0].name}\n\n${ATTRIBUTION}`
+        : undefined;
+      const commitSha = await ctx.worktreeManager.mergeToBase(config.baseBranch, ctx.mergeResolver, squashCommitMessage);
       ctx.featureBranchMerged = true;
       yield { timestamp: new Date().toISOString(), type: 'merge:finalize:complete', featureBranch, baseBranch: config.baseBranch, commitSha };
     } catch (err) {
