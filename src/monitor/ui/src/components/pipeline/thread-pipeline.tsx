@@ -3,7 +3,7 @@ import { usePlanPreview } from '@/components/preview';
 import { formatDuration, formatNumber } from '@/lib/format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { AgentThread, StoredEvent } from '@/lib/reducer';
-import type { PipelineStage, ReviewIssue, ProfileInfo, OrchestrationConfig, BuildStageSpec } from '@/lib/types';
+import type { AgentRole, PipelineStage, ReviewIssue, ProfileInfo, OrchestrationConfig, BuildStageSpec } from '@/lib/types';
 
 const REVIEW_AGENTS = new Set([
   'reviewer', 'plan-reviewer', 'architecture-reviewer', 'cohesion-reviewer',
@@ -11,23 +11,26 @@ const REVIEW_AGENTS = new Set([
 ]);
 
 /** Map agent roles to pipeline-stage color classes */
-const AGENT_COLORS: Record<string, { bg: string; border: string }> = {
-  planner:             { bg: 'bg-yellow/30',  border: 'border-yellow/50' },
-  'module-planner':    { bg: 'bg-yellow/30',  border: 'border-yellow/50' },
-  builder:             { bg: 'bg-blue/30',    border: 'border-blue/50' },
-  reviewer:            { bg: 'bg-green/30',   border: 'border-green/50' },
-  'plan-reviewer':     { bg: 'bg-green/30',   border: 'border-green/50' },
-  'cohesion-reviewer': { bg: 'bg-green/30',   border: 'border-green/50' },
-  'architecture-reviewer': { bg: 'bg-green/30', border: 'border-green/50' },
-  evaluator:           { bg: 'bg-purple/30',  border: 'border-purple/50' },
-  'plan-evaluator':    { bg: 'bg-purple/30',  border: 'border-purple/50' },
-  'architecture-evaluator': { bg: 'bg-purple/30', border: 'border-purple/50' },
-  'cohesion-evaluator':{ bg: 'bg-purple/30',  border: 'border-purple/50' },
-  'review-fixer':      { bg: 'bg-purple/30',  border: 'border-purple/50' },
-  'parallel-reviewer': { bg: 'bg-green/30',   border: 'border-green/50' },
-  'doc-updater':       { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
-  'validation-fixer':  { bg: 'bg-red/30',     border: 'border-red/50' },
-  formatter:           { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
+const AGENT_COLORS: Record<AgentRole, { bg: string; border: string }> = {
+  'planner':                { bg: 'bg-yellow/30',  border: 'border-yellow/50' },
+  'module-planner':         { bg: 'bg-yellow/30',  border: 'border-yellow/50' },
+  'builder':                { bg: 'bg-blue/30',    border: 'border-blue/50' },
+  'reviewer':               { bg: 'bg-green/30',   border: 'border-green/50' },
+  'plan-reviewer':          { bg: 'bg-green/30',   border: 'border-green/50' },
+  'cohesion-reviewer':      { bg: 'bg-green/30',   border: 'border-green/50' },
+  'architecture-reviewer':  { bg: 'bg-green/30',   border: 'border-green/50' },
+  'evaluator':              { bg: 'bg-purple/30',  border: 'border-purple/50' },
+  'plan-evaluator':         { bg: 'bg-purple/30',  border: 'border-purple/50' },
+  'architecture-evaluator': { bg: 'bg-purple/30',  border: 'border-purple/50' },
+  'cohesion-evaluator':     { bg: 'bg-purple/30',  border: 'border-purple/50' },
+  'review-fixer':           { bg: 'bg-purple/30',  border: 'border-purple/50' },
+  'doc-updater':            { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
+  'validation-fixer':       { bg: 'bg-red/30',     border: 'border-red/50' },
+  'formatter':              { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
+  'tester':                 { bg: 'bg-orange/30',  border: 'border-orange/50' },
+  'test-writer':            { bg: 'bg-orange/30',  border: 'border-orange/50' },
+  'merge-conflict-resolver': { bg: 'bg-red/30',    border: 'border-red/50' },
+  'staleness-assessor':     { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
 };
 
 const FALLBACK_COLOR = { bg: 'bg-cyan/30', border: 'border-cyan/50' };
@@ -35,7 +38,7 @@ const EMPTY_THREADS: AgentThread[] = [];
 const EMPTY_EVENTS: StoredEvent[] = [];
 
 function getAgentColor(agent: string) {
-  return AGENT_COLORS[agent] ?? FALLBACK_COLOR;
+  return AGENT_COLORS[agent as AgentRole] ?? FALLBACK_COLOR;
 }
 
 // --- Profile tier colors ---
@@ -54,7 +57,7 @@ function getTierColor(name: string) {
 
 // --- Agent role → profile stage mapping ---
 
-const AGENT_TO_STAGE: Record<string, string> = {
+const AGENT_TO_STAGE: Record<AgentRole, string> = {
   'planner': 'planner',
   'plan-reviewer': 'plan-review-cycle',
   'plan-evaluator': 'plan-review-cycle',
@@ -66,10 +69,14 @@ const AGENT_TO_STAGE: Record<string, string> = {
   'builder': 'implement',
   'doc-updater': 'doc-update',
   'reviewer': 'review',
-  'parallel-reviewer': 'review',
   'review-fixer': 'review-fix',
   'evaluator': 'evaluate',
   'validation-fixer': 'validate',
+  'formatter': 'formatter',
+  'tester': 'test',
+  'test-writer': 'test-write',
+  'merge-conflict-resolver': 'merge',
+  'staleness-assessor': 'staleness',
 };
 
 type StageStatus = 'pending' | 'active' | 'completed' | 'failed';
@@ -185,14 +192,38 @@ function ProfileHeader({ profileInfo, activeStages, completedStages, hoveredStag
 
 // --- Build stage breadcrumb ---
 
-/** Map PipelineStage values to build stage spec names (collapsing sub-stages to composites) */
-const PIPELINE_TO_BUILD_STAGE: Record<string, string> = {
-  implement: 'implement',
-  'doc-update': 'doc-update',
-  test: 'test',
-  review: 'review-cycle',
-  evaluate: 'review-cycle',
+/** Map composite stage names to their child pipeline stages */
+const COMPOSITE_STAGES: Record<string, string[]> = {
+  'review-cycle': ['review', 'review-fix', 'evaluate'],
+  'test-cycle': ['test', 'test-fix', 'evaluate'],
 };
+
+/** Resolve a raw pipeline stage to its build stage name using the plan's actual build stages.
+ *  For stages that appear in a composite (e.g. 'review' in 'review-cycle'), returns the composite
+ *  name if that composite is present in the plan's buildStages. Falls back to the raw stage name. */
+function resolveBuildStage(pipelineStage: string, buildStages?: BuildStageSpec[]): string {
+  if (!buildStages || buildStages.length === 0) return pipelineStage;
+
+  // Direct match - check if the stage itself is a build stage
+  const directMatch = buildStages.some((spec) => {
+    const name = buildStageName(spec);
+    return name === pipelineStage || (Array.isArray(spec) && spec.includes(pipelineStage));
+  });
+  if (directMatch) return pipelineStage;
+
+  // Check composites - find the last composite that contains this pipeline stage and is in buildStages
+  let resolved = pipelineStage;
+  for (const [composite, children] of Object.entries(COMPOSITE_STAGES)) {
+    if (!children.includes(pipelineStage)) continue;
+    const inBuild = buildStages.some((spec) => {
+      const name = buildStageName(spec);
+      return name === composite || (Array.isArray(spec) && spec.includes(composite));
+    });
+    if (inBuild) resolved = composite;
+  }
+
+  return resolved;
+}
 
 /** Normalize a BuildStageSpec to its string name (for parallel groups, join with '+') */
 function buildStageName(spec: BuildStageSpec): string {
@@ -216,7 +247,9 @@ function getBuildStageStatuses(
     let furthestIdx = -1;
     if (threads && threads.length > 0) {
       for (const thread of threads) {
-        const mappedName = PIPELINE_TO_BUILD_STAGE[AGENT_TO_STAGE[thread.agent] ?? ''];
+        const agentStage = AGENT_TO_STAGE[thread.agent as AgentRole];
+        if (!agentStage) continue;
+        const mappedName = resolveBuildStage(agentStage, buildStages);
         if (!mappedName) continue;
         const idx = buildStages.findIndex((spec) => {
           const name = buildStageName(spec);
@@ -236,7 +269,7 @@ function getBuildStageStatuses(
   }
 
   // Map current PipelineStage to build stage name
-  const mappedName = PIPELINE_TO_BUILD_STAGE[currentStage];
+  const mappedName = resolveBuildStage(currentStage, buildStages);
   if (!mappedName) return buildStages.map(() => 'pending');
 
   // Find the index of the current stage in the build stages
@@ -438,7 +471,7 @@ export function ThreadPipeline({ agentThreads, startTime, endTime, planStatuses,
     const running = new Set<string>();
 
     for (const thread of agentThreads) {
-      const stage = AGENT_TO_STAGE[thread.agent];
+      const stage = AGENT_TO_STAGE[thread.agent as AgentRole];
       if (!stage) continue;
       seen.add(stage);
       if (thread.endedAt === null) {
@@ -619,7 +652,8 @@ function PlanRow({ planId, threads, sessionStart, totalSpan, endTime, issues, di
               : isRunning
                 ? 'running...'
                 : formatDuration(threadEnd - threadStart);
-            const stripStage = AGENT_TO_STAGE[thread.agent];
+            const rawStage = AGENT_TO_STAGE[thread.agent as AgentRole];
+            const stripStage = rawStage ? resolveBuildStage(rawStage, buildStages) : undefined;
             const isStripHighlighted = hoveredStage !== null && hoveredStage === stripStage;
             const isStripDimmed = hoveredStage !== null && hoveredStage !== stripStage;
 
