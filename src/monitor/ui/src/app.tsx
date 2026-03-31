@@ -6,6 +6,7 @@ import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ShutdownBanner } from '@/components/layout/shutdown-banner';
 import { SummaryCards } from '@/components/common/summary-cards';
+import { ArtifactsStrip } from '@/components/common/artifacts-strip';
 import { ThreadPipeline } from '@/components/pipeline/thread-pipeline';
 import { Timeline } from '@/components/timeline/timeline';
 import { DependencyGraph } from '@/components/graph';
@@ -40,7 +41,7 @@ function AppContent() {
   const { state: autoBuildState, toggling: autoBuildToggling, toggle: onToggleAutoBuild } = useAutoBuild();
   const [projectContext, setProjectContext] = useState<ProjectContext | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { setRuntimeData, openContentPreview } = usePlanPreview();
+  const { setRuntimeData } = usePlanPreview();
 
   // Fetch project context once on mount
   useEffect(() => {
@@ -282,18 +283,9 @@ function AppContent() {
               </div>
             ) : (
               <>
-                <div className="flex items-center justify-between">
-                  <SummaryCards {...stats} isComplete={runState.resultStatus === 'completed'} isFailed={runState.resultStatus === 'failed'} backend={runState.backend} />
-                  {prdSource && (
-                    <span
-                      className="text-blue cursor-pointer hover:underline text-xs"
-                      onClick={() => openContentPreview(prdSource.label, prdSource.content)}
-                    >
-                      Build PRD
-                    </span>
-                  )}
-                </div>
+                <SummaryCards {...stats} isComplete={runState.resultStatus === 'completed'} isFailed={runState.resultStatus === 'failed'} backend={runState.backend} />
                 <ThreadPipeline agentThreads={runState.agentThreads} startTime={runState.startTime} endTime={runState.endTime} planStatuses={runState.planStatuses} reviewIssues={runState.reviewIssues} profileInfo={runState.profileInfo} events={runState.events} orchestration={effectiveOrchestration} />
+                <ArtifactsStrip sessionId={currentSessionId} prdSource={prdSource} />
 
                 {/* Content tabs */}
                 <div className="flex gap-2 border-b border-border pb-px">
