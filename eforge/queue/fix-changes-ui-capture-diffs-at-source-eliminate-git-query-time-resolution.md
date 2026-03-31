@@ -1,7 +1,7 @@
 ---
 title: Fix Changes UI: Capture Diffs at Source, Eliminate Git Query-Time Resolution
 created: 2026-03-31
-status: pending
+status: failed
 ---
 
 # Fix Changes UI: Capture Diffs at Source, Eliminate Git Query-Time Resolution
