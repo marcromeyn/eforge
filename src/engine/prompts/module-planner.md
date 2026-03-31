@@ -153,11 +153,11 @@ After writing the module plan, emit a `<build-config>` XML block containing JSON
 
 **Fields:**
 
-- **`build`** — array of stage specs. Each element is a stage name (string) or an array of stage names (parallel group). `review-cycle` is a composite stage that expands to `[review, review-fix, evaluate]`. `test-cycle` expands to `[test, test-fix, evaluate]` — use it when the module has testable behavior.
+- **`build`** — array of stage specs. Each element is a stage name (string) or an array of stage names (parallel group). `review-cycle` is a composite stage that expands to `[review, evaluate]`. `test-cycle` expands to `[test, evaluate]` — use it when the module has testable behavior.
 - **`review`** — object controlling the review cycle:
   - `strategy` — `auto`, `single`, or `parallel`
   - `perspectives` — array of review perspectives: `code`, `security`, `api`, `docs`
-  - `maxRounds` — max review-fix-evaluate cycles (integer, typically 1-3)
+  - `maxRounds` — max review-evaluate cycles (integer, typically 1-3)
   - `evaluatorStrictness` — `strict`, `standard`, or `lenient`
 
 Tailor the config to the module's complexity. A simple utility module may need only `[implement, review-cycle]` with one round, while a security-critical module may warrant `strategy: parallel` with `perspectives: [code, security]` and `maxRounds: 2`. For modules with testable features, include `test-cycle` after `implement`: `[implement, test-cycle, review-cycle]`. For TDD, place `test-write` before `implement`: `[test-write, implement, test-cycle]`. For modules with user-facing changes, include `doc-update` parallel with `implement`: `[[implement, doc-update], review-cycle]`.

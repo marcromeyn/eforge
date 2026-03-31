@@ -80,10 +80,6 @@ export type { ReviewerOptions } from './agents/reviewer.js';
 export { runParallelReview, deduplicateIssues } from './agents/parallel-reviewer.js';
 export type { ParallelReviewerOptions } from './agents/parallel-reviewer.js';
 
-// --- review-fixer ---
-export { runReviewFixer } from './agents/review-fixer.js';
-export type { ReviewFixerOptions } from './agents/review-fixer.js';
-
 // --- review-heuristics ---
 export { categorizeFiles, determineApplicableReviews, shouldParallelizeReview } from './review-heuristics.js';
 export type { ReviewPerspective, FileCategories, DiffStats } from './review-heuristics.js';

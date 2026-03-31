@@ -39,11 +39,11 @@ node --env-file=.env dist/cli.js build some-prd.md --verbose
 
 Compile stages: `prd-passthrough`, `planner`, `plan-review-cycle`, `architecture-review-cycle`, `module-planning`, `cohesion-review-cycle`, `compile-expedition`
 
-Build stages: `implement`, `review`, `review-fix`, `evaluate`, `review-cycle`, `validate`, `doc-update`, `test-write`, `test`, `test-fix`, `test-cycle`
+Build stages: `implement`, `review`, `evaluate`, `review-cycle`, `validate`, `doc-update`, `test-write`, `test`, `test-cycle`
 
-`review-cycle` is a composite stage that expands to `[review, review-fix, evaluate]`.
+`review-cycle` is a composite stage that expands to `[review, evaluate]`.
 
-`test-cycle` is a composite stage that expands to `[test, test-fix, evaluate]`. Use it when the plan has testable behavior.
+`test-cycle` is a composite stage that expands to `[test, evaluate]`. Use it when the plan has testable behavior.
 
 **Built-in profiles** (defined in `BUILTIN_PROFILES` in `src/engine/config.ts`):
 - **errand** — Small, self-contained changes. Compile: `[prd-passthrough]`.
@@ -71,7 +71,6 @@ Build stages and review config are determined per-plan by the planner (for singl
 - **Builder** — multi-turn agent. Turn 1: implement plan. Turn 2: evaluate reviewer's unstaged fixes (accept/reject/review).
 - **Reviewer** — one-shot query. Blind code review (no builder context), leaves fixes unstaged.
 - **Parallel Reviewer** — one-shot query. Multi-perspective code review that runs review perspectives in parallel.
-- **Review Fixer** — one-shot coding agent. Applies reviewer-suggested fixes as unstaged changes for evaluator judgment.
 - **Doc Updater** — one-shot coding agent. Updates documentation to reflect implementation changes, runs in parallel with the builder.
 - **Merge Conflict Resolver** — one-shot coding agent. Resolves git merge conflicts by understanding intent from each plan.
 - **Tester** — one-shot coding agent. Runs tests, fixes test bugs, and reports production issues found during testing.
@@ -105,7 +104,7 @@ src/
     pipeline.ts               # Stage registry, compile/build stage implementations
     config.ts                 # Config loading, merging & validation
     git.ts                    # forgeCommit() helper — all engine commits go through here for attribution
-    agents/                   # Agent implementations (17 agent files — see agent list above; plan evaluator, cohesion evaluator, and architecture evaluator share one file)
+    agents/                   # Agent implementations (16 agent files — see agent list above; plan evaluator, cohesion evaluator, and architecture evaluator share one file)
     backends/                 # SDK adapters (sole provider SDK import point): claude-sdk.ts, pi.ts, pi-mcp-bridge.ts, pi-extensions.ts
     prompts/                  # Agent prompt .md files (self-contained, no runtime plugin deps)
   monitor/                    # Web monitor — SQLite event persistence + SSE dashboard
@@ -131,7 +130,7 @@ eforge loads config from two levels, merged together:
 1. **Global (user-level)**: `~/.config/eforge/config.yaml` (respects `$XDG_CONFIG_HOME`)
 2. **Project-level**: `eforge/config.yaml` found by walking up from cwd
 
-**Model class system**: Each agent role has a `ModelClass` (`max`, `balanced`, `fast`, `auto`) - all default to `max`. claude-sdk backend has built-in class defaults (max=opus, balanced=sonnet, fast=haiku, auto=undefined/SDK picks). Pi backend has no built-in defaults - users must configure `agents.models.max` at minimum; the engine throws a descriptive error if no model resolves for a non-claude-sdk backend. Users can reassign a role's class via per-role `modelClass` - e.g., set execution roles (builder, reviewer, review-fixer, etc.) to `balanced` or `fast` for cost optimization. Resolution order: per-role model > global model > user class override > backend class default. The `AGENT_MODEL_CLASSES` map and `MODEL_CLASS_DEFAULTS` map live in `src/engine/pipeline.ts`; `resolveAgentConfig()` implements the resolution logic.
+**Model class system**: Each agent role has a `ModelClass` (`max`, `balanced`, `fast`, `auto`) - all default to `max`. claude-sdk backend has built-in class defaults (max=opus, balanced=sonnet, fast=haiku, auto=undefined/SDK picks). Pi backend has no built-in defaults - users must configure `agents.models.max` at minimum; the engine throws a descriptive error if no model resolves for a non-claude-sdk backend. Users can reassign a role's class via per-role `modelClass` - e.g., set execution roles (builder, reviewer, etc.) to `balanced` or `fast` for cost optimization. Resolution order: per-role model > global model > user class override > backend class default. The `AGENT_MODEL_CLASSES` map and `MODEL_CLASS_DEFAULTS` map live in `src/engine/pipeline.ts`; `resolveAgentConfig()` implements the resolution logic.
 
 **Priority chain** (lowest → highest): defaults → global config → project config → env vars → CLI overrides
 

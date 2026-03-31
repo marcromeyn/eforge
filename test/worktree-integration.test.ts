@@ -365,7 +365,7 @@ describe('worktree integration', () => {
     // Commit 2
     writeFileSync(join(mergeWorktreePath, 'file2.txt'), 'second file\n');
     await exec('git', ['add', '.'], { cwd: mergeWorktreePath });
-    await exec('git', ['commit', '-m', 'review-fixer: apply fixes'], { cwd: mergeWorktreePath });
+    await exec('git', ['commit', '-m', 'reviewer: apply fixes'], { cwd: mergeWorktreePath });
 
     // Commit 3
     writeFileSync(join(mergeWorktreePath, 'file3.txt'), 'third file\n');

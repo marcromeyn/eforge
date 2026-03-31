@@ -23,7 +23,6 @@ const AGENT_COLORS: Record<AgentRole, { bg: string; border: string }> = {
   'plan-evaluator':         { bg: 'bg-purple/30',  border: 'border-purple/50' },
   'architecture-evaluator': { bg: 'bg-purple/30',  border: 'border-purple/50' },
   'cohesion-evaluator':     { bg: 'bg-purple/30',  border: 'border-purple/50' },
-  'review-fixer':           { bg: 'bg-purple/30',  border: 'border-purple/50' },
   'doc-updater':            { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
   'validation-fixer':       { bg: 'bg-red/30',     border: 'border-red/50' },
   'formatter':              { bg: 'bg-cyan/30',    border: 'border-cyan/50' },
@@ -69,7 +68,6 @@ const AGENT_TO_STAGE: Record<AgentRole, string> = {
   'builder': 'implement',
   'doc-updater': 'doc-update',
   'reviewer': 'review',
-  'review-fixer': 'review-fix',
   'evaluator': 'evaluate',
   'validation-fixer': 'validate',
   'formatter': 'formatter',
@@ -194,8 +192,8 @@ function ProfileHeader({ profileInfo, activeStages, completedStages, hoveredStag
 
 /** Map composite stage names to their child pipeline stages */
 const COMPOSITE_STAGES: Record<string, string[]> = {
-  'review-cycle': ['review', 'review-fix', 'evaluate'],
-  'test-cycle': ['test', 'test-fix', 'evaluate'],
+  'review-cycle': ['review', 'evaluate'],
+  'test-cycle': ['test', 'evaluate'],
 };
 
 /** Resolve a raw pipeline stage to its build stage name using the plan's actual build stages.

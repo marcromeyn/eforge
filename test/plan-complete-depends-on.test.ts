@@ -6,7 +6,7 @@ import type { ResolvedProfileConfig } from '../src/engine/config.js';
 const STUB_PROFILE: ResolvedProfileConfig = {
   description: 'stub',
   compile: ['prd-passthrough'],
-  build: ['implement', 'review', 'review-fix', 'evaluate'],
+  build: ['implement', 'review', 'evaluate'],
   agents: {},
   review: { strategy: 'auto', perspectives: [], maxRounds: 1, evaluatorStrictness: 'standard' },
 };

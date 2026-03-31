@@ -449,10 +449,6 @@ insertEvent(RUN2_ID, { type: 'build:review:complete', planId: 'plan-02-protected
   { severity: 'critical', category: 'security', file: 'src/routes/todos.ts', line: 12, description: 'Missing input validation on user ID parameter allows IDOR' },
   { severity: 'warning', category: 'code-quality', file: 'src/routes/todos.ts', line: 28, description: 'Middleware ordering may cause auth bypass on error paths' },
 ] }, 392000);
-// Review fix agent
-insertEvent(RUN2_ID, { type: 'build:review:fix:start', planId: 'plan-02-protected-routes', issueCount: 2 } as unknown as EforgeEvent, 392500);
-insertAgentRun(RUN2_ID, 'review-fixer', 393000, 398000, 'plan-02-protected-routes');
-insertEvent(RUN2_ID, { type: 'build:review:fix:complete', planId: 'plan-02-protected-routes' } as unknown as EforgeEvent, 398500);
 // Evaluate fixes
 insertEvent(RUN2_ID, { type: 'build:evaluate:start', planId: 'plan-02-protected-routes' }, 399000);
 insertAgentRun(RUN2_ID, 'evaluator', 399500, 403000, 'plan-02-protected-routes');

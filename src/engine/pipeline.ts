@@ -33,7 +33,6 @@ import { runModulePlanner } from './agents/module-planner.js';
 import { builderImplement, builderEvaluate } from './agents/builder.js';
 import { runDocUpdater } from './agents/doc-updater.js';
 import { runParallelReview } from './agents/parallel-reviewer.js';
-import { runReviewFixer } from './agents/review-fixer.js';
 import { runPlanReview } from './agents/plan-reviewer.js';
 import { runPlanEvaluate, runCohesionEvaluate, runArchitectureEvaluate } from './agents/plan-evaluator.js';
 import { runCohesionReview } from './agents/cohesion-reviewer.js';
@@ -263,7 +262,6 @@ export const AGENT_MODEL_CLASSES: Record<AgentRole, ModelClass> = {
   builder: 'max',
   reviewer: 'max',
   evaluator: 'max',
-  'review-fixer': 'max',
   'validation-fixer': 'max',
   'merge-conflict-resolver': 'max',
   'doc-updater': 'max',
@@ -1121,54 +1119,6 @@ async function* reviewStageInner(
   }
 }
 
-registerBuildStage('review-fix', async function* reviewFixStage(ctx) {
-  yield* reviewFixStageInner(ctx);
-});
-
-async function* reviewFixStageInner(ctx: BuildStageContext): AsyncGenerator<EforgeEvent> {
-  // Filter issues by autoAcceptBelow threshold
-  const { filtered, autoAccepted } = filterIssuesBySeverity(
-    ctx.reviewIssues,
-    ctx.review.autoAcceptBelow,
-  );
-  ctx.reviewIssues = filtered;
-
-  // Only runs if review found actionable issues after filtering
-  if (ctx.reviewIssues.length === 0) return;
-
-  const fixerAgentConfig = resolveAgentConfig('review-fixer', ctx.config, ctx.config.backend);
-  const fixerSpan = ctx.tracing.createSpan('review-fixer', { planId: ctx.planId });
-  fixerSpan.setInput({
-    planId: ctx.planId,
-    issueCount: ctx.reviewIssues.length,
-    autoAccepted: autoAccepted.length,
-  });
-  const fixerTracker = createToolTracker(fixerSpan);
-
-  try {
-    for await (const event of runReviewFixer({
-      backend: ctx.backend,
-      planId: ctx.planId,
-      cwd: ctx.worktreePath,
-      issues: ctx.reviewIssues,
-      verbose: ctx.verbose,
-      abortController: ctx.abortController,
-      ...fixerAgentConfig,
-    })) {
-      fixerTracker.handleEvent(event);
-      yield event;
-    }
-    fixerTracker.cleanup();
-    fixerSpan.end();
-  } catch (err) {
-    fixerTracker.cleanup();
-    fixerSpan.error(err as Error);
-  }
-
-  // Emit files changed after review fixes (non-critical)
-  yield* emitFilesChanged(ctx);
-}
-
 registerBuildStage('evaluate', async function* evaluateStage(ctx) {
   yield* evaluateStageInner(ctx);
 });
@@ -1215,7 +1165,7 @@ registerBuildStage('review-cycle', async function* reviewCycleStage(ctx) {
   const strictness = ctx.review.evaluatorStrictness;
 
   for (let round = 0; round < maxRounds; round++) {
-    // 1. Review
+    // 1. Review (reviewer writes fixes directly as unstaged changes)
     yield* reviewStageInner(ctx, { strategy, perspectives });
 
     // 2. Filter issues
@@ -1224,10 +1174,7 @@ registerBuildStage('review-cycle', async function* reviewCycleStage(ctx) {
 
     if (filtered.length === 0) break; // No actionable issues
 
-    // 3. Review-fix
-    yield* reviewFixStageInner(ctx);
-
-    // 4. Evaluate
+    // 3. Evaluate
     yield* evaluateStageInner(ctx, { strictness });
   }
 });
@@ -1353,25 +1300,18 @@ async function* testStageInner(ctx: BuildStageContext): AsyncGenerator<EforgeEve
   }
 }
 
-registerBuildStage('test-fix', async function* testFixStage(ctx) {
-  yield* reviewFixStageInner(ctx);
-});
-
 registerBuildStage('test-cycle', async function* testCycleStage(ctx) {
   const maxRounds = ctx.review.maxRounds;
   const strictness = ctx.review.evaluatorStrictness;
 
   for (let round = 0; round < maxRounds; round++) {
-    // 1. Test
+    // 1. Test (tester writes production fixes directly as unstaged changes)
     yield* testStageInner(ctx);
 
     // 2. Break if no production issues
     if (ctx.reviewIssues.length === 0) break;
 
-    // 3. Test-fix (reuses review-fix plumbing)
-    yield* reviewFixStageInner(ctx);
-
-    // 4. Evaluate
+    // 3. Evaluate
     yield* evaluateStageInner(ctx, { strictness });
   }
 });

@@ -149,7 +149,7 @@ export async function* runReview(
   let fullText = '';
 
   for await (const event of backend.run(
-    { prompt, cwd, maxTurns: 30, tools: 'none', abortSignal: abortController?.signal, ...pickSdkOptions(options) },
+    { prompt, cwd, maxTurns: 30, tools: 'coding', abortSignal: abortController?.signal, ...pickSdkOptions(options) },
     'reviewer',
     planId,
   )) {

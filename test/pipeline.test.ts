@@ -143,7 +143,7 @@ describe('stage registry', () => {
   });
 
   it('all built-in build stages are registered', () => {
-    const builtinBuildStages = ['implement', 'review', 'review-fix', 'evaluate', 'validate', 'doc-update'];
+    const builtinBuildStages = ['implement', 'review', 'evaluate', 'validate', 'doc-update'];
     for (const name of builtinBuildStages) {
       expect(() => getBuildStage(name)).not.toThrow();
       expect(typeof getBuildStage(name)).toBe('function');
@@ -281,21 +281,17 @@ describe('runBuildPipeline', () => {
       order.push('review');
       yield { type: 'plan:progress', message: 'review' };
     });
-    registerBuildStage('test-b-fix', async function* () {
-      order.push('review-fix');
-      yield { type: 'plan:progress', message: 'fix' };
-    });
     registerBuildStage('test-b-eval', async function* () {
       order.push('evaluate');
       yield { type: 'plan:progress', message: 'eval' };
     });
 
-    const ctx = makeBuildCtx({ build: ['test-b-impl', 'test-b-review', 'test-b-fix', 'test-b-eval'] });
+    const ctx = makeBuildCtx({ build: ['test-b-impl', 'test-b-review', 'test-b-eval'] });
     const events = await collect(runBuildPipeline(ctx));
 
-    expect(order).toEqual(['implement', 'review', 'review-fix', 'evaluate']);
-    // build:start + 4 stage events + build:complete = 6
-    expect(events).toHaveLength(6);
+    expect(order).toEqual(['implement', 'review', 'evaluate']);
+    // build:start + 3 stage events + build:complete = 5
+    expect(events).toHaveLength(5);
     expect(events[0].type).toBe('build:start');
     expect(events[events.length - 1].type).toBe('build:complete');
   });

@@ -15,7 +15,7 @@ export const AGENT_ROLES = [
   'planner', 'builder', 'reviewer', 'evaluator', 'module-planner',
   'plan-reviewer', 'plan-evaluator', 'architecture-reviewer', 'architecture-evaluator',
   'cohesion-reviewer', 'cohesion-evaluator',
-  'validation-fixer', 'review-fixer', 'merge-conflict-resolver',
+  'validation-fixer', 'merge-conflict-resolver',
   'staleness-assessor', 'formatter', 'doc-updater',
   'test-writer', 'tester',
 ] as const;
