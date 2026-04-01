@@ -14,13 +14,13 @@ The name: **E** from the [Expedition-Excursion-Errand methodology](https://www.m
 
 Traditional build systems transform source code into artifacts. An agentic build system transforms *specifications* into source code - then verifies its own output.
 
-The key insight: a single AI agent writing and reviewing its own code will almost always approve it. Quality requires **separation of concerns** - distinct agents for planning, building, reviewing, and evaluating, where the reviewer never sees the builder's reasoning and the evaluator judges fixes against the original intent, not the reviewer's confidence.
+The key insight: a single AI agent writing and reviewing its own code will almost always approve it. Quality requires **separation of concerns** - distinct agents for planning, building, reviewing, and evaluating.
 
 An agentic build system applies build-system thinking to this multi-agent pipeline:
 
-- **Spec-driven** - Input is a requirement (PRD, prompt, markdown), not a code edit. The system decides *how* to implement it.
+- **Spec-driven** - Input is a requirement, not a code edit. The system decides *how* to implement it.
 - **Multi-stage pipeline** - Planning, implementation, review, and validation are separate stages with separate agents, not one conversation.
-- **Blind review** - The reviewer operates without builder context, separating generation from evaluation.
+- **Blind review** - The reviewer operates without builder context (see below).
 - **Dependency-aware orchestration** - Large work decomposes into modules with a dependency graph. Plans build in parallel across isolated git worktrees, merging in topological order.
 - **Adaptive complexity** - The system assesses scope and selects the right workflow: a one-file fix doesn't need architecture review, and a cross-cutting refactor shouldn't skip it.
 
@@ -43,7 +43,7 @@ eforge also runs standalone. By default, `eforge build` enqueues and a daemon pr
 
 **Blind review** - Every build gets reviewed by a separate agent with no builder context. Separating generation from evaluation [dramatically improves quality](https://www.anthropic.com/engineering/harness-design-long-running-apps) - solo agents tend to approve their own work regardless. A fixer applies suggestions, then an evaluator accepts strict improvements while rejecting intent changes.
 
-**Parallel orchestration** - Each plan builds in an isolated git worktree. Expeditions run multiple plans in parallel, merging in topological dependency order. The feature branch merges to the base branch via `--no-ff`, creating a merge commit that preserves branch history. Post-merge validation runs with auto-fix.
+**Parallel orchestration** - Each plan builds in an isolated git worktree. Expeditions run multiple plans in parallel, merging in topological dependency order. Post-merge validation runs with auto-fix.
 
 <img src="docs/images/monitor-timeline.png" alt="eforge dashboard - timeline view" width="800">
 
