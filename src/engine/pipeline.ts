@@ -714,7 +714,7 @@ registerCompileStage({
     if (event.type === 'plan:pipeline') {
       // Update the context pipeline from the composer result
       ctx.pipeline = {
-        scope: event.scope,
+        scope: event.scope as 'errand' | 'excursion' | 'expedition',
         compile: event.compile,
         defaultBuild: event.defaultBuild,
         defaultReview: event.defaultReview,

@@ -5,7 +5,7 @@ import type { EforgeEvent } from '../src/engine/events.js';
 import { StubBackend } from './stub-backend.js';
 import { collectEvents, findEvent, filterEvents } from './test-events.js';
 import { useTempDir } from './test-tmpdir.js';
-import { runPlanner, formatProfileDescriptions } from '../src/engine/agents/planner.js';
+import { runPlanner } from '../src/engine/agents/planner.js';
 import { runReview } from '../src/engine/agents/reviewer.js';
 import { builderImplement, builderEvaluate } from '../src/engine/agents/builder.js';
 import { runPlanReview } from '../src/engine/agents/plan-reviewer.js';
@@ -218,100 +218,6 @@ const stubProfile: ResolvedProfileConfig = {
   review: { strategy: 'auto', perspectives: ['code'], maxRounds: 1, evaluatorStrictness: 'standard' },
 };
 
-describe('formatProfileDescriptions', () => {
-  it('returns empty string for empty profiles', () => {
-    expect(formatProfileDescriptions({})).toBe('');
-  });
-
-  it('returns a markdown table with one row including pipeline effect', () => {
-    const result = formatProfileDescriptions({ errand: stubProfile });
-    expect(result).toContain('| Profile | Description | Pipeline Effect |');
-    expect(result).toContain('| `errand` | Small focused change | Skips plan review - plan goes directly to build |');
-  });
-
-  it('returns a markdown table with multiple profiles', () => {
-    const result = formatProfileDescriptions({
-      errand: stubProfile,
-      migration: { ...stubProfile, description: 'Database migration work' },
-    });
-    expect(result).toContain('| `errand` |');
-    expect(result).toContain('| `migration` | Database migration work | Stages: planner |');
-  });
-
-  it('shows well-known pipeline effects for built-in profiles', () => {
-    const result = formatProfileDescriptions({
-      errand: stubProfile,
-      excursion: { ...stubProfile, description: 'Multi-file feature work' },
-      expedition: { ...stubProfile, description: 'Large cross-cutting work' },
-    });
-    expect(result).toContain('Skips plan review');
-    expect(result).toContain('Includes plan review before build');
-    expect(result).toContain('Full architecture review, module planning, and cohesion review');
-  });
-
-  it('falls back to compile stages for custom profiles', () => {
-    const result = formatProfileDescriptions({
-      'custom-flow': { ...stubProfile, description: 'Custom workflow', compile: ['planner', 'plan-review-cycle'] },
-    });
-    expect(result).toContain('Stages: planner, plan-review-cycle');
-  });
-});
-
-// --- Planner profile emission ---
-
-describe('runPlanner profile emission', () => {
-  const makeTempDir = useTempDir('eforge-planner-profile-test-');
-
-  it('emits plan:profile when agent output contains a profile block', async () => {
-    const backend = new StubBackend([{
-      text: '<profile name="excursion">Multi-file feature work across 8 files.</profile>',
-    }]);
-    const cwd = makeTempDir();
-
-    const events = await collectEvents(runPlanner('Build feature', {
-      backend,
-      cwd,
-      profiles: { excursion: stubProfile },
-    }));
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeDefined();
-    expect(profile!.profileName).toBe('excursion');
-    expect(profile!.rationale).toBe('Multi-file feature work across 8 files.');
-    expect(profile!.config).toBe(stubProfile);
-  });
-
-  it('emits only plan:profile when profile name is a custom name', async () => {
-    const backend = new StubBackend([{
-      text: '<profile name="migration">Database migration work.</profile>',
-    }]);
-    const cwd = makeTempDir();
-
-    const events = await collectEvents(runPlanner('Run migration', {
-      backend,
-      cwd,
-      profiles: { migration: { ...stubProfile, description: 'Migration profile' } },
-    }));
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeDefined();
-    expect(profile!.profileName).toBe('migration');
-  });
-
-  it('includes profiles template variable in prompt when profiles are provided', async () => {
-    const backend = new StubBackend([{ text: 'Planning done.' }]);
-    const cwd = makeTempDir();
-
-    await collectEvents(runPlanner('Build feature', {
-      backend,
-      cwd,
-      profiles: { errand: stubProfile },
-    }));
-
-    expect(backend.prompts[0]).toContain('Small focused change');
-    expect(backend.prompts[0]).toContain('`errand`');
-  });
-});
 
 // --- Reviewer ---
 

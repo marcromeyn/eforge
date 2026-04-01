@@ -33,7 +33,7 @@ export {
   extractPlanTitle,
   detectValidationCommands,
   writePlanArtifacts,
-  injectProfileIntoOrchestrationYaml,
+  injectPipelineIntoOrchestrationYaml,
 } from './plan.js';
 export type { WritePlanArtifactsOptions } from './plan.js';
 
@@ -54,8 +54,7 @@ export type { PiExtensionConfig } from './backends/pi-extensions.js';
 // --- eforge:endregion plan-02-pi-backend ---
 
 // --- agents/common ---
-export { parseClarificationBlocks, parseProfileBlock, parseGeneratedProfileBlock, parseStalenessBlock, parseBuildConfigBlock } from './agents/common.js';
-export type { ProfileSelection, GeneratedProfileBlock } from './agents/common.js';
+export { parseClarificationBlocks, parseStalenessBlock, parseBuildConfigBlock } from './agents/common.js';
 export type { StalenessVerdict as StalenessVerdictResult } from './agents/common.js';
 
 // --- state ---
@@ -139,7 +138,7 @@ export { withHooks, matchesPattern } from './hooks.js';
 
 // --- config ---
 export type { EforgeConfig, PartialEforgeConfig, PluginConfig, ProfileConfig, ResolvedProfileConfig, AgentProfileConfig, ReviewProfileConfig, PartialProfileConfig, BuildStageSpec, PiConfig } from './config.js';
-export { DEFAULT_CONFIG, DEFAULT_BUILD, DEFAULT_BUILD_WITH_DOCS, DEFAULT_REVIEW, BUILTIN_PROFILES, AGENT_ROLES, eforgeConfigSchema, backendSchema, piConfigSchema, resolvedProfileConfigSchema, buildStageSpecSchema, reviewProfileConfigSchema, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, resolveProfileExtensions, parseProfilesFile, validateProfileConfig, validateConfigFile, resolveGeneratedProfile, getCompileOnlyProfileSchemaYaml } from './config.js';
+export { DEFAULT_CONFIG, DEFAULT_REVIEW, BUILTIN_PROFILES, AGENT_ROLES, eforgeConfigSchema, backendSchema, piConfigSchema, buildStageSpecSchema, reviewProfileConfigSchema, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, resolveProfileExtensions, parseProfilesFile, validateConfigFile } from './config.js';
 export type { TracingContext, SpanHandle, ToolCallHandle } from './tracing.js';
 export { createTracingContext, createNoopTracingContext } from './tracing.js';
 

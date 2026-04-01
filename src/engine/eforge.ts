@@ -25,11 +25,11 @@ import { loadQueue, resolveQueueOrder, getHeadHash, getPrdDiffSummary, enqueuePr
 import { runStalenessAssessor } from './agents/staleness-assessor.js';
 import { runFormatter } from './agents/formatter.js';
 import { runDependencyDetector, type QueueItemSummary, type RunningBuildSummary } from './agents/dependency-detector.js';
-import type { EforgeConfig, PluginConfig, PartialProfileConfig, ReviewProfileConfig } from './config.js';
+import type { EforgeConfig, PluginConfig, ReviewProfileConfig, BuildStageSpec } from './config.js';
 import type { AgentBackend } from './backend.js';
 import type { ClaudeSDKBackendOptions } from './backends/claude-sdk.js';
 import type { SdkPluginConfig, SettingSource } from '@anthropic-ai/claude-agent-sdk';
-import { loadConfig, resolveProfileExtensions, DEFAULT_REVIEW } from './config.js';
+import { loadConfig, DEFAULT_REVIEW } from './config.js';
 import { ClaudeSDKBackend } from './backends/claude-sdk.js';
 import { createTracingContext } from './tracing.js';
 import { runValidationFixer } from './agents/validation-fixer.js';
@@ -65,8 +65,6 @@ export interface EforgeEngineOptions {
   onClarification?: (questions: ClarificationQuestion[]) => Promise<Record<string, string>>;
   /** Approval callback for build gates */
   onApproval?: (action: string, details: string) => Promise<boolean>;
-  /** Additional profiles to add to the palette (from --profiles files) */
-  profileOverrides?: Record<string, PartialProfileConfig>;
 }
 
 export interface QueueOptions {
@@ -80,8 +78,6 @@ export interface QueueOptions {
   verbose?: boolean;
   /** Disable web monitor */
   noMonitor?: boolean;
-  /** Enable custom profile generation (defaults to true) */
-  generateProfile?: boolean;
   /** AbortController for cancellation */
   abortController?: AbortController;
   /** Enable watch mode — poll for new PRDs after each cycle */
@@ -150,12 +146,6 @@ export class EforgeEngine {
 
     if (options.config) {
       config = mergeConfig(config, options.config);
-    }
-
-    // Merge profile overrides from --profiles files
-    if (options.profileOverrides) {
-      const mergedProfiles = resolveProfileExtensions(options.profileOverrides, config.profiles);
-      config = { ...config, profiles: mergedProfiles };
     }
 
     // Auto-load MCP servers from .mcp.json if not explicitly provided
@@ -835,7 +825,6 @@ export class EforgeEngine {
         name: planSetName,
         auto: options.auto,
         verbose,
-        generateProfile: options.generateProfile ?? true,
         cwd,
         abortController,
       }))) {

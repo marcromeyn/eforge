@@ -213,7 +213,6 @@ export function createProgram(abortController?: AbortController): Command {
           monitor?: boolean;
           plugins?: boolean;
           profiles?: string[];
-          generateProfile?: boolean;
           watch?: boolean;
           pollInterval?: number;
         },
@@ -237,7 +236,6 @@ export function createProgram(abortController?: AbortController): Command {
               all: true,
               auto: options.auto,
               verbose: options.verbose,
-              generateProfile: options.generateProfile,
               abortController,
               ...(options.pollInterval !== undefined && { pollIntervalMs: options.pollInterval }),
             };
@@ -384,7 +382,6 @@ export function createProgram(abortController?: AbortController): Command {
               auto: options.auto,
               verbose: options.verbose,
               name: options.name,
-              generateProfile: options.generateProfile,
               abortController,
             });
 
@@ -418,7 +415,6 @@ export function createProgram(abortController?: AbortController): Command {
             name: enqueuedName,
             auto: options.auto,
             verbose: options.verbose,
-            generateProfile: options.generateProfile,
             abortController,
           });
 
