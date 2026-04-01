@@ -61,7 +61,7 @@ Add a new `eforge_init` tool to the MCP proxy that:
 - `eforge-plugin/skills/init/init.md` - Thin skill launcher that calls `mcp__eforge__eforge_init`
 
 ### Modify
-- `src/cli/mcp-proxy.ts` - Add `eforge_init` tool with elicitation form, add `node:fs/promises` imports for `writeFile`/`readFile`/`access`/`mkdir`, add gitignore helper function
+- `src/cli/mcp-proxy.ts` - Add `eforge_init` tool with elicitation form, extend existing `node:fs/promises` import (which already has `readFile`) to include `writeFile`/`access`/`mkdir`, add gitignore helper function
 - `eforge-plugin/.claude-plugin/plugin.json` - Add `./skills/init/init.md` to commands array, bump version to `0.5.14`
 
 ## Verification

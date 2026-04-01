@@ -1,25 +1,37 @@
 name: add-eforge-init-skill-with-mcp-elicitation-ui-for-project-onboarding
-description: Add /eforge:init skill with MCP elicitation UI for project onboarding - new eforge_init MCP tool with structured form for backend selection, .gitignore management, and config file creation
+description: Add /eforge:init skill with MCP elicitation UI for project
+  onboarding - new eforge_init MCP tool with structured form for backend
+  selection, .gitignore management, and config file creation
 created: 2026-04-01
 compiled: 2026-04-01
 mode: mcp-feature
-base_branch: eforge/add-eforge-init-skill-with-mcp-elicitation-ui-for-project-onboarding
-
+base_branch: main
 validate:
   - pnpm type-check
   - pnpm test
   - pnpm build
-
 plans:
   - id: plan-01-eforge-init-mcp-tool
     name: eforge_init MCP Tool with Elicitation
     depends_on: []
     branch: add-eforge-init-skill-with-mcp-elicitation-ui-for-project-onboarding/eforge-init-mcp-tool
     build:
-      - [implement, doc-update]
+      - - implement
+        - doc-update
       - review-cycle
     review:
       strategy: auto
-      perspectives: [code]
+      perspectives:
+        - code
       maxRounds: 1
       evaluatorStrictness: standard
+profile:
+  extends: excursion
+  description: Multi-file feature work or refactors. Use when the full scope can
+    be planned in a single planner session - all plans enumerated, all file
+    changes listed, and cross-plan dependencies resolved. Covers tightly coupled
+    changes (type cascades, interface refactors, rename-and-update-all-callers)
+    and any work where one planning pass is sufficient.
+  compile:
+    - planner
+    - plan-review-cycle
