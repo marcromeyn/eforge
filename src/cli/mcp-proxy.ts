@@ -9,9 +9,9 @@ import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mc
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, access, mkdir } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { resolve, dirname } from 'node:path';
+import { resolve, dirname, join } from 'node:path';
 import { ensureDaemon, daemonRequest, sleep, DAEMON_POLL_INTERVAL_MS } from './daemon-client.js';
 import { readLockfile } from '../monitor/lockfile.js';
 
@@ -291,6 +291,28 @@ function stopSseSubscriber(state: SseSubscriberState) {
 }
 
 // --- End SSE Subscriber ---
+
+async function ensureGitignoreEntries(projectDir: string, entries: string[]): Promise<void> {
+  const gitignorePath = join(projectDir, '.gitignore');
+  let content = '';
+  try {
+    content = await readFile(gitignorePath, 'utf-8');
+  } catch {
+    // .gitignore doesn't exist yet
+  }
+
+  const lines = content.split('\n');
+  const missing = entries.filter((entry) => !lines.some((line) => line.trim() === entry));
+
+  if (missing.length === 0) return;
+
+  const suffix = (content.length > 0 && !content.endsWith('\n') ? '\n' : '') +
+    '\n# eforge\n' +
+    missing.join('\n') +
+    '\n';
+
+  await writeFile(gitignorePath, content + suffix, 'utf-8');
+}
 
 export async function runMcpProxy(cwd: string): Promise<void> {
   const pkgPath = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'package.json');
@@ -613,6 +635,129 @@ export async function runMcpProxy(cwd: string): Promise<void> {
 
       const port = await ensureDaemon(cwd);
       return { content: [{ type: 'text', text: JSON.stringify({ status: 'restarted', port, message: 'Daemon restarted successfully.' }, null, 2) }] };
+    },
+  );
+
+  // Tool: eforge_init
+  server.tool(
+    'eforge_init',
+    'Initialize eforge in a project: creates eforge/config.yaml and updates .gitignore. Presents an elicitation form for backend selection.',
+    {
+      force: z.boolean().optional().describe('Overwrite existing eforge/config.yaml if it already exists. Default: false.'),
+    },
+    async ({ force }) => {
+      const configDir = join(cwd, 'eforge');
+      const configPath = join(configDir, 'config.yaml');
+
+      // Check if config already exists
+      try {
+        await access(configPath);
+        if (!force) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                error: 'eforge/config.yaml already exists. Use force: true to overwrite.',
+              }, null, 2),
+            }],
+            isError: true,
+          };
+        }
+      } catch {
+        // File does not exist - proceed
+      }
+
+      // Elicit backend choice from user
+      let backend: string;
+      try {
+        const result = await server.server.elicitInput({
+          mode: 'form',
+          message: 'Configure eforge for this project:',
+          requestedSchema: {
+            type: 'object',
+            properties: {
+              backend: {
+                type: 'string',
+                title: 'Backend',
+                description: 'Which LLM backend to use for builds',
+                oneOf: [
+                  { const: 'claude-sdk', title: 'Claude SDK - Uses Claude Code\'s built-in SDK' },
+                  { const: 'pi', title: 'Pi - Experimental multi-provider via Pi SDK' },
+                ],
+                default: 'claude-sdk',
+              },
+            },
+            required: ['backend'],
+          },
+        });
+
+        if (result.action === 'decline') {
+          return {
+            content: [{ type: 'text', text: 'Initialization declined by user.' }],
+          };
+        }
+
+        if (result.action === 'cancel' || !result.content) {
+          return {
+            content: [{ type: 'text', text: 'Initialization cancelled.' }],
+          };
+        }
+
+        backend = result.content.backend as string;
+      } catch (err) {
+        return {
+          content: [{
+            type: 'text',
+            text: `Elicitation failed: ${err instanceof Error ? err.message : String(err)}. You can use /eforge:config instead.`,
+          }],
+          isError: true,
+        };
+      }
+
+      // Ensure .gitignore has eforge/ and .eforge/ entries
+      await ensureGitignoreEntries(cwd, ['eforge/', '.eforge/']);
+
+      // Create eforge/ directory if it doesn't exist
+      try {
+        await mkdir(configDir, { recursive: true });
+      } catch {
+        // Directory may already exist
+      }
+
+      // Write eforge/config.yaml
+      const configContent = [
+        `backend: ${backend}`,
+        '',
+        'build:',
+        '  # postMergeCommands: Commands to run after merging worktrees (e.g. pnpm install, pnpm type-check)',
+        '  postMergeCommands: []',
+        '',
+      ].join('\n');
+
+      await writeFile(configPath, configContent, 'utf-8');
+
+      // Validate config via daemon
+      let validation: Record<string, unknown> | null = null;
+      try {
+        const { data } = await daemonRequest(cwd, 'GET', '/api/config/validate');
+        validation = data as Record<string, unknown>;
+      } catch {
+        // Daemon validation is best-effort
+      }
+
+      const response: Record<string, unknown> = {
+        status: 'initialized',
+        configPath: 'eforge/config.yaml',
+        backend,
+      };
+
+      if (validation) {
+        response.validation = validation;
+      }
+
+      return {
+        content: [{ type: 'text', text: JSON.stringify(response, null, 2) }],
+      };
     },
   );
 
