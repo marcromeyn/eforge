@@ -55,7 +55,9 @@ export class ClaudeSDKBackend implements AgentBackend {
           model: options.model,
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
-          tools: options.tools === 'coding'
+          // Structured output in Claude Code is implemented as an internal tool,
+          // so the preset must be enabled when outputFormat is set.
+          tools: options.tools === 'coding' || options.outputFormat !== undefined
             ? { type: 'preset', preset: 'claude_code' }
             : [],
           ...(options.tools === 'coding' ? {
