@@ -205,6 +205,17 @@ export function validatePipeline(
     }
   }
 
+  // Build a map of stage name → set of parallel peers (other stages in the same group)
+  const parallelPeers = new Map<string, Set<string>>();
+  for (const spec of build) {
+    if (Array.isArray(spec) && spec.length > 1) {
+      for (const name of spec) {
+        const peers = new Set(spec.filter((s) => s !== name));
+        parallelPeers.set(name, peers);
+      }
+    }
+  }
+
   // Check predecessor ordering (build - using flattened order)
   for (let i = 0; i < flatBuild.length; i++) {
     const entry = buildStages.get(flatBuild[i]);
@@ -212,23 +223,32 @@ export function validatePipeline(
     const { predecessors } = entry.descriptor;
     if (!predecessors) continue;
     const preceding = new Set(flatBuild.slice(0, i));
+    const peers = parallelPeers.get(flatBuild[i]);
     for (const pred of predecessors) {
-      if (!preceding.has(pred)) {
+      if (peers?.has(pred)) {
+        // Predecessor is in the same parallel group — dependency won't be honored
+        errors.push(`Build stage "${flatBuild[i]}" requires predecessor "${pred}" but both are in the same parallel group`);
+      } else if (!preceding.has(pred)) {
         errors.push(`Build stage "${flatBuild[i]}" requires predecessor "${pred}" to appear before it`);
       }
     }
   }
 
-  // Check conflicts
+  // Check conflicts (deduplicate symmetric pairs like A↔B)
   const allCompile = new Set(compile);
   const allBuild = new Set(flatBuild);
+  const seenConflicts = new Set<string>();
 
   for (const name of compile) {
     const entry = compileStages.get(name);
     if (!entry?.descriptor.conflictsWith) continue;
     for (const conflict of entry.descriptor.conflictsWith) {
       if (allCompile.has(conflict)) {
-        errors.push(`Compile stage "${name}" conflicts with "${conflict}"`);
+        const key = [name, conflict].sort().join('::');
+        if (!seenConflicts.has(key)) {
+          seenConflicts.add(key);
+          errors.push(`Compile stage "${name}" conflicts with "${conflict}"`);
+        }
       }
     }
   }
@@ -238,7 +258,11 @@ export function validatePipeline(
     if (!entry?.descriptor.conflictsWith) continue;
     for (const conflict of entry.descriptor.conflictsWith) {
       if (allBuild.has(conflict)) {
-        errors.push(`Build stage "${name}" conflicts with "${conflict}"`);
+        const key = [name, conflict].sort().join('::');
+        if (!seenConflicts.has(key)) {
+          seenConflicts.add(key);
+          errors.push(`Build stage "${name}" conflicts with "${conflict}"`);
+        }
       }
     }
   }
@@ -418,6 +442,7 @@ export const AGENT_MODEL_CLASSES: Record<AgentRole, ModelClass> = {
   'staleness-assessor': 'max',
   'prd-validator': 'max',
   'dependency-detector': 'max',
+  'pipeline-composer': 'max',
 };
 
 /** Per-backend default model strings for each model class. `undefined` means the SDK picks its own model. */

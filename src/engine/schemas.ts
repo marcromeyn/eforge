@@ -300,3 +300,43 @@ export function getModuleSchemaYaml(): string {
 export function getPlanFrontmatterSchemaYaml(): string {
   return getSchemaYaml('plan-file-frontmatter', planFileFrontmatterSchema);
 }
+
+// ---------------------------------------------------------------------------
+// Pipeline Composition schema (structured output for pipeline-composer agent)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build stage spec for pipeline composition — mirrors buildStageSpecSchema from config.ts.
+ * Duplicated here to keep schemas.ts as a leaf-level file (no engine imports).
+ */
+const pipelineBuildStageSpecSchema = z.union([
+  z.string().describe('A single stage name'),
+  z.array(z.string()).describe('Stage names to run in parallel'),
+]).describe('A stage name or array of stage names to run in parallel');
+
+/**
+ * Review profile config for pipeline composition — mirrors reviewProfileConfigSchema from config.ts.
+ * Duplicated here to keep schemas.ts as a leaf-level file (no engine imports).
+ */
+const pipelineReviewProfileConfigSchema = z.object({
+  strategy: z.enum(['auto', 'single', 'parallel']).describe('Review strategy'),
+  perspectives: z.array(z.string()).nonempty().describe('Review perspective names'),
+  maxRounds: z.number().int().positive().describe('Number of review-fix-evaluate cycles'),
+  autoAcceptBelow: z.enum(['suggestion', 'warning']).optional().describe('Auto-accept issues at or below this severity'),
+  evaluatorStrictness: z.enum(['strict', 'standard', 'lenient']).describe('How strictly the evaluator judges fixes'),
+});
+
+export const pipelineCompositionSchema = z.object({
+  scope: z.enum(['errand', 'excursion', 'expedition']).describe('Orchestration scope: errand for trivial tasks, excursion for most work, expedition for 4+ independent subsystems'),
+  compile: z.array(z.string()).describe('Ordered list of compile stage names from the stage catalog'),
+  defaultBuild: z.array(pipelineBuildStageSpecSchema).describe('Default build stage pipeline - each entry is a stage name or array of parallel stage names'),
+  defaultReview: pipelineReviewProfileConfigSchema.describe('Default review configuration for build plans'),
+  rationale: z.string().min(1).describe('Explanation of why this pipeline composition was chosen'),
+});
+
+export type PipelineComposition = z.output<typeof pipelineCompositionSchema>;
+
+/** Return the JSON Schema for the PipelineComposition Zod schema (for SDK outputFormat). */
+export function getPipelineCompositionJsonSchema(): Record<string, unknown> {
+  return z.toJSONSchema(pipelineCompositionSchema) as Record<string, unknown>;
+}

@@ -580,6 +580,17 @@ export function renderEvent(event: EforgeEvent): void {
       break;
     }
 
+    case 'plan:pipeline': {
+      const scopeColors: Record<string, (s: string) => string> = {
+        errand: chalk.green,
+        excursion: chalk.yellow,
+        expedition: chalk.magenta,
+      };
+      const scopeColorFn = scopeColors[event.scope] ?? chalk.cyan;
+      console.log(`  Pipeline: ${scopeColorFn(event.scope)} - ${chalk.dim(event.rationale)}`);
+      break;
+    }
+
     // Agent lifecycle (consumed by hooks, monitor, tracing — no CLI display)
     case 'agent:start':
     case 'agent:stop':

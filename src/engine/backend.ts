@@ -27,6 +27,7 @@ export interface SdkPassthroughConfig {
   fallbackModel?: string;
   allowedTools?: string[];
   disallowedTools?: string[];
+  outputFormat?: { type: 'json_schema'; schema: Record<string, unknown> };
 }
 
 /**
@@ -60,6 +61,7 @@ export interface AgentRunOptions {
   fallbackModel?: string;
   allowedTools?: string[];
   disallowedTools?: string[];
+  outputFormat?: { type: 'json_schema'; schema: Record<string, unknown> };
   abortSignal?: AbortSignal;
 }
 

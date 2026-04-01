@@ -7,7 +7,7 @@ import type { reviewIssueSchema, expeditionModuleSchema, clarificationQuestionSc
 
 export const ORCHESTRATION_MODES = ['errand', 'excursion', 'expedition'] as const;
 
-export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'review-fixer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'architecture-reviewer' | 'architecture-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater' | 'test-writer' | 'tester' | 'prd-validator' | 'dependency-detector';
+export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'review-fixer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'architecture-reviewer' | 'architecture-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater' | 'test-writer' | 'tester' | 'prd-validator' | 'dependency-detector' | 'pipeline-composer';
 
 export interface PrdValidationGap {
   requirement: string;
@@ -91,6 +91,8 @@ export interface AgentResultData {
   modelUsage: Record<string, { inputTokens: number; outputTokens: number; cacheReadInputTokens: number; cacheCreationInputTokens: number; costUSD: number }>;
   /** Final result text from the agent (used as generation output in traces) */
   resultText?: string;
+  /** Structured output parsed from the SDK result (schema-dependent, typed as unknown). */
+  structuredOutput?: unknown;
 }
 
 export interface CompileOptions {
@@ -154,6 +156,7 @@ export type EforgeEvent = { sessionId?: string; runId?: string; timestamp: strin
   | { type: 'plan:clarification:answer'; answers: Record<string, string> }
   | { type: 'plan:progress'; message: string }
   | { type: 'plan:continuation'; attempt: number; maxContinuations: number }
+  | { type: 'plan:pipeline'; scope: string; compile: string[]; defaultBuild: BuildStageSpec[]; defaultReview: ReviewProfileConfig; rationale: string }
   | { type: 'plan:complete'; plans: PlanFile[] }
 
   // Plan review (after planning phase)
