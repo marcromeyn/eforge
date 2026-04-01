@@ -25,8 +25,10 @@
 
 **Goal**: Full lifecycle coverage, CI support, provider flexibility.
 
-- **Test and evaluate pi backend** — PiBackend is implemented but not yet tested end-to-end. Run builds against real providers, compare output quality and cost against ClaudeSDKBackend, and fix integration gaps.
-- **OpenAI Agents JS backend** — Evaluated (`@openai/agents` v0.8.1) and deferred. PiBackend already covers OpenAI models with turnkey coding tools. The SDK lacks a coding agent preset (Shell/Editor must be implemented from scratch) and is pre-1.0. Revisit when OpenAI ships a turnkey coding preset or a unique feature (hosted code interpreter, multi-agent handoffs) becomes valuable.
+- **Pi backend with Codex auth** — Test PiBackend using OpenAI Codex subscription for authentication (analogous to ClaudeSDKBackend with Claude Max subscription auth, which is well-tested and works)
+- **Low-fidelity input handling** — When the user provides a high-level prompt with minimal detail, eforge should perform thorough codebase exploration before compiling plans. May require a new exploration agent (or parallel exploratory agents) that activates for low-fidelity input and is bypassed for detailed PRDs.
+- **Specialty agents** — Identify and implement domain-specific agents for common use cases beyond the current plan-build-review pipeline
+- **Plugin skill coverage** — Add skills for common scenarios, e.g. `/eforge:update-docs` with flags like `--architecture`, `--readme`, `--claude-md` for targeted documentation updates
 - **Monorepo** — Extend pnpm workspaces (currently only monitor UI) so the engine, eforge-plugin, and marketing site each get their own package with isolated deps and build configs
 
 ---
