@@ -183,6 +183,61 @@ describe('watchQueue', () => {
     expect(events[events.length - 1].type).toBe('queue:complete');
   }, 10_000);
 
+  it('re-queued PRD that was previously failed is re-discovered with queue:prd:discovered', async () => {
+    const { engine, queueDir } = await createTestEngine();
+    const abortController = new AbortController();
+
+    // Pre-write a PRD so it's discovered immediately
+    const prdContent = [
+      '---',
+      'title: Requeue PRD',
+      'status: pending',
+      '---',
+      '',
+      '# Requeue PRD',
+      '',
+      'Do something.',
+    ].join('\n');
+    await writeFile(join(queueDir, 'requeue-prd.md'), prdContent);
+
+    const events: EforgeEvent[] = [];
+    let discoveredCount = 0;
+    let sawComplete = false;
+
+    // After the PRD fails (queue:prd:complete with status: failed),
+    // touch the file to trigger re-discovery via fs.watch
+    const abortTimer = setTimeout(() => abortController.abort(), 15000);
+
+    try {
+      for await (const event of engine.watchQueue({ abortController })) {
+        events.push(event);
+        if (event.type === 'queue:prd:discovered') {
+          discoveredCount++;
+          if (discoveredCount >= 2) {
+            // Second discovery means the re-queue logic worked
+            abortController.abort();
+          }
+        }
+        if (event.type === 'queue:prd:complete' && !sawComplete) {
+          sawComplete = true;
+          // PRD failed — touch the file to trigger fs.watch and re-discovery
+          setTimeout(async () => {
+            await writeFile(join(queueDir, 'requeue-prd.md'), prdContent + '\n');
+          }, 200);
+        }
+      }
+    } finally {
+      clearTimeout(abortTimer);
+    }
+
+    // Should have been discovered twice: once initially, once after re-queue
+    expect(discoveredCount).toBeGreaterThanOrEqual(2);
+    const discoveredEvents = events.filter((e) => e.type === 'queue:prd:discovered');
+    expect(discoveredEvents.length).toBeGreaterThanOrEqual(2);
+    expect((discoveredEvents[0] as { prdId: string }).prdId).toBe('requeue-prd');
+    expect((discoveredEvents[1] as { prdId: string }).prdId).toBe('requeue-prd');
+  }, 20_000);
+
   it('3 rapid consecutive directory deletions within 10 seconds triggers abort', async () => {
     const { engine, cwd, queueDir } = await createTestEngine();
     const abortController = new AbortController();

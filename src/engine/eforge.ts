@@ -1187,7 +1187,8 @@ export class EforgeEngine {
 
     /**
      * Re-scan the queue directory, discover new PRDs not yet in prdState,
-     * and emit queue:prd:discovered for each.
+     * and emit queue:prd:discovered for each. Also resets re-queued PRDs
+     * that were previously failed or blocked back to pending.
      */
     const discoverNewPrds = async (): Promise<void> => {
       let freshPrds: Awaited<ReturnType<typeof loadQueue>>;
@@ -1210,6 +1211,29 @@ export class EforgeEngine {
             prdId: prd.id,
             title: prd.frontmatter.title ?? prd.id,
           } as EforgeEvent);
+        } else {
+          const existing = prdState.get(prd.id)!;
+          if (existing.status === 'failed' || existing.status === 'blocked') {
+            // Re-queued PRD: reset state to pending
+            const deps = (prd.frontmatter.depends_on ?? []).filter((dep) =>
+              prdState.has(dep) || freshOrdered.some((p) => p.id === dep),
+            );
+            existing.status = 'pending';
+            existing.dependsOn = deps;
+            // Replace stale entry in orderedPrds with fresh PRD object
+            const idx = orderedPrds.findIndex((p) => p.id === prd.id);
+            if (idx !== -1) {
+              orderedPrds[idx] = prd;
+            } else {
+              orderedPrds.push(prd);
+            }
+            eventQueue.push({
+              timestamp: new Date().toISOString(),
+              type: 'queue:prd:discovered',
+              prdId: prd.id,
+              title: prd.frontmatter.title ?? prd.id,
+            } as EforgeEvent);
+          }
         }
       }
     };
