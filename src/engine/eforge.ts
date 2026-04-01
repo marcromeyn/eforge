@@ -896,9 +896,9 @@ export class EforgeEngine {
         result: prdResult,
         timestamp: new Date().toISOString(),
       } as EforgeEvent;
-    }
 
-    yield { timestamp: new Date().toISOString(), type: 'queue:prd:complete', prdId: prd.id, status: prdResult.status };
+      yield { timestamp: new Date().toISOString(), type: 'queue:prd:complete', prdId: prd.id, status: prdResult.status };
+    }
   }
 
   /**
@@ -1088,9 +1088,12 @@ export class EforgeEngine {
           processed++;
         }
 
+        // Keep the queue open during discovery so pushed events are not dropped
+        eventQueue.addProducer();
         // Discover any new PRDs enqueued mid-cycle, then launch newly-ready PRDs
         await discoverNewPrds();
         startReadyPrds();
+        eventQueue.removeProducer();
       }
     }
 

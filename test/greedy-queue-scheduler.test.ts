@@ -184,17 +184,17 @@ describe('discoverNewPrds in runQueue', () => {
     const gen = engine.runQueue();
     const events: EforgeEvent[] = [];
 
-    // Write the second PRD asynchronously so it exists before discovery runs
-    const writePromise = writeFile(
-      join(queueDir, 'prd-second.md'),
-      '---\ntitle: Second PRD\nstatus: pending\n---\n\n# Second PRD\n\nDo something else.',
-    );
-
+    let secondPrdWritten = false;
     for await (const event of gen) {
       events.push(event);
-      // Ensure the second PRD is on disk before the first build completes
-      if (event.type === 'queue:prd:start') {
-        await writePromise;
+      // Write the second PRD after the first build starts (queue:prd:start),
+      // so it is NOT found during the initial loadQueue() call.
+      if (event.type === 'queue:prd:start' && !secondPrdWritten) {
+        secondPrdWritten = true;
+        await writeFile(
+          join(queueDir, 'prd-second.md'),
+          '---\ntitle: Second PRD\nstatus: pending\n---\n\n# Second PRD\n\nDo something else.',
+        );
       }
     }
 
