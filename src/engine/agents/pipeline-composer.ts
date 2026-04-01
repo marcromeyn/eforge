@@ -33,31 +33,30 @@ function extractJson(text: string): unknown {
   const fenceMatch = text.match(fencePattern);
   const cleaned = fenceMatch ? fenceMatch[1].trim() : text.trim();
 
+  // Try parsing the cleaned text directly first (handles clean JSON or fence-extracted content)
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    // Fall back to finding the JSON object in surrounding text
+  }
+
   // Find the first JSON object
   const startIdx = cleaned.indexOf('{');
   if (startIdx === -1) {
     throw new Error('No JSON object found in response');
   }
 
-  // Find the matching closing brace
-  let depth = 0;
-  let endIdx = -1;
-  for (let i = startIdx; i < cleaned.length; i++) {
-    if (cleaned[i] === '{') depth++;
-    else if (cleaned[i] === '}') {
-      depth--;
-      if (depth === 0) {
-        endIdx = i;
-        break;
-      }
+  // Try parsing from startIdx, trimming from the end until JSON.parse succeeds
+  for (let endIdx = cleaned.length; endIdx > startIdx; endIdx--) {
+    if (cleaned[endIdx - 1] !== '}') continue;
+    try {
+      return JSON.parse(cleaned.slice(startIdx, endIdx));
+    } catch {
+      // Try a shorter substring
     }
   }
 
-  if (endIdx === -1) {
-    throw new Error('Unmatched braces in JSON object');
-  }
-
-  return JSON.parse(cleaned.slice(startIdx, endIdx + 1));
+  throw new Error('No valid JSON object found in response');
 }
 
 /**
