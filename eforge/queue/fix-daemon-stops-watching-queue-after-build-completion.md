@@ -1,7 +1,7 @@
 ---
 title: Fix: Daemon stops watching queue after build completion
 created: 2026-04-01
-depends_on: ["dynamic-llm-driven-pipeline-composition"]
+depends_on: []
 ---
 
 # Fix: Daemon stops watching queue after build completion

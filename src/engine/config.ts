@@ -17,7 +17,7 @@ export const AGENT_ROLES = [
   'cohesion-reviewer', 'cohesion-evaluator',
   'validation-fixer', 'merge-conflict-resolver',
   'staleness-assessor', 'formatter', 'doc-updater',
-  'test-writer', 'tester', 'prd-validator', 'dependency-detector',
+  'test-writer', 'tester', 'prd-validator', 'dependency-detector', 'pipeline-composer',
 ] as const;
 
 const agentRoleSchema = z.enum(AGENT_ROLES);
@@ -87,106 +87,6 @@ export const buildStageSpecSchema = z.union([
   z.string().describe('A single stage name'),
   z.array(z.string()).describe('Stage names to run in parallel'),
 ]).describe('A stage name or array of stage names to run in parallel');
-
-const partialProfileConfigSchema = z.object({
-  description: z.string().optional(),
-  extends: z.string().optional(),
-  compile: z.array(z.string()).optional(),
-});
-
-export const resolvedProfileConfigSchema = z.object({
-  description: z.string().min(1).describe('Human-readable description of what this profile is for'),
-  extends: z.string().optional().describe('Name of the base profile this profile extends'),
-  compile: z.array(z.string()).nonempty().describe('Ordered list of compile stage names to run'),
-});
-
-// ---------------------------------------------------------------------------
-// Schema-derived YAML documentation for profile generation prompts
-// ---------------------------------------------------------------------------
-
-let _profileSchemaYamlCache: string | undefined;
-
-/**
- * Convert the resolved profile config schema to a YAML string documenting
- * all fields and their descriptions. Uses z.toJSONSchema() and strips
- * internal keys ($schema, ~standard). Module-level cached since the schema
- * is static.
- */
-export function getProfileSchemaYaml(): string {
-  if (_profileSchemaYamlCache !== undefined) return _profileSchemaYamlCache;
-
-  const jsonSchema = z.toJSONSchema(resolvedProfileConfigSchema);
-
-  // Strip internal keys that aren't useful for prompt documentation
-  function stripInternalKeys(obj: Record<string, unknown>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      if (key === '$schema' || key === '~standard') continue;
-      if (Array.isArray(value)) {
-        result[key] = value.map((item) =>
-          item && typeof item === 'object' && !Array.isArray(item)
-            ? stripInternalKeys(item as Record<string, unknown>)
-            : item,
-        );
-      } else if (value && typeof value === 'object') {
-        result[key] = stripInternalKeys(value as Record<string, unknown>);
-      } else {
-        result[key] = value;
-      }
-    }
-    return result;
-  }
-
-  const cleaned = stripInternalKeys(jsonSchema as Record<string, unknown>);
-  _profileSchemaYamlCache = stringifyYaml(cleaned);
-  return _profileSchemaYamlCache;
-}
-
-// ---------------------------------------------------------------------------
-// Compile-only profile schema YAML (excludes build/review/agents)
-// ---------------------------------------------------------------------------
-
-let _compileOnlyProfileSchemaYamlCache: string | undefined;
-
-/**
- * Convert a compile-only subset of the resolved profile config schema to YAML.
- * Excludes build, review, and agents fields - those are per-plan concerns
- * handled by module planners, not the top-level planner.
- */
-export function getCompileOnlyProfileSchemaYaml(): string {
-  if (_compileOnlyProfileSchemaYamlCache !== undefined) return _compileOnlyProfileSchemaYamlCache;
-
-  const compileOnlySchema = z.object({
-    description: resolvedProfileConfigSchema.shape.description,
-    extends: resolvedProfileConfigSchema.shape.extends,
-    compile: resolvedProfileConfigSchema.shape.compile,
-  });
-
-  const jsonSchema = z.toJSONSchema(compileOnlySchema);
-
-  function stripInternalKeys(obj: Record<string, unknown>): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(obj)) {
-      if (key === '$schema' || key === '~standard') continue;
-      if (Array.isArray(value)) {
-        result[key] = value.map((item) =>
-          item && typeof item === 'object' && !Array.isArray(item)
-            ? stripInternalKeys(item as Record<string, unknown>)
-            : item,
-        );
-      } else if (value && typeof value === 'object') {
-        result[key] = stripInternalKeys(value as Record<string, unknown>);
-      } else {
-        result[key] = value;
-      }
-    }
-    return result;
-  }
-
-  const cleaned = stripInternalKeys(jsonSchema as Record<string, unknown>);
-  _compileOnlyProfileSchemaYamlCache = stringifyYaml(cleaned);
-  return _compileOnlyProfileSchemaYamlCache;
-}
 
 const hookConfigSchema = z.object({
   event: z.string(),
@@ -274,7 +174,6 @@ export const eforgeConfigSchema = z.object({
   }).optional(),
   pi: piConfigSchema.optional(),
   hooks: z.array(hookConfigSchema).optional(),
-  profiles: z.record(z.string(), partialProfileConfigSchema).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -284,12 +183,8 @@ export const eforgeConfigSchema = z.object({
 export type ToolPresetConfig = z.output<typeof toolPresetConfigSchema>;
 export type AgentProfileConfig = z.output<typeof agentProfileConfigSchema>;
 export type ReviewProfileConfig = z.output<typeof reviewProfileConfigSchema>;
-export type PartialProfileConfig = z.output<typeof partialProfileConfigSchema>;
-export type ResolvedProfileConfig = z.output<typeof resolvedProfileConfigSchema>;
 /** A single build stage name or an array of names to run in parallel. */
 export type BuildStageSpec = string | string[];
-/** Alias kept for barrel re-export convenience. */
-export type ProfileConfig = ResolvedProfileConfig;
 export type HookConfig = z.output<typeof hookConfigSchema>;
 export type PluginConfig = z.output<typeof pluginConfigSchema>;
 
@@ -340,7 +235,6 @@ export interface EforgeConfig {
   monitor: { retentionCount: number };
   pi: PiConfig;
   hooks: readonly HookConfig[];
-  profiles: Record<string, ResolvedProfileConfig>;
 }
 
 /** Deep-partial version of EforgeConfig used for parsing and merging — derived from the zod schema. */
@@ -352,41 +246,6 @@ export const DEFAULT_REVIEW: ReviewProfileConfig = Object.freeze({
   perspectives: Object.freeze(['code']) as unknown as string[],
   maxRounds: 1,
   evaluatorStrictness: 'standard' as const,
-});
-
-/** Default build stages for errands (no doc-update). */
-export const DEFAULT_BUILD: BuildStageSpec[] = Object.freeze([
-  'implement', 'review-cycle',
-]) as unknown as BuildStageSpec[];
-
-/** Default build stages with parallel doc-update (for excursion/expedition). */
-export const DEFAULT_BUILD_WITH_DOCS: BuildStageSpec[] = Object.freeze([
-  Object.freeze(['implement', 'doc-update']), 'review-cycle',
-]) as unknown as BuildStageSpec[];
-
-/** Default build stages with test cycle (build-then-test). */
-export const DEFAULT_BUILD_WITH_TESTS: BuildStageSpec[] = Object.freeze([
-  'implement', 'test-cycle', 'review-cycle',
-]) as unknown as BuildStageSpec[];
-
-/** Default build stages for TDD workflow. */
-export const DEFAULT_BUILD_TDD: BuildStageSpec[] = Object.freeze([
-  'test-write', 'implement', 'test-cycle',
-]) as unknown as BuildStageSpec[];
-
-export const BUILTIN_PROFILES: Record<string, ResolvedProfileConfig> = Object.freeze({
-  errand: Object.freeze({
-    description: 'Small, self-contained changes. Single file or a few lines. Low risk, no architectural impact.',
-    compile: Object.freeze(['prd-passthrough']) as unknown as string[],
-  }),
-  excursion: Object.freeze({
-    description: 'Multi-file feature work or refactors. Use when the full scope can be planned in a single planner session - all plans enumerated, all file changes listed, and cross-plan dependencies resolved. Covers tightly coupled changes (type cascades, interface refactors, rename-and-update-all-callers) and any work where one planning pass is sufficient.',
-    compile: Object.freeze(['planner', 'plan-review-cycle']) as unknown as string[],
-  }),
-  expedition: Object.freeze({
-    description: 'Large work where planning scope requires delegated module planning with architecture and cohesion review. Use when the total scope exceeds what a single planner session can produce with quality - 4+ subsystems each needing dedicated codebase exploration, shared files requiring coordinated edits, or planning that would need to be deferred across modules.',
-    compile: Object.freeze(['planner', 'architecture-review-cycle', 'module-planning', 'cohesion-review-cycle', 'compile-expedition']) as unknown as string[],
-  }),
 });
 
 export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
@@ -406,7 +265,6 @@ export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
     retry: Object.freeze({ maxRetries: 3, backoffMs: 1000 }),
   }),
   hooks: Object.freeze([]),
-  profiles: BUILTIN_PROFILES,
 });
 
 /**
@@ -530,9 +388,6 @@ export function resolveConfig(
       }),
     }),
     hooks: Object.freeze(fileConfig.hooks ?? DEFAULT_CONFIG.hooks) as HookConfig[],
-    profiles: Object.freeze(
-      resolveProfileExtensions(fileConfig.profiles ?? {}, BUILTIN_PROFILES),
-    ),
   });
 }
 
@@ -573,7 +428,7 @@ function parseRawConfigFallback(data: Record<string, unknown>): PartialEforgeCon
       (result as Record<string, unknown>).maxConcurrentBuilds = mcbResult.data;
     }
   }
-  const sections = ['langfuse', 'agents', 'build', 'plan', 'plugins', 'prdQueue', 'daemon', 'pi', 'hooks', 'profiles'] as const;
+  const sections = ['langfuse', 'agents', 'build', 'plan', 'plugins', 'prdQueue', 'daemon', 'pi', 'hooks'] as const;
   for (const key of sections) {
     if (data[key] === undefined) continue;
     const sectionSchema = eforgeConfigSchema.shape[key];
@@ -603,7 +458,6 @@ function stripUndefinedSections(config: PartialEforgeConfig): PartialEforgeConfi
   if (config.daemon !== undefined) out.daemon = config.daemon;
   if (config.pi !== undefined) out.pi = config.pi;
   if (config.hooks !== undefined) out.hooks = config.hooks;
-  if (config.profiles !== undefined) out.profiles = config.profiles;
   return out;
 }
 
@@ -694,26 +548,6 @@ export function mergePartialConfigs(
     result.hooks = [...(global.hooks ?? []), ...(project.hooks ?? [])];
   }
 
-  // profiles: merge by name
-  if (global.profiles || project.profiles) {
-    const merged: Record<string, PartialProfileConfig> = {};
-    const allNames = new Set([
-      ...Object.keys(global.profiles ?? {}),
-      ...Object.keys(project.profiles ?? {}),
-    ]);
-    for (const name of allNames) {
-      const g = global.profiles?.[name];
-      const p = project.profiles?.[name];
-      if (g && p) {
-        // Shallow merge per profile: description, compile, extends
-        merged[name] = { ...g, ...p };
-      } else {
-        merged[name] = (p ?? g)!;
-      }
-    }
-    result.profiles = merged;
-  }
-
   return result;
 }
 
@@ -765,175 +599,17 @@ export async function loadConfig(cwd?: string): Promise<EforgeConfig> {
   return resolveConfig(merged);
 }
 
-/**
- * Resolve profile extensions by walking `extends` chains, detecting cycles,
- * and shallow-merging inherited fields. Returns fully-resolved profiles
- * with all required fields present.
- */
-export function resolveProfileExtensions(
-  partials: Record<string, PartialProfileConfig>,
-  builtins: Record<string, ResolvedProfileConfig> = BUILTIN_PROFILES,
-): Record<string, ResolvedProfileConfig> {
-  const resolved = new Map<string, ResolvedProfileConfig>();
-  const resolving = new Set<string>(); // cycle detection
-
-  function resolve(name: string): ResolvedProfileConfig {
-    const cached = resolved.get(name);
-    if (cached) return cached;
-
-    // If it's a built-in with no user override, return as-is
-    const partial = partials[name];
-    if (!partial) {
-      const builtin = builtins[name];
-      if (builtin) return builtin;
-      throw new Error(`Profile "${name}" not found`);
-    }
-
-    if (resolving.has(name)) {
-      throw new Error(`Circular profile extension detected: ${name}`);
-    }
-    resolving.add(name);
-
-    // Get base - either the extends target or the built-in of the same name or excursion fallback
-    let base: ResolvedProfileConfig;
-    if (partial.extends) {
-      base = resolve(partial.extends);
-    } else if (builtins[name]) {
-      base = builtins[name];
-    } else {
-      base = builtins['excursion']; // fallback for custom profiles with no extends
-    }
-
-    // Determine the extends value for the resolved config
-    const extendsValue = partial.extends
-      ? partial.extends
-      : builtins[name]
-        ? undefined // built-in override inherits from itself, no extends
-        : 'excursion'; // custom profile with no explicit extends fell through to excursion fallback
-
-    const result: ResolvedProfileConfig = {
-      description: partial.description ?? base.description,
-      ...(extendsValue ? { extends: extendsValue } : {}),
-      compile: partial.compile ?? base.compile,
-    };
-
-    resolving.delete(name);
-    resolved.set(name, result);
-    return result;
-  }
-
-  // Resolve all profiles (builtins + user-defined)
-  const allNames = new Set([...Object.keys(builtins), ...Object.keys(partials)]);
-  const out: Record<string, ResolvedProfileConfig> = {};
-  for (const name of allNames) {
-    out[name] = resolve(name);
-  }
-  return out;
-}
-
-/**
- * Parse a standalone profiles YAML file into partial profile configs.
- * The file is expected to have a `profiles` top-level key matching the
- * same structure as in eforge.yaml.
- */
-export async function parseProfilesFile(
-  filePath: string,
-): Promise<Record<string, PartialProfileConfig>> {
-  const raw = await readFile(filePath, 'utf-8');
-  const data = parseYaml(raw);
-  if (!data || typeof data !== 'object') return {};
-  const parsed = parseRawConfig(data as Record<string, unknown>);
-  return parsed.profiles ?? {};
-}
-
-// ---------------------------------------------------------------------------
-// Profile Validation
-// ---------------------------------------------------------------------------
-
-/**
- * Validate a ResolvedProfileConfig has valid stage names, required fields,
- * and allowed enum values. When stage registries are provided, validates
- * that all stage names exist in the registries.
- *
- * Uses zod schema for structural/enum validation, then applies runtime
- * stage-name checks (registries aren't known at schema-definition time).
- */
-export function validateProfileConfig(
-  config: ResolvedProfileConfig,
-  compileStageNames?: Set<string>,
-): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
-
-  // Schema-based validation for structure + enums
-  const result = resolvedProfileConfigSchema.safeParse(config);
-  if (!result.success) {
-    for (const issue of result.error.issues) {
-      const path = issue.path.map(String).join('.');
-      if (path === 'description') {
-        errors.push('description is required and must be a non-empty string');
-      } else if (path === 'compile') {
-        errors.push('compile must be a non-empty array of stage names');
-      } else {
-        errors.push(`${path}: ${issue.message}`);
-      }
-    }
-  }
-
-  // Runtime stage-name validation against registries
-  if (compileStageNames) {
-    for (const name of config.compile) {
-      if (!compileStageNames.has(name)) {
-        errors.push(`unknown compile stage: "${name}"`);
-      }
-    }
-  }
-
-  // Deduplicate errors (schema may produce multiple issues for the same field)
-  const uniqueErrors = [...new Set(errors)];
-  return { valid: uniqueErrors.length === 0, errors: uniqueErrors };
-}
-
-/**
- * Resolve a generated profile block into a full ResolvedProfileConfig.
- * Supports two modes:
- * - Full config: `{ config: { ... } }` — returns config as-is
- * - Extends: `{ extends: "base-name", overrides: { ... } }` — merges overrides onto base
- */
-export function resolveGeneratedProfile(
-  generated: import('./agents/common.js').GeneratedProfileBlock,
-  availableProfiles: Record<string, ResolvedProfileConfig>,
-): ResolvedProfileConfig {
-  // Full config mode - use as-is
-  if (generated.config) return generated.config;
-
-  // Extends mode - merge overrides onto base
-  const baseName = generated.extends ?? 'excursion';
-  const base = availableProfiles[baseName];
-  if (!base) {
-    throw new Error(`Generated profile extends unknown base: "${baseName}"`);
-  }
-
-  const overrides = generated.overrides ?? {};
-  return {
-    extends: baseName,
-    description: overrides.description ?? base.description,
-    compile: overrides.compile ?? base.compile,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Config File Validation
 // ---------------------------------------------------------------------------
 
 /**
  * Validate the eforge config file found from the given directory.
- * Loads the raw YAML, runs schema validation, then validates each resolved
- * profile against the stage registries from pipeline.ts.
+ * Loads the raw YAML, runs schema validation.
  */
 export async function validateConfigFile(
   cwd?: string,
 ): Promise<{ valid: boolean; errors: string[] }> {
-  const { getCompileStageNames } = await import('./pipeline.js');
   const errors: string[] = [];
 
   const startDir = cwd ?? process.cwd();
@@ -966,24 +642,6 @@ export async function validateConfigFile(
     for (const issue of result.error.issues) {
       const path = issue.path.map(String).join('.');
       errors.push(`${path}: ${issue.message}`);
-    }
-  }
-
-  // Profile validation against stage registries
-  const parsed: PartialEforgeConfig = result.success ? result.data : {};
-  if (parsed.profiles) {
-    const compileStageNames = getCompileStageNames();
-
-    try {
-      const resolved = resolveProfileExtensions(parsed.profiles, BUILTIN_PROFILES);
-      for (const [name, profile] of Object.entries(resolved)) {
-        const profileResult = validateProfileConfig(profile, compileStageNames);
-        for (const err of profileResult.errors) {
-          errors.push(`profile "${name}": ${err}`);
-        }
-      }
-    } catch (err) {
-      errors.push(`Profile resolution failed: ${(err as Error).message}`);
     }
   }
 

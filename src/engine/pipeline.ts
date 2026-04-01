@@ -1,9 +1,9 @@
 /**
- * Pipeline — named stages with a uniform interface, driven by resolved profiles.
+ * Pipeline — named stages with a uniform interface, driven by dynamically composed pipelines.
  *
  * Pipeline stages are named units: each accepts a context and yields EforgeEvents.
- * The engine iterates the stage list from the resolved profile and calls each stage
- * in sequence. Profile selection is a pre-pipeline step handled by the engine.
+ * The engine iterates the stage list from the composed pipeline and calls each stage
+ * in sequence. Pipeline composition is a pre-pipeline step handled by the engine.
  */
 
 import { execFile } from 'node:child_process';
@@ -24,8 +24,9 @@ import {
   type ReviewIssue,
   type OrchestrationConfig,
 } from './events.js';
-import type { EforgeConfig, ResolvedProfileConfig, BuildStageSpec, ReviewProfileConfig, ModelClass } from './config.js';
-import { DEFAULT_REVIEW, DEFAULT_BUILD, MODEL_CLASSES } from './config.js';
+import type { EforgeConfig, BuildStageSpec, ReviewProfileConfig, ModelClass } from './config.js';
+import { DEFAULT_REVIEW, MODEL_CLASSES } from './config.js';
+import type { PipelineComposition } from './schemas.js';
 import type { AgentBackend } from './backend.js';
 import type { TracingContext, SpanHandle, ToolCallHandle } from './tracing.js';
 import { runPlanner } from './agents/planner.js';
@@ -39,9 +40,10 @@ import { runPlanEvaluate, runCohesionEvaluate, runArchitectureEvaluate } from '.
 import { runCohesionReview } from './agents/cohesion-reviewer.js';
 import { runArchitectureReview } from './agents/architecture-reviewer.js';
 import { parseModulesBlock, parseBuildConfigBlock, testIssueToReviewIssue } from './agents/common.js';
+import { composePipeline } from './agents/pipeline-composer.js';
 import { runTestWriter, runTester } from './agents/tester.js';
 import { compileExpedition } from './compiler.js';
-import { resolveDependencyGraph, injectProfileIntoOrchestrationYaml, parseOrchestrationConfig, writePlanArtifacts, extractPlanTitle, detectValidationCommands, parsePlanFile } from './plan.js';
+import { resolveDependencyGraph, injectPipelineIntoOrchestrationYaml, parseOrchestrationConfig, writePlanArtifacts, extractPlanTitle, detectValidationCommands, parsePlanFile } from './plan.js';
 import { runParallel, type ParallelTask } from './concurrency.js';
 import { forgeCommit } from './git.js';
 
@@ -54,14 +56,13 @@ const exec = promisify(execFile);
 export interface PipelineContext {
   backend: AgentBackend;
   config: EforgeConfig;
-  profile: ResolvedProfileConfig;
+  pipeline: PipelineComposition;
   tracing: TracingContext;
   cwd: string;
   planSetName: string;
   sourceContent: string;
   verbose?: boolean;
   auto?: boolean;
-  generateProfile?: boolean;
   abortController?: AbortController;
   onClarification?: (questions: ClarificationQuestion[]) => Promise<Record<string, string>>;
 
@@ -87,9 +88,9 @@ export interface BuildStageContext extends PipelineContext {
   planFile: PlanFile;
   orchConfig: OrchestrationConfig;
   reviewIssues: ReviewIssue[];
-  /** Per-plan build stage sequence (resolved from per-plan config or profile fallback). */
+  /** Per-plan build stage sequence (resolved from per-plan config or pipeline fallback). */
   build: BuildStageSpec[];
-  /** Per-plan review config (resolved from per-plan config or profile fallback). */
+  /** Per-plan review config (resolved from per-plan config or pipeline fallback). */
   review: ReviewProfileConfig;
   /** Set to true by the implement stage on failure — signals the pipeline runner to stop. */
   buildFailed?: boolean;
@@ -98,41 +99,210 @@ export interface BuildStageContext extends PipelineContext {
 export type CompileStage = (ctx: PipelineContext) => AsyncGenerator<EforgeEvent>;
 export type BuildStage = (ctx: BuildStageContext) => AsyncGenerator<EforgeEvent>;
 
+/** Phase a stage belongs to. */
+export type StagePhase = 'compile' | 'build';
+
+/** Rich metadata describing a pipeline stage for downstream consumers (e.g., pipeline composer). */
+export interface StageDescriptor {
+  /** Unique stage name (must match the registration key). */
+  name: string;
+  /** Which pipeline phase this stage belongs to. */
+  phase: StagePhase;
+  /** Human-readable description of what the stage does. */
+  description: string;
+  /** Guidance for when this stage should be included in a pipeline. */
+  whenToUse: string;
+  /** Rough cost hint: 'low', 'medium', or 'high'. */
+  costHint: 'low' | 'medium' | 'high';
+  /** Stage names that must appear before this stage in the pipeline (same phase). */
+  predecessors?: string[];
+  /** Stage names that conflict with this stage (cannot both appear). */
+  conflictsWith?: string[];
+  /** Whether this stage can run in a parallel group with other stages. Defaults to true. */
+  parallelizable?: boolean;
+}
+
 // ---------------------------------------------------------------------------
 // Stage Registry
 // ---------------------------------------------------------------------------
 
-const compileStages = new Map<string, CompileStage>();
-const buildStages = new Map<string, BuildStage>();
+const compileStages = new Map<string, { fn: CompileStage; descriptor: StageDescriptor }>();
+const buildStages = new Map<string, { fn: BuildStage; descriptor: StageDescriptor }>();
 
-export function registerCompileStage(name: string, stage: CompileStage): void {
-  compileStages.set(name, stage);
+export function registerCompileStage(descriptor: StageDescriptor, stage: CompileStage): void {
+  compileStages.set(descriptor.name, { fn: stage, descriptor });
 }
 
-export function registerBuildStage(name: string, stage: BuildStage): void {
-  buildStages.set(name, stage);
+export function registerBuildStage(descriptor: StageDescriptor, stage: BuildStage): void {
+  buildStages.set(descriptor.name, { fn: stage, descriptor });
 }
 
 export function getCompileStage(name: string): CompileStage {
-  const stage = compileStages.get(name);
-  if (!stage) throw new Error(`Unknown compile stage: "${name}"`);
-  return stage;
+  const entry = compileStages.get(name);
+  if (!entry) throw new Error(`Unknown compile stage: "${name}"`);
+  return entry.fn;
 }
 
 export function getBuildStage(name: string): BuildStage {
-  const stage = buildStages.get(name);
-  if (!stage) throw new Error(`Unknown build stage: "${name}"`);
-  return stage;
+  const entry = buildStages.get(name);
+  if (!entry) throw new Error(`Unknown build stage: "${name}"`);
+  return entry.fn;
 }
 
-/** Return the set of registered compile stage names (for profile validation). */
+/** Return the set of registered compile stage names (for pipeline validation). */
 export function getCompileStageNames(): Set<string> {
   return new Set(compileStages.keys());
 }
 
-/** Return the set of registered build stage names (for profile validation). */
+/** Return the set of registered build stage names (for pipeline validation). */
 export function getBuildStageNames(): Set<string> {
   return new Set(buildStages.keys());
+}
+
+/** Return all registered compile stage descriptors. */
+export function getCompileStageDescriptors(): StageDescriptor[] {
+  return Array.from(compileStages.values()).map((entry) => entry.descriptor);
+}
+
+/** Return all registered build stage descriptors. */
+export function getBuildStageDescriptors(): StageDescriptor[] {
+  return Array.from(buildStages.values()).map((entry) => entry.descriptor);
+}
+
+/** Validate a pipeline configuration against registered stage descriptors. */
+export function validatePipeline(
+  compile: string[],
+  build: Array<string | string[]>,
+): { valid: boolean; errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Flatten build specs for validation
+  const flatBuild: string[] = build.flatMap((spec) => (Array.isArray(spec) ? spec : [spec]));
+
+  // Check existence
+  for (const name of compile) {
+    if (!compileStages.has(name)) {
+      errors.push(`Unknown compile stage: "${name}"`);
+    }
+  }
+  for (const name of flatBuild) {
+    if (!buildStages.has(name)) {
+      errors.push(`Unknown build stage: "${name}"`);
+    }
+  }
+
+  // Check predecessor ordering (compile)
+  for (let i = 0; i < compile.length; i++) {
+    const entry = compileStages.get(compile[i]);
+    if (!entry) continue;
+    const { predecessors } = entry.descriptor;
+    if (!predecessors) continue;
+    const preceding = new Set(compile.slice(0, i));
+    for (const pred of predecessors) {
+      if (!preceding.has(pred)) {
+        errors.push(`Compile stage "${compile[i]}" requires predecessor "${pred}" to appear before it`);
+      }
+    }
+  }
+
+  // Build a map of stage name → set of parallel peers (other stages in the same group)
+  const parallelPeers = new Map<string, Set<string>>();
+  for (const spec of build) {
+    if (Array.isArray(spec) && spec.length > 1) {
+      for (const name of spec) {
+        const peers = new Set(spec.filter((s) => s !== name));
+        parallelPeers.set(name, peers);
+      }
+    }
+  }
+
+  // Check predecessor ordering (build - using flattened order)
+  for (let i = 0; i < flatBuild.length; i++) {
+    const entry = buildStages.get(flatBuild[i]);
+    if (!entry) continue;
+    const { predecessors } = entry.descriptor;
+    if (!predecessors) continue;
+    const preceding = new Set(flatBuild.slice(0, i));
+    const peers = parallelPeers.get(flatBuild[i]);
+    for (const pred of predecessors) {
+      if (peers?.has(pred)) {
+        // Predecessor is in the same parallel group — dependency won't be honored
+        errors.push(`Build stage "${flatBuild[i]}" requires predecessor "${pred}" but both are in the same parallel group`);
+      } else if (!preceding.has(pred)) {
+        errors.push(`Build stage "${flatBuild[i]}" requires predecessor "${pred}" to appear before it`);
+      }
+    }
+  }
+
+  // Check conflicts (deduplicate symmetric pairs like A↔B)
+  const allCompile = new Set(compile);
+  const allBuild = new Set(flatBuild);
+  const seenConflicts = new Set<string>();
+
+  for (const name of compile) {
+    const entry = compileStages.get(name);
+    if (!entry?.descriptor.conflictsWith) continue;
+    for (const conflict of entry.descriptor.conflictsWith) {
+      if (allCompile.has(conflict)) {
+        const key = [name, conflict].sort().join('::');
+        if (!seenConflicts.has(key)) {
+          seenConflicts.add(key);
+          errors.push(`Compile stage "${name}" conflicts with "${conflict}"`);
+        }
+      }
+    }
+  }
+
+  for (const name of flatBuild) {
+    const entry = buildStages.get(name);
+    if (!entry?.descriptor.conflictsWith) continue;
+    for (const conflict of entry.descriptor.conflictsWith) {
+      if (allBuild.has(conflict)) {
+        const key = [name, conflict].sort().join('::');
+        if (!seenConflicts.has(key)) {
+          seenConflicts.add(key);
+          errors.push(`Build stage "${name}" conflicts with "${conflict}"`);
+        }
+      }
+    }
+  }
+
+  // Check parallelizability
+  for (const spec of build) {
+    if (!Array.isArray(spec)) continue;
+    for (const name of spec) {
+      const entry = buildStages.get(name);
+      if (!entry) continue;
+      if (entry.descriptor.parallelizable === false) {
+        warnings.push(`Build stage "${name}" is not parallelizable but appears in a parallel group`);
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, errors, warnings };
+}
+
+/** Format the full stage registry as a markdown table for prompt injection. */
+export function formatStageRegistry(): string {
+  const allDescriptors = [
+    ...getCompileStageDescriptors(),
+    ...getBuildStageDescriptors(),
+  ];
+
+  const lines: string[] = [
+    '| Name | Phase | Description | When to Use | Cost | Predecessors | Conflicts | Parallelizable |',
+    '|------|-------|-------------|-------------|------|--------------|-----------|----------------|',
+  ];
+
+  for (const d of allDescriptors) {
+    const preds = d.predecessors?.join(', ') || '-';
+    const conflicts = d.conflictsWith?.join(', ') || '-';
+    const parallel = d.parallelizable === false ? 'No' : 'Yes';
+    lines.push(`| ${d.name} | ${d.phase} | ${d.description} | ${d.whenToUse} | ${d.costHint} | ${preds} | ${conflicts} | ${parallel} |`);
+  }
+
+  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
@@ -273,6 +443,7 @@ export const AGENT_MODEL_CLASSES: Record<AgentRole, ModelClass> = {
   'staleness-assessor': 'max',
   'prd-validator': 'max',
   'dependency-detector': 'max',
+  'pipeline-composer': 'max',
 };
 
 /** Per-backend default model strings for each model class. `undefined` means the SDK picks its own model. */
@@ -470,14 +641,19 @@ function humanizeName(name: string): string {
 // Built-in Compile Stages
 // ---------------------------------------------------------------------------
 
-registerCompileStage('prd-passthrough', async function* prdPassthroughStage(ctx) {
+registerCompileStage({
+  name: 'prd-passthrough',
+  phase: 'compile',
+  description: 'Converts a PRD directly into plan artifacts without LLM planning.',
+  whenToUse: 'For small, well-defined tasks where the PRD itself serves as the implementation plan.',
+  costHint: 'low',
+  conflictsWith: ['planner'],
+  parallelizable: false,
+}, async function* prdPassthroughStage(ctx) {
   yield { timestamp: new Date().toISOString(), type: 'plan:start', source: ctx.sourceContent, label: 'prd-passthrough' };
 
   // Extract title and body from PRD
   const { title, body } = extractPrdMetadata(ctx.sourceContent, ctx.planSetName);
-
-  // Profile event
-  yield { timestamp: new Date().toISOString(), type: 'plan:profile', profileName: 'errand', rationale: 'PRD passthrough uses errand profile' };
 
   yield { timestamp: new Date().toISOString(), type: 'plan:progress', message: 'Writing plan artifacts from PRD content' };
 
@@ -496,11 +672,11 @@ registerCompileStage('prd-passthrough', async function* prdPassthroughStage(ctx)
     sourceContent: body,
     planName: title,
     baseBranch,
-    profile: ctx.profile,
+    pipeline: ctx.pipeline,
     validate: validate.length > 0 ? validate : undefined,
     mode: 'errand',
-    build: DEFAULT_BUILD,
-    review: DEFAULT_REVIEW,
+    build: ctx.pipeline.defaultBuild as BuildStageSpec[],
+    review: ctx.pipeline.defaultReview as ReviewProfileConfig,
     outputDir: ctx.config.plan.outputDir,
   });
 
@@ -516,7 +692,38 @@ registerCompileStage('prd-passthrough', async function* prdPassthroughStage(ctx)
   yield { timestamp: new Date().toISOString(), type: 'plan:complete', plans: [planFile] };
 });
 
-registerCompileStage('planner', async function* plannerStage(ctx) {
+registerCompileStage({
+  name: 'planner',
+  phase: 'compile',
+  description: 'Runs the LLM planner agent to decompose a PRD into implementation plans with dependency graphs.',
+  whenToUse: 'For any task that needs LLM-driven planning and decomposition. The default compile entry point.',
+  costHint: 'high',
+  conflictsWith: ['prd-passthrough'],
+  parallelizable: false,
+}, async function* plannerStage(ctx) {
+  // Run pipeline composition first (fast LLM call to determine scope and stages)
+  const composerConfig = resolveAgentConfig('pipeline-composer', ctx.config, ctx.config.backend);
+  for await (const event of composePipeline({
+    backend: ctx.backend,
+    source: ctx.sourceContent,
+    cwd: ctx.cwd,
+    verbose: ctx.verbose,
+    abortController: ctx.abortController,
+    ...composerConfig,
+  })) {
+    if (event.type === 'plan:pipeline') {
+      // Update the context pipeline from the composer result
+      ctx.pipeline = {
+        scope: event.scope as 'errand' | 'excursion' | 'expedition',
+        compile: event.compile,
+        defaultBuild: event.defaultBuild,
+        defaultReview: event.defaultReview,
+        rationale: event.rationale,
+      };
+    }
+    yield event;
+  }
+
   const agentConfig = resolveAgentConfig('planner', ctx.config, ctx.config.backend);
   const maxContinuations = AGENT_MAX_CONTINUATIONS_DEFAULTS['planner'] ?? 0;
 
@@ -562,30 +769,14 @@ registerCompileStage('planner', async function* plannerStage(ctx) {
         name: ctx.planSetName,
         auto: ctx.auto,
         verbose: ctx.verbose,
-        generateProfile: ctx.generateProfile,
         abortController: ctx.abortController,
         backend: ctx.backend,
         onClarification: ctx.onClarification,
-        profiles: ctx.config.profiles,
+        scope: ctx.pipeline.scope,
         outputDir: ctx.config.plan.outputDir,
         ...agentConfig,
         continuationContext,
       })) {
-        // Update active profile when planner selects one.
-        // Prefer inline config (future: agent-generated profiles), fall back to named lookup.
-        if (event.type === 'plan:profile') {
-          if (event.config) {
-            ctx.profile = event.config;
-          } else {
-            const resolved = ctx.config.profiles[event.profileName];
-            if (resolved) {
-              ctx.profile = resolved;
-            } else {
-              throw new Error(`Planner selected unknown profile "${event.profileName}" — available profiles: ${Object.keys(ctx.config.profiles).join(', ')}`);
-            }
-          }
-        }
-
         // Detect <modules> block in agent messages (expedition mode, first match only)
         if (event.type === 'agent:message' && event.agent === 'planner' && ctx.expeditionModules.length === 0) {
           const modules = parseModulesBlock(event.content);
@@ -607,12 +798,12 @@ registerCompileStage('planner', async function* plannerStage(ctx) {
           continue;
         }
 
-        // Track final plans for review phase and inject profile into orchestration.yaml
+        // Track final plans for review phase and inject pipeline into orchestration.yaml
         if (event.type === 'plan:complete') {
-          // Inject the resolved profile (and correct baseBranch) into the planner-written orchestration.yaml.
+          // Inject the pipeline composition (and correct baseBranch) into the planner-written orchestration.yaml.
           // The planner sees the merge worktree's feature branch as HEAD, so base_branch needs overriding.
           const orchYamlPath = resolve(ctx.cwd, ctx.config.plan.outputDir, ctx.planSetName, 'orchestration.yaml');
-          await injectProfileIntoOrchestrationYaml(orchYamlPath, ctx.profile, ctx.baseBranch);
+          await injectPipelineIntoOrchestrationYaml(orchYamlPath, ctx.pipeline, ctx.baseBranch);
 
           // Backfill dependsOn from orchestration.yaml into plan:complete events.
           // The planner writes depends_on to orchestration.yaml but not to individual
@@ -659,7 +850,15 @@ registerCompileStage('planner', async function* plannerStage(ctx) {
   }
 });
 
-registerCompileStage('plan-review-cycle', async function* planReviewCycleStage(ctx) {
+registerCompileStage({
+  name: 'plan-review-cycle',
+  phase: 'compile',
+  description: 'Runs a review-evaluate cycle on generated plans to catch scope and quality issues before build.',
+  whenToUse: 'For medium-to-large tasks where plan quality matters. Adds a quality gate between planning and building.',
+  costHint: 'medium',
+  predecessors: ['planner'],
+  parallelizable: false,
+}, async function* planReviewCycleStage(ctx) {
   const verbose = ctx.verbose;
   const abortController = ctx.abortController;
   const reviewerConfig = resolveAgentConfig('plan-reviewer', ctx.config, ctx.config.backend);
@@ -704,7 +903,15 @@ registerCompileStage('plan-review-cycle', async function* planReviewCycleStage(c
   }
 });
 
-registerCompileStage('architecture-review-cycle', async function* architectureReviewCycleStage(ctx) {
+registerCompileStage({
+  name: 'architecture-review-cycle',
+  phase: 'compile',
+  description: 'Reviews the architecture document produced by the planner in expedition mode for completeness and correctness.',
+  whenToUse: 'For expedition-scale work where an architecture document defines module boundaries and contracts.',
+  costHint: 'medium',
+  predecessors: ['planner'],
+  parallelizable: false,
+}, async function* architectureReviewCycleStage(ctx) {
   // Only meaningful in expedition mode
   if (ctx.expeditionModules.length === 0) return;
 
@@ -748,7 +955,15 @@ registerCompileStage('architecture-review-cycle', async function* architectureRe
   }
 });
 
-registerCompileStage('module-planning', async function* modulePlanningStage(ctx) {
+registerCompileStage({
+  name: 'module-planning',
+  phase: 'compile',
+  description: 'Plans individual modules in dependency order, running module planners in parallel within each wave.',
+  whenToUse: 'For expedition-scale work after architecture review, when the planner has identified modules.',
+  costHint: 'high',
+  predecessors: ['planner'],
+  parallelizable: false,
+}, async function* modulePlanningStage(ctx) {
   // Only runs when expedition modules are detected
   if (ctx.expeditionModules.length === 0) return;
 
@@ -862,7 +1077,15 @@ registerCompileStage('module-planning', async function* modulePlanningStage(ctx)
   }
 });
 
-registerCompileStage('cohesion-review-cycle', async function* cohesionReviewCycleStage(ctx) {
+registerCompileStage({
+  name: 'cohesion-review-cycle',
+  phase: 'compile',
+  description: 'Reviews module plans for cohesion and consistency with the architecture document.',
+  whenToUse: 'For expedition-scale work after module planning, to ensure modules work together coherently.',
+  costHint: 'medium',
+  predecessors: ['planner', 'module-planning'],
+  parallelizable: false,
+}, async function* cohesionReviewCycleStage(ctx) {
   // Only meaningful in expedition mode
   if (ctx.expeditionModules.length === 0) return;
 
@@ -905,12 +1128,24 @@ registerCompileStage('cohesion-review-cycle', async function* cohesionReviewCycl
   }
 });
 
-registerCompileStage('compile-expedition', async function* compileExpeditionStage(ctx) {
+registerCompileStage({
+  name: 'compile-expedition',
+  phase: 'compile',
+  description: 'Compiles module plans into concrete plan files with orchestration config for the build phase.',
+  whenToUse: 'Final compile stage for expedition-scale work. Produces the plan files that build stages consume.',
+  costHint: 'low',
+  predecessors: ['planner', 'module-planning'],
+  parallelizable: false,
+}, async function* compileExpeditionStage(ctx) {
   // Only runs when expedition modules are detected
   if (ctx.expeditionModules.length === 0) return;
 
   yield { timestamp: new Date().toISOString(), type: 'expedition:compile:start' };
-  const plans = await compileExpedition(ctx.cwd, ctx.planSetName, ctx.profile, ctx.moduleBuildConfigs, ctx.config.plan.outputDir);
+  const profileForCompiler = {
+    description: ctx.pipeline.rationale,
+    compile: ctx.pipeline.compile,
+  };
+  const plans = await compileExpedition(ctx.cwd, ctx.planSetName, profileForCompiler, ctx.moduleBuildConfigs, ctx.config.plan.outputDir);
   yield { timestamp: new Date().toISOString(), type: 'expedition:compile:complete', plans };
   yield { timestamp: new Date().toISOString(), type: 'plan:complete', plans };
 
@@ -1059,7 +1294,14 @@ async function* emitFilesChanged(ctx: BuildStageContext): AsyncGenerator<EforgeE
   }
 }
 
-registerBuildStage('implement', async function* implementStage(ctx) {
+registerBuildStage({
+  name: 'implement',
+  phase: 'build',
+  description: 'Runs the builder agent to implement the plan in a worktree with continuation support.',
+  whenToUse: 'Always included as the first build stage. This is where actual code changes are made.',
+  costHint: 'high',
+  parallelizable: false,
+}, async function* implementStage(ctx) {
   const agentConfig = resolveAgentConfig('builder', ctx.config, ctx.config.backend);
 
   // Resolve maxContinuations: per-plan > global config > default (3)
@@ -1178,7 +1420,14 @@ registerBuildStage('implement', async function* implementStage(ctx) {
   yield* emitFilesChanged(ctx);
 });
 
-registerBuildStage('review', async function* reviewStage(ctx) {
+registerBuildStage({
+  name: 'review',
+  phase: 'build',
+  description: 'Runs a single code review pass identifying issues in the implementation.',
+  whenToUse: 'When a single review pass is sufficient. For iterative review-fix cycles, use review-cycle instead.',
+  costHint: 'medium',
+  predecessors: ['implement'],
+}, async function* reviewStage(ctx) {
   yield* reviewStageInner(ctx);
 });
 
@@ -1221,7 +1470,14 @@ async function* reviewStageInner(
   }
 }
 
-registerBuildStage('evaluate', async function* evaluateStage(ctx) {
+registerBuildStage({
+  name: 'evaluate',
+  phase: 'build',
+  description: 'Evaluates unstaged changes from review/fixer, accepting or rejecting each change.',
+  whenToUse: 'After review-fix to gate which reviewer suggestions are kept. Used within review-cycle.',
+  costHint: 'medium',
+  predecessors: ['implement'],
+}, async function* evaluateStage(ctx) {
   yield* evaluateStageInner(ctx);
 });
 
@@ -1259,7 +1515,14 @@ async function* evaluateStageInner(
   }
 }
 
-registerBuildStage('review-fix', async function* reviewFixStage(ctx) {
+registerBuildStage({
+  name: 'review-fix',
+  phase: 'build',
+  description: 'Applies fixes for review issues identified by the reviewer agent.',
+  whenToUse: 'After review to fix identified issues. Typically used within review-cycle rather than standalone.',
+  costHint: 'medium',
+  predecessors: ['implement'],
+}, async function* reviewFixStage(ctx) {
   yield* reviewFixStageInner(ctx);
 });
 
@@ -1297,7 +1560,16 @@ async function* reviewFixStageInner(
   }
 }
 
-registerBuildStage('review-cycle', async function* reviewCycleStage(ctx) {
+registerBuildStage({
+  name: 'review-cycle',
+  phase: 'build',
+  description: 'Runs iterative review-fix-evaluate rounds up to maxRounds, stopping when no actionable issues remain.',
+  whenToUse: 'For quality-critical implementations. Combines review, review-fix, and evaluate into an iterative loop.',
+  costHint: 'high',
+  predecessors: ['implement'],
+  conflictsWith: ['review'],
+  parallelizable: false,
+}, async function* reviewCycleStage(ctx) {
   const maxRounds = ctx.review.maxRounds;
   const strategy = ctx.review.strategy;
   const perspectives = ctx.review.perspectives.length > 0 ? ctx.review.perspectives : undefined;
@@ -1322,13 +1594,27 @@ registerBuildStage('review-cycle', async function* reviewCycleStage(ctx) {
   }
 });
 
-registerBuildStage('validate', async function* validateStage(_ctx) {
-  // Placeholder for inline validation (not used in default profiles).
+registerBuildStage({
+  name: 'validate',
+  phase: 'build',
+  description: 'Placeholder for inline validation. Custom pipelines can include this for pre-merge checks.',
+  whenToUse: 'When inline validation is needed before merge. Post-merge validation is handled by the Orchestrator.',
+  costHint: 'low',
+  predecessors: ['implement'],
+}, async function* validateStage(_ctx) {
+  // Placeholder for inline validation (not used in default pipelines).
   // Post-merge validation continues to be handled by the Orchestrator.
-  // Custom profiles can include this stage for inline validation.
+  // Custom pipelines can include this stage for inline validation.
 });
 
-registerBuildStage('doc-update', async function* docUpdateStage(ctx) {
+registerBuildStage({
+  name: 'doc-update',
+  phase: 'build',
+  description: 'Updates project documentation to reflect implementation changes.',
+  whenToUse: 'After implementation to keep docs in sync. Can run in parallel with review stages.',
+  costHint: 'medium',
+  predecessors: ['implement'],
+}, async function* docUpdateStage(ctx) {
   const agentConfig = resolveAgentConfig('doc-updater', ctx.config, ctx.config.backend);
   const docSpan = ctx.tracing.createSpan('doc-updater', { planId: ctx.planId });
   docSpan.setInput({ planId: ctx.planId });
@@ -1365,7 +1651,14 @@ registerBuildStage('doc-update', async function* docUpdateStage(ctx) {
 // Test Build Stages
 // ---------------------------------------------------------------------------
 
-registerBuildStage('test-write', async function* testWriteStage(ctx) {
+registerBuildStage({
+  name: 'test-write',
+  phase: 'build',
+  description: 'Writes test cases for the implementation using the test-writer agent.',
+  whenToUse: 'When automated test generation is desired. Can run after or in parallel with implementation.',
+  costHint: 'medium',
+  predecessors: ['implement'],
+}, async function* testWriteStage(ctx) {
   const agentConfig = resolveAgentConfig('test-writer', ctx.config, ctx.config.backend);
   const span = ctx.tracing.createSpan('test-writer', { planId: ctx.planId });
   span.setInput({ planId: ctx.planId });
@@ -1406,7 +1699,14 @@ registerBuildStage('test-write', async function* testWriteStage(ctx) {
   yield* emitFilesChanged(ctx);
 });
 
-registerBuildStage('test', async function* testStage(ctx) {
+registerBuildStage({
+  name: 'test',
+  phase: 'build',
+  description: 'Runs the tester agent to execute tests and identify production code issues.',
+  whenToUse: 'When test execution and production issue detection is needed. Used within test-cycle.',
+  costHint: 'medium',
+  predecessors: ['implement'],
+}, async function* testStage(ctx) {
   yield* testStageInner(ctx);
 });
 
@@ -1443,7 +1743,16 @@ async function* testStageInner(ctx: BuildStageContext): AsyncGenerator<EforgeEve
   }
 }
 
-registerBuildStage('test-cycle', async function* testCycleStage(ctx) {
+registerBuildStage({
+  name: 'test-cycle',
+  phase: 'build',
+  description: 'Runs iterative test-evaluate rounds up to maxRounds, stopping when no production issues remain.',
+  whenToUse: 'For test-driven quality assurance. Combines test and evaluate into an iterative loop.',
+  costHint: 'high',
+  predecessors: ['implement'],
+  conflictsWith: ['test'],
+  parallelizable: false,
+}, async function* testCycleStage(ctx) {
   const maxRounds = ctx.review.maxRounds;
   const strictness = ctx.review.evaluatorStrictness;
 
@@ -1535,12 +1844,12 @@ async function* runReviewCycle(config: ReviewCycleConfig): AsyncGenerator<Eforge
 export async function* runCompilePipeline(
   ctx: PipelineContext,
 ): AsyncGenerator<EforgeEvent> {
-  // Index-based iteration: ctx.profile may change mid-pipeline (e.g., planner
-  // stage switches from excursion to expedition), so re-read ctx.profile.compile
+  // Index-based iteration: ctx.pipeline may change mid-pipeline (e.g., planner
+  // stage switches from excursion to expedition), so re-read ctx.pipeline.compile
   // on each iteration instead of capturing it once via for...of.
   let i = 0;
-  while (i < ctx.profile.compile.length) {
-    const stageName = ctx.profile.compile[i];
+  while (i < ctx.pipeline.compile.length) {
+    const stageName = ctx.pipeline.compile[i];
     if (stageName === 'plan-review-cycle' || stageName === 'architecture-review-cycle') {
       // Commit plan artifacts before running review cycles
       // (reviewers read committed files)
@@ -1558,7 +1867,7 @@ export async function* runCompilePipeline(
 
 /**
  * Run the build pipeline stages for a single plan.
- * Each entry in `profile.build` is either a single stage name (run sequentially)
+ * Each entry in the build pipeline is either a single stage name (run sequentially)
  * or an array of stage names (run concurrently via `runParallel`).
  * After a parallel group completes, any uncommitted changes are auto-committed.
  */

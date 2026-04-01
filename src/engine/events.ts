@@ -1,13 +1,13 @@
 // EforgeEvent discriminated union and all supporting types
 
 import type { z } from 'zod/v4';
-import type { ResolvedProfileConfig, BuildStageSpec, ReviewProfileConfig } from './config.js';
+import type { BuildStageSpec, ReviewProfileConfig } from './config.js';
 import type { ReviewPerspective } from './review-heuristics.js';
-import type { reviewIssueSchema, expeditionModuleSchema, clarificationQuestionSchema } from './schemas.js';
+import type { reviewIssueSchema, expeditionModuleSchema, clarificationQuestionSchema, PipelineComposition } from './schemas.js';
 
 export const ORCHESTRATION_MODES = ['errand', 'excursion', 'expedition'] as const;
 
-export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'review-fixer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'architecture-reviewer' | 'architecture-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater' | 'test-writer' | 'tester' | 'prd-validator' | 'dependency-detector';
+export type AgentRole = 'planner' | 'builder' | 'reviewer' | 'review-fixer' | 'evaluator' | 'module-planner' | 'plan-reviewer' | 'plan-evaluator' | 'architecture-reviewer' | 'architecture-evaluator' | 'cohesion-reviewer' | 'cohesion-evaluator' | 'validation-fixer' | 'merge-conflict-resolver' | 'staleness-assessor' | 'formatter' | 'doc-updater' | 'test-writer' | 'tester' | 'prd-validator' | 'dependency-detector' | 'pipeline-composer';
 
 export interface PrdValidationGap {
   requirement: string;
@@ -54,7 +54,7 @@ export interface OrchestrationConfig {
   created: string;
   mode: (typeof ORCHESTRATION_MODES)[number];
   baseBranch: string;
-  profile: ResolvedProfileConfig;
+  pipeline: PipelineComposition;
   plans: Array<{ id: string; name: string; dependsOn: string[]; branch: string; build: BuildStageSpec[]; review: ReviewProfileConfig; maxContinuations?: number }>;
   validate?: string[];
 }
@@ -91,6 +91,8 @@ export interface AgentResultData {
   modelUsage: Record<string, { inputTokens: number; outputTokens: number; cacheReadInputTokens: number; cacheCreationInputTokens: number; costUSD: number }>;
   /** Final result text from the agent (used as generation output in traces) */
   resultText?: string;
+  /** Structured output parsed from the SDK result (schema-dependent, typed as unknown). */
+  structuredOutput?: unknown;
 }
 
 export interface CompileOptions {
@@ -99,7 +101,6 @@ export interface CompileOptions {
   name?: string;
   cwd?: string;
   abortController?: AbortController;
-  generateProfile?: boolean;
 }
 
 export interface BuildOptions {
@@ -149,11 +150,11 @@ export type EforgeEvent = { sessionId?: string; runId?: string; timestamp: strin
   // Planning
   | { type: 'plan:start'; source: string; label?: string }
   | { type: 'plan:skip'; reason: string }
-  | { type: 'plan:profile'; profileName: string; rationale: string; config?: import('./config.js').ResolvedProfileConfig }
   | { type: 'plan:clarification'; questions: ClarificationQuestion[] }
   | { type: 'plan:clarification:answer'; answers: Record<string, string> }
   | { type: 'plan:progress'; message: string }
   | { type: 'plan:continuation'; attempt: number; maxContinuations: number }
+  | { type: 'plan:pipeline'; scope: string; compile: string[]; defaultBuild: BuildStageSpec[]; defaultReview: ReviewProfileConfig; rationale: string }
   | { type: 'plan:complete'; plans: PlanFile[] }
 
   // Plan review (after planning phase)

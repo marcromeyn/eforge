@@ -8,13 +8,25 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { EforgeEvent, PlanFile, OrchestrationConfig, ReviewIssue } from '../src/engine/events.js';
-import type { EforgeConfig, ResolvedProfileConfig } from '../src/engine/config.js';
+import type { EforgeConfig } from '../src/engine/config.js';
 import type { AgentBackend } from '../src/engine/backend.js';
-import { BUILTIN_PROFILES, DEFAULT_CONFIG, DEFAULT_REVIEW, DEFAULT_BUILD, DEFAULT_BUILD_WITH_DOCS } from '../src/engine/config.js';
+import type { PipelineComposition } from '../src/engine/schemas.js';
+import { DEFAULT_CONFIG, DEFAULT_REVIEW } from '../src/engine/config.js';
+
+const DEFAULT_BUILD = ['implement', 'review-cycle'];
+
+const TEST_PIPELINE: PipelineComposition = {
+  scope: 'excursion',
+  compile: ['planner', 'plan-review-cycle'],
+  defaultBuild: DEFAULT_BUILD,
+  defaultReview: DEFAULT_REVIEW,
+  rationale: 'test pipeline',
+};
 import { createNoopTracingContext } from '../src/engine/tracing.js';
 import {
   getCompileStage,
   getBuildStage,
+  getCompileStageNames,
   registerCompileStage,
   registerBuildStage,
   runCompilePipeline,
@@ -23,11 +35,17 @@ import {
   type BuildStageContext,
   type CompileStage,
   type BuildStage,
+  type StageDescriptor,
 } from '../src/engine/pipeline.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Create a minimal StageDescriptor for testing. */
+function testDescriptor(name: string, phase: 'compile' | 'build'): StageDescriptor {
+  return { name, phase, description: `Test ${name}`, whenToUse: 'testing', costHint: 'low' };
+}
 
 /** Collect all events from an async generator. */
 async function collect(gen: AsyncGenerator<EforgeEvent>): Promise<EforgeEvent[]> {
@@ -43,7 +61,7 @@ function makePipelineCtx(overrides: Partial<PipelineContext> = {}): PipelineCont
   return {
     backend: {} as AgentBackend,
     config: DEFAULT_CONFIG,
-    profile: BUILTIN_PROFILES['excursion'],
+    pipeline: TEST_PIPELINE,
     tracing: createNoopTracingContext(),
     cwd: '/tmp/test',
     planSetName: 'test-plan',
@@ -71,16 +89,14 @@ function makeBuildCtx(overrides: Partial<BuildStageContext> = {}): BuildStageCon
     created: new Date().toISOString(),
     mode: 'errand',
     baseBranch: 'main',
-    profile: BUILTIN_PROFILES['excursion'],
+    pipeline: TEST_PIPELINE,
     plans: [{ id: 'plan-01', name: 'Test Plan', dependsOn: [], branch: 'test/plan-01', build: DEFAULT_BUILD, review: DEFAULT_REVIEW }],
   };
-
-  const profile = overrides?.profile ?? BUILTIN_PROFILES['excursion'];
 
   return {
     backend: {} as AgentBackend,
     config: DEFAULT_CONFIG,
-    profile,
+    pipeline: overrides?.pipeline ?? TEST_PIPELINE,
     tracing: createNoopTracingContext(),
     cwd: '/tmp/test',
     planSetName: 'test-plan',
@@ -124,13 +140,13 @@ describe('stage registry', () => {
 
   it('registerCompileStage makes stage retrievable', () => {
     const fn: CompileStage = async function* () { /* noop */ };
-    registerCompileStage('test-compile-stage', fn);
+    registerCompileStage(testDescriptor('test-compile-stage', 'compile'), fn);
     expect(getCompileStage('test-compile-stage')).toBe(fn);
   });
 
   it('registerBuildStage makes stage retrievable', () => {
     const fn: BuildStage = async function* () { /* noop */ };
-    registerBuildStage('test-build-stage', fn);
+    registerBuildStage(testDescriptor('test-build-stage', 'build'), fn);
     expect(getBuildStage('test-build-stage')).toBe(fn);
   });
 
@@ -156,24 +172,24 @@ describe('stage registry', () => {
 // ---------------------------------------------------------------------------
 
 describe('runCompilePipeline', () => {
-  it('calls stages in order from profile compile list', async () => {
+  it('calls stages in order from pipeline compile list', async () => {
     const order: string[] = [];
 
-    registerCompileStage('test-stage-a', async function* () {
+    registerCompileStage(testDescriptor('test-stage-a', 'compile'), async function* () {
       order.push('a');
       yield { type: 'plan:progress', message: 'stage-a' };
     });
-    registerCompileStage('test-stage-b', async function* () {
+    registerCompileStage(testDescriptor('test-stage-b', 'compile'), async function* () {
       order.push('b');
       yield { type: 'plan:progress', message: 'stage-b' };
     });
 
-    const profile: ResolvedProfileConfig = {
-      ...BUILTIN_PROFILES['excursion'],
+    const pipeline: PipelineComposition = {
+      ...TEST_PIPELINE,
       compile: ['test-stage-a', 'test-stage-b'],
     };
 
-    const ctx = makePipelineCtx({ profile });
+    const ctx = makePipelineCtx({ pipeline });
     const events = await collect(runCompilePipeline(ctx));
 
     expect(order).toEqual(['a', 'b']);
@@ -183,12 +199,12 @@ describe('runCompilePipeline', () => {
   });
 
   it('yields zero events with empty compile list', async () => {
-    const profile: ResolvedProfileConfig = {
-      ...BUILTIN_PROFILES['excursion'],
+    const pipeline: PipelineComposition = {
+      ...TEST_PIPELINE,
       compile: [],
     };
 
-    const ctx = makePipelineCtx({ profile });
+    const ctx = makePipelineCtx({ pipeline });
     const events = await collect(runCompilePipeline(ctx));
 
     expect(events).toHaveLength(0);
@@ -197,22 +213,22 @@ describe('runCompilePipeline', () => {
   it('skipped flag halts pipeline after the stage that sets it', async () => {
     const stagesRun: string[] = [];
 
-    registerCompileStage('test-skip-planner', async function* (ctx) {
+    registerCompileStage(testDescriptor('test-skip-planner', 'compile'), async function* (ctx) {
       stagesRun.push('planner');
       ctx.skipped = true;
       yield { type: 'plan:skip', reason: 'Already done' };
     });
-    registerCompileStage('test-skip-review', async function* () {
+    registerCompileStage(testDescriptor('test-skip-review', 'compile'), async function* () {
       stagesRun.push('review');
       yield { type: 'plan:progress', message: 'review' };
     });
 
-    const profile: ResolvedProfileConfig = {
-      ...BUILTIN_PROFILES['excursion'],
+    const pipeline: PipelineComposition = {
+      ...TEST_PIPELINE,
       compile: ['test-skip-planner', 'test-skip-review'],
     };
 
-    const ctx = makePipelineCtx({ profile });
+    const ctx = makePipelineCtx({ pipeline });
     const events = await collect(runCompilePipeline(ctx));
 
     expect(stagesRun).toEqual(['planner']);
@@ -221,12 +237,12 @@ describe('runCompilePipeline', () => {
   });
 
   it('throws for unknown stage name in compile list', async () => {
-    const profile: ResolvedProfileConfig = {
-      ...BUILTIN_PROFILES['excursion'],
+    const pipeline: PipelineComposition = {
+      ...TEST_PIPELINE,
       compile: ['unknown-stage-xyz'],
     };
 
-    const ctx = makePipelineCtx({ profile });
+    const ctx = makePipelineCtx({ pipeline });
 
     await expect(collect(runCompilePipeline(ctx))).rejects.toThrow('Unknown compile stage');
   });
@@ -234,17 +250,17 @@ describe('runCompilePipeline', () => {
   it('with planner only (no plan-review-cycle), only planner stage runs', async () => {
     const stagesRun: string[] = [];
 
-    registerCompileStage('test-planner-only', async function* () {
+    registerCompileStage(testDescriptor('test-planner-only', 'compile'), async function* () {
       stagesRun.push('planner');
       yield { type: 'plan:progress', message: 'planned' };
     });
 
-    const profile: ResolvedProfileConfig = {
-      ...BUILTIN_PROFILES['excursion'],
+    const pipeline: PipelineComposition = {
+      ...TEST_PIPELINE,
       compile: ['test-planner-only'],
     };
 
-    const ctx = makePipelineCtx({ profile });
+    const ctx = makePipelineCtx({ pipeline });
     const events = await collect(runCompilePipeline(ctx));
 
     expect(stagesRun).toEqual(['planner']);
@@ -258,7 +274,7 @@ describe('runCompilePipeline', () => {
 
 describe('runBuildPipeline', () => {
   it('emits build:start and build:complete around stages', async () => {
-    registerBuildStage('test-impl', async function* (ctx) {
+    registerBuildStage(testDescriptor('test-impl', 'build'), async function* (ctx) {
       yield { type: 'build:implement:start', planId: ctx.planId };
       yield { type: 'build:implement:complete', planId: ctx.planId };
     });
@@ -273,15 +289,15 @@ describe('runBuildPipeline', () => {
   it('calls all four default build stages in order', async () => {
     const order: string[] = [];
 
-    registerBuildStage('test-b-impl', async function* () {
+    registerBuildStage(testDescriptor('test-b-impl', 'build'), async function* () {
       order.push('implement');
       yield { type: 'plan:progress', message: 'impl' };
     });
-    registerBuildStage('test-b-review', async function* () {
+    registerBuildStage(testDescriptor('test-b-review', 'build'), async function* () {
       order.push('review');
       yield { type: 'plan:progress', message: 'review' };
     });
-    registerBuildStage('test-b-eval', async function* () {
+    registerBuildStage(testDescriptor('test-b-eval', 'build'), async function* () {
       order.push('evaluate');
       yield { type: 'plan:progress', message: 'eval' };
     });
@@ -303,10 +319,10 @@ describe('runBuildPipeline', () => {
   });
 
   it('with custom profile build stages (implement + validate)', async () => {
-    registerBuildStage('test-custom-impl', async function* (ctx) {
+    registerBuildStage(testDescriptor('test-custom-impl', 'build'), async function* (ctx) {
       yield { type: 'build:implement:start', planId: ctx.planId };
     });
-    registerBuildStage('test-custom-validate', async function* () {
+    registerBuildStage(testDescriptor('test-custom-validate', 'build'), async function* () {
       yield { type: 'plan:progress', message: 'validate' };
     });
 
@@ -335,23 +351,23 @@ describe('PipelineContext mutable state', () => {
       filePath: '/tmp/test.md',
     };
 
-    registerCompileStage('test-set-plans', async function* (ctx) {
+    registerCompileStage(testDescriptor('test-set-plans', 'compile'), async function* (ctx) {
       ctx.plans = [testPlan];
       yield { type: 'plan:progress', message: 'set-plans' };
     });
 
     let readPlans: PlanFile[] = [];
-    registerCompileStage('test-read-plans', async function* (ctx) {
+    registerCompileStage(testDescriptor('test-read-plans', 'compile'), async function* (ctx) {
       readPlans = ctx.plans;
       yield { type: 'plan:progress', message: 'read-plans' };
     });
 
-    const profile: ResolvedProfileConfig = {
-      ...BUILTIN_PROFILES['excursion'],
+    const pipeline: PipelineComposition = {
+      ...TEST_PIPELINE,
       compile: ['test-set-plans', 'test-read-plans'],
     };
 
-    const ctx = makePipelineCtx({ profile });
+    const ctx = makePipelineCtx({ pipeline });
     await collect(runCompilePipeline(ctx));
 
     expect(readPlans).toEqual([testPlan]);
@@ -500,11 +516,11 @@ describe('runBuildPipeline parallel stage groups', () => {
   it('parallel group runs both stages and yields events from both', async () => {
     const stagesRun: string[] = [];
 
-    registerBuildStage('test-par-a', async function* (ctx) {
+    registerBuildStage(testDescriptor('test-par-a', 'build'), async function* (ctx) {
       stagesRun.push('a');
       yield { type: 'plan:progress', message: 'par-a' };
     });
-    registerBuildStage('test-par-b', async function* (ctx) {
+    registerBuildStage(testDescriptor('test-par-b', 'build'), async function* (ctx) {
       stagesRun.push('b');
       yield { type: 'plan:progress', message: 'par-b' };
     });
@@ -526,15 +542,15 @@ describe('runBuildPipeline parallel stage groups', () => {
   it('mixed config [["a", "b"], "c"] runs a+b in parallel then c sequentially', async () => {
     const order: string[] = [];
 
-    registerBuildStage('test-mix-a', async function* () {
+    registerBuildStage(testDescriptor('test-mix-a', 'build'), async function* () {
       order.push('a');
       yield { type: 'plan:progress', message: 'mix-a' };
     });
-    registerBuildStage('test-mix-b', async function* () {
+    registerBuildStage(testDescriptor('test-mix-b', 'build'), async function* () {
       order.push('b');
       yield { type: 'plan:progress', message: 'mix-b' };
     });
-    registerBuildStage('test-mix-c', async function* () {
+    registerBuildStage(testDescriptor('test-mix-c', 'build'), async function* () {
       order.push('c');
       yield { type: 'plan:progress', message: 'mix-c' };
     });
@@ -556,16 +572,16 @@ describe('runBuildPipeline parallel stage groups', () => {
   it('buildFailed set during parallel group stops pipeline after group completes', async () => {
     const stagesRun: string[] = [];
 
-    registerBuildStage('test-fail-par-a', async function* (ctx) {
+    registerBuildStage(testDescriptor('test-fail-par-a', 'build'), async function* (ctx) {
       stagesRun.push('a');
       ctx.buildFailed = true;
       yield { type: 'plan:progress', message: 'fail-par-a' };
     });
-    registerBuildStage('test-fail-par-b', async function* () {
+    registerBuildStage(testDescriptor('test-fail-par-b', 'build'), async function* () {
       stagesRun.push('b');
       yield { type: 'plan:progress', message: 'fail-par-b' };
     });
-    registerBuildStage('test-fail-after', async function* () {
+    registerBuildStage(testDescriptor('test-fail-after', 'build'), async function* () {
       stagesRun.push('after');
       yield { type: 'plan:progress', message: 'after' };
     });
@@ -583,47 +599,34 @@ describe('runBuildPipeline parallel stage groups', () => {
   });
 });
 
-describe('default profile behavior', () => {
-  it('excursion profile compile stages match today\'s hardcoded sequence', () => {
-    const excursion = BUILTIN_PROFILES['excursion'];
-    expect(excursion.compile).toEqual(['planner', 'plan-review-cycle']);
+describe('default pipeline compile stages', () => {
+  it('getCompileStageNames includes planner and plan-review-cycle', () => {
+    const names = getCompileStageNames();
+    expect(names.has('planner')).toBe(true);
+    expect(names.has('plan-review-cycle')).toBe(true);
   });
 
-  it('errand profile compile stages use prd-passthrough', () => {
-    const errand = BUILTIN_PROFILES['errand'];
-    expect(errand.compile).toEqual(['prd-passthrough']);
+  it('getCompileStageNames includes prd-passthrough', () => {
+    const names = getCompileStageNames();
+    expect(names.has('prd-passthrough')).toBe(true);
   });
 
-  it('expedition profile compile stages include module-planning and compile-expedition', () => {
-    const expedition = BUILTIN_PROFILES['expedition'];
-    expect(expedition.compile).toContain('module-planning');
-    expect(expedition.compile).toContain('compile-expedition');
-    expect(expedition.compile).toContain('cohesion-review-cycle');
+  it('getCompileStageNames includes module-planning, compile-expedition, cohesion-review-cycle', () => {
+    const names = getCompileStageNames();
+    expect(names.has('module-planning')).toBe(true);
+    expect(names.has('compile-expedition')).toBe(true);
+    expect(names.has('cohesion-review-cycle')).toBe(true);
   });
 });
 
 // ---------------------------------------------------------------------------
-// EforgeEngineOptions profileOverrides Tests
+// EforgeEngineOptions Tests
 // ---------------------------------------------------------------------------
 
-describe('EforgeEngineOptions.profileOverrides type', () => {
-  it('profileOverrides is optional on EforgeEngineOptions', async () => {
-    // Runtime check: the option type accepts undefined
+describe('EforgeEngineOptions type', () => {
+  it('EforgeEngineOptions accepts empty object', async () => {
     const opts: import('../src/engine/eforge.js').EforgeEngineOptions = {};
-    expect(opts.profileOverrides).toBeUndefined();
-  });
-
-  it('profileOverrides accepts Record<string, PartialProfileConfig>', async () => {
-    const opts: import('../src/engine/eforge.js').EforgeEngineOptions = {
-      profileOverrides: {
-        'custom-profile': {
-          description: 'Custom profile',
-          compile: ['planner', 'plan-review-cycle'],
-        },
-      },
-    };
-    expect(opts.profileOverrides).toBeDefined();
-    expect(opts.profileOverrides!['custom-profile'].compile).toEqual(['planner', 'plan-review-cycle']);
+    expect(opts.cwd).toBeUndefined();
   });
 });
 

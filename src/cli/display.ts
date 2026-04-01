@@ -569,14 +569,14 @@ export function renderEvent(event: EforgeEvent): void {
       succeedSpinner('cleanup', `Plan files removed for ${chalk.cyan(event.planSet)}`);
       break;
 
-    case 'plan:profile': {
-      const profileColors: Record<string, (s: string) => string> = {
+    case 'plan:pipeline': {
+      const scopeColors: Record<string, (s: string) => string> = {
         errand: chalk.green,
         excursion: chalk.yellow,
         expedition: chalk.magenta,
       };
-      const profileColorFn = profileColors[event.profileName] ?? chalk.cyan;
-      console.log(`  Profile: ${profileColorFn(event.profileName)} \u2014 ${chalk.dim(event.rationale)}`);
+      const scopeColorFn = scopeColors[event.scope] ?? chalk.cyan;
+      console.log(`  Pipeline: ${scopeColorFn(event.scope)} - ${chalk.dim(event.rationale)}`);
       break;
     }
 

@@ -5,7 +5,7 @@ import type { EforgeEvent } from '../src/engine/events.js';
 import { StubBackend } from './stub-backend.js';
 import { collectEvents, findEvent, filterEvents } from './test-events.js';
 import { useTempDir } from './test-tmpdir.js';
-import { runPlanner, formatProfileDescriptions } from '../src/engine/agents/planner.js';
+import { runPlanner } from '../src/engine/agents/planner.js';
 import { runReview } from '../src/engine/agents/reviewer.js';
 import { builderImplement, builderEvaluate } from '../src/engine/agents/builder.js';
 import { runPlanReview } from '../src/engine/agents/plan-reviewer.js';
@@ -14,7 +14,7 @@ import { runArchitectureEvaluate } from '../src/engine/agents/plan-evaluator.js'
 import { runModulePlanner } from '../src/engine/agents/module-planner.js';
 import { runArchitectureReview } from '../src/engine/agents/architecture-reviewer.js';
 import { runPrdValidator } from '../src/engine/agents/prd-validator.js';
-import type { ResolvedProfileConfig } from '../src/engine/config.js';
+import { validatePipeline, formatStageRegistry, getCompileStageNames, getBuildStageNames, getCompileStageDescriptors, getBuildStageDescriptors } from '../src/engine/pipeline.js';
 
 // --- Planner ---
 
@@ -204,111 +204,6 @@ Do the thing.
     expect(complete!.plans).toHaveLength(1);
     expect(complete!.plans[0].id).toBe('feature');
     expect(complete!.plans[0].name).toBe('Add feature');
-  });
-});
-
-// --- Profile formatting ---
-
-const stubProfile: ResolvedProfileConfig = {
-  description: 'Small focused change',
-  compile: ['planner'],
-  build: ['builder', 'reviewer', 'evaluator'],
-  agents: {},
-  review: { strategy: 'auto', perspectives: ['code'], maxRounds: 1, evaluatorStrictness: 'standard' },
-};
-
-describe('formatProfileDescriptions', () => {
-  it('returns empty string for empty profiles', () => {
-    expect(formatProfileDescriptions({})).toBe('');
-  });
-
-  it('returns a markdown table with one row including pipeline effect', () => {
-    const result = formatProfileDescriptions({ errand: stubProfile });
-    expect(result).toContain('| Profile | Description | Pipeline Effect |');
-    expect(result).toContain('| `errand` | Small focused change | Skips plan review - plan goes directly to build |');
-  });
-
-  it('returns a markdown table with multiple profiles', () => {
-    const result = formatProfileDescriptions({
-      errand: stubProfile,
-      migration: { ...stubProfile, description: 'Database migration work' },
-    });
-    expect(result).toContain('| `errand` |');
-    expect(result).toContain('| `migration` | Database migration work | Stages: planner |');
-  });
-
-  it('shows well-known pipeline effects for built-in profiles', () => {
-    const result = formatProfileDescriptions({
-      errand: stubProfile,
-      excursion: { ...stubProfile, description: 'Multi-file feature work' },
-      expedition: { ...stubProfile, description: 'Large cross-cutting work' },
-    });
-    expect(result).toContain('Skips plan review');
-    expect(result).toContain('Includes plan review before build');
-    expect(result).toContain('Full architecture review, module planning, and cohesion review');
-  });
-
-  it('falls back to compile stages for custom profiles', () => {
-    const result = formatProfileDescriptions({
-      'custom-flow': { ...stubProfile, description: 'Custom workflow', compile: ['planner', 'plan-review-cycle'] },
-    });
-    expect(result).toContain('Stages: planner, plan-review-cycle');
-  });
-});
-
-// --- Planner profile emission ---
-
-describe('runPlanner profile emission', () => {
-  const makeTempDir = useTempDir('eforge-planner-profile-test-');
-
-  it('emits plan:profile when agent output contains a profile block', async () => {
-    const backend = new StubBackend([{
-      text: '<profile name="excursion">Multi-file feature work across 8 files.</profile>',
-    }]);
-    const cwd = makeTempDir();
-
-    const events = await collectEvents(runPlanner('Build feature', {
-      backend,
-      cwd,
-      profiles: { excursion: stubProfile },
-    }));
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeDefined();
-    expect(profile!.profileName).toBe('excursion');
-    expect(profile!.rationale).toBe('Multi-file feature work across 8 files.');
-    expect(profile!.config).toBe(stubProfile);
-  });
-
-  it('emits only plan:profile when profile name is a custom name', async () => {
-    const backend = new StubBackend([{
-      text: '<profile name="migration">Database migration work.</profile>',
-    }]);
-    const cwd = makeTempDir();
-
-    const events = await collectEvents(runPlanner('Run migration', {
-      backend,
-      cwd,
-      profiles: { migration: { ...stubProfile, description: 'Migration profile' } },
-    }));
-
-    const profile = findEvent(events, 'plan:profile');
-    expect(profile).toBeDefined();
-    expect(profile!.profileName).toBe('migration');
-  });
-
-  it('includes profiles template variable in prompt when profiles are provided', async () => {
-    const backend = new StubBackend([{ text: 'Planning done.' }]);
-    const cwd = makeTempDir();
-
-    await collectEvents(runPlanner('Build feature', {
-      backend,
-      cwd,
-      profiles: { errand: stubProfile },
-    }));
-
-    expect(backend.prompts[0]).toContain('Small focused change');
-    expect(backend.prompts[0]).toContain('`errand`');
   });
 });
 
@@ -840,5 +735,94 @@ describe('runPrdValidator wiring', () => {
     }));
 
     expect(findEvent(events, 'agent:result')).toBeDefined();
+  });
+});
+
+// --- Stage Descriptor Metadata ---
+
+describe('stage descriptor metadata', () => {
+  it('all 7 compile stage descriptors have non-empty description, whenToUse, and costHint', () => {
+    const descriptors = getCompileStageDescriptors();
+    expect(descriptors.length).toBe(7);
+    for (const d of descriptors) {
+      expect(d.description.length).toBeGreaterThan(0);
+      expect(d.whenToUse.length).toBeGreaterThan(0);
+      expect(['low', 'medium', 'high']).toContain(d.costHint);
+      expect(d.phase).toBe('compile');
+    }
+  });
+
+  it('all 10 build stage descriptors have non-empty description, whenToUse, and costHint', () => {
+    const descriptors = getBuildStageDescriptors();
+    expect(descriptors.length).toBe(10);
+    for (const d of descriptors) {
+      expect(d.description.length).toBeGreaterThan(0);
+      expect(d.whenToUse.length).toBeGreaterThan(0);
+      expect(['low', 'medium', 'high']).toContain(d.costHint);
+      expect(d.phase).toBe('build');
+    }
+  });
+});
+
+// --- Stage Registry: validatePipeline ---
+
+describe('validatePipeline', () => {
+  it('returns valid for a correct pipeline', () => {
+    const result = validatePipeline(
+      ['planner', 'plan-review-cycle'],
+      ['implement', 'doc-update', 'review-cycle'],
+    );
+    expect(result.valid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it('returns error for unknown compile stage', () => {
+    const result = validatePipeline(['nonexistent'], ['implement']);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('Unknown compile stage') && e.includes('nonexistent'))).toBe(true);
+  });
+
+  it('returns error for unknown build stage', () => {
+    const result = validatePipeline(['planner'], ['nonexistent']);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('Unknown build stage') && e.includes('nonexistent'))).toBe(true);
+  });
+
+  it('returns error for missing predecessor', () => {
+    // plan-review-cycle requires 'planner' as predecessor
+    const result = validatePipeline(['plan-review-cycle'], ['implement']);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('predecessor') && e.includes('planner'))).toBe(true);
+  });
+
+  it('returns error for conflicting stages', () => {
+    const result = validatePipeline(['planner', 'prd-passthrough'], ['implement']);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('conflicts'))).toBe(true);
+  });
+
+  it('returns warning for non-parallelizable stage in parallel group', () => {
+    const result = validatePipeline(['planner'], [['implement', 'review-cycle']]);
+    expect(result.warnings.some((w) => w.includes('not parallelizable'))).toBe(true);
+  });
+});
+
+// --- Stage Registry: formatStageRegistry ---
+
+describe('formatStageRegistry', () => {
+  it('returns a non-empty markdown table', () => {
+    const output = formatStageRegistry();
+    expect(output.length).toBeGreaterThan(0);
+    expect(output).toContain('| Name |');
+    expect(output).toContain('|------|');
+  });
+
+  it('contains all registered stage names', () => {
+    const output = formatStageRegistry();
+    const allNames = [...getCompileStageNames(), ...getBuildStageNames()];
+    expect(allNames.length).toBe(17);
+    for (const name of allNames) {
+      expect(output).toContain(name);
+    }
   });
 });

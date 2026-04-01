@@ -74,6 +74,7 @@ export class ClaudeSDKBackend implements AgentBackend {
           ...(options.fallbackModel !== undefined ? { fallbackModel: options.fallbackModel } : {}),
           ...(options.allowedTools !== undefined ? { allowedTools: options.allowedTools } : {}),
           ...(options.disallowedTools !== undefined ? { disallowedTools: options.disallowedTools } : {}),
+          ...(options.outputFormat !== undefined ? { outputFormat: options.outputFormat } : {}),
         },
       });
 
@@ -209,7 +210,8 @@ export async function* mapSDKMessages(
           // Don't yield agent:message here — the text was already emitted
           // from the assistant message. Duplicating it causes double-parsing
           // of XML blocks (scope, clarification, review issues, verdicts).
-          yield { timestamp: new Date().toISOString(), type: 'agent:result', planId, agent, result: extractResultData(result, result.result) };
+          const structuredOutput = hasStructuredOutput(result) ? result.structured_output : undefined;
+          yield { timestamp: new Date().toISOString(), type: 'agent:result', planId, agent, result: extractResultData(result, result.result, structuredOutput) };
         } else {
           const errorResult = result as SDKResultMessage & { errors?: string[] };
           const errorMsg = errorResult.errors?.join('; ') || `Agent ${agent} failed: ${result.subtype}`;
@@ -284,11 +286,16 @@ function extractToolResultContent(
   return undefined;
 }
 
+/** Type guard for SDK result messages that include a structured_output field. */
+function hasStructuredOutput(msg: SDKResultMessage): msg is SDKResultMessage & { structured_output: unknown } {
+  return 'structured_output' in msg && (msg as Record<string, unknown>).structured_output !== undefined;
+}
+
 /**
  * Extract tracing-relevant data from an SDK result message.
  * Defensive against missing fields (e.g. in test fixtures).
  */
-function extractResultData(result: SDKResultMessage, resultText?: string): AgentResultData {
+function extractResultData(result: SDKResultMessage, resultText?: string, structuredOutput?: unknown): AgentResultData {
   const modelUsage: AgentResultData['modelUsage'] = {};
   let inputTokens = 0;
   let outputTokens = 0;
@@ -333,5 +340,6 @@ function extractResultData(result: SDKResultMessage, resultText?: string): Agent
     },
     modelUsage,
     resultText,
+    ...(structuredOutput !== undefined ? { structuredOutput } : {}),
   };
 }
