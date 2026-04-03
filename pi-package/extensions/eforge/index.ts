@@ -734,6 +734,11 @@ export default function eforgeExtension(pi: ExtensionAPI) {
       skill: "eforge-init",
     },
     {
+      name: "eforge:plan",
+      description: "Start or resume a structured planning conversation",
+      skill: "eforge-plan",
+    },
+    {
       name: "eforge:restart",
       description: "Safely restart the eforge daemon",
       skill: "eforge-restart",

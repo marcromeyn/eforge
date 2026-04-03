@@ -28,15 +28,25 @@ Determine the working source from one of three branches:
 2. Proceed to **Step 2**
 
 **Branch C — No arguments**: If `$ARGUMENTS` is empty or not provided:
-1. Examine conversation context for intent signals:
-   - Recently discussed features or requirements
-   - Files the user has been editing or asking about
-   - Errors or issues the user has been troubleshooting
-   - Goals or tasks the user has stated
-2. If context yields a reasonable description, present it: "Based on our conversation, it sounds like you want to build: _{inferred description}_. Is that right?"
-   - If the user confirms, use that description as the working source and proceed to **Step 2**
-   - If the user corrects, use their correction as the working source and proceed to **Step 2**
-3. If no context is available, ask: "What would you like to build? You can provide a description or a path to a PRD file."
+
+1. **Check for active session plan** — Scan `.eforge/session-plans/` for files where YAML frontmatter `status` is `ready` or `planning`. If found:
+   - If one session plan exists, read it and present a summary: "I found a planning session: _{topic}_. Status: {status}."
+   - If multiple exist, list them by topic and date, most recent first, and ask which to use
+   - If the session status is `ready`, use the **full session file content** as the working source — skip directly to **Step 4**
+   - If the session status is `planning`, warn: "This session is still in planning — some dimensions haven't been explored yet." List which dimensions are `false` in frontmatter. Ask the user whether to submit as-is or continue planning (suggest `/eforge:plan --resume`)
+   - If the user confirms a `planning` session, use the full session file content as the working source and proceed to **Step 4**
+
+2. **Fall back to conversation context** — If no session plans are found (or the user declines to use one):
+   - Examine conversation context for intent signals:
+     - Recently discussed features or requirements
+     - Files the user has been editing or asking about
+     - Errors or issues the user has been troubleshooting
+     - Goals or tasks the user has stated
+   - If context yields a reasonable description, present it: "Based on our conversation, it sounds like you want to build: _{inferred description}_. Is that right?"
+     - If the user confirms, use that description as the working source and proceed to **Step 2**
+     - If the user corrects, use their correction as the working source and proceed to **Step 2**
+
+3. If no session plans and no context available, ask: "What would you like to build? You can provide a description or a path to a PRD file."
    - **Stop here** if the user declines or no source is identified
 
 ### Step 2: Assess Completeness
@@ -106,7 +116,11 @@ Call the `eforge_build` tool with `{ source: "<source>" }`.
 
 The tool returns a JSON response with a `sessionId` and `autoBuild` status.
 
-After successful enqueue, tell the user:
+After successful enqueue:
+
+1. If the source came from a session plan file (Branch C, step 1), update the session file's YAML frontmatter: set `status: submitted` and add `eforge_session: {sessionId}`.
+
+2. Tell the user:
 
 > PRD enqueued (session: `{sessionId}`). The daemon will auto-build.
 >
