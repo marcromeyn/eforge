@@ -635,10 +635,9 @@ export default function eforgeExtension(pi: ExtensionAPI) {
 
       const choice = await ctx.ui.custom<string>((tui, theme, _kb, done) => {
         const container = new Container();
-        const border = new DynamicBorder((s: string) => theme.fg("accent", s));
         const mdTheme = getMarkdownTheme();
 
-        container.addChild(border);
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
         container.addChild(new Text(theme.fg("accent", theme.bold("eforge - Confirm Build")), 1, 0));
         container.addChild(new Markdown(params.source, 1, 1, mdTheme));
 
@@ -655,7 +654,7 @@ export default function eforgeExtension(pi: ExtensionAPI) {
 
         container.addChild(selectList);
         container.addChild(new Text(theme.fg("dim", "↑↓ navigate • enter select • esc cancel"), 1, 0));
-        container.addChild(border);
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
 
         return {
           render: (width: number) => container.render(width),
