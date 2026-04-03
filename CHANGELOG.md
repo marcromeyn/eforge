@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.3.3] - 2026-04-03
+
+### Features
+
+- Add Pi extension package with full eforge integration
+
+### Bug Fixes
+
+- Wire MCP tools through Pi backend and update Pi config guidance
+- Style fallback swimlane labels as pills
+
+### Maintenance
+
+- Add name frontmatter to skills and configure Pi skill sharing
+
 ## [0.3.2] - 2026-04-02
 
 ### Features
