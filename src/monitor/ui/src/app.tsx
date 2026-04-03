@@ -12,7 +12,7 @@ import { Timeline } from '@/components/timeline/timeline';
 import { DependencyGraph } from '@/components/graph';
 import { FileHeatmap } from '@/components/heatmap';
 import { PlanPreviewProvider, PlanPreviewPanel, usePlanPreview } from '@/components/preview';
-import { ConsolePanel } from '@/components/console/console-panel';
+import { ConsolePanel, type LowerTab } from '@/components/console/console-panel';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { useEforgeEvents } from '@/hooks/use-eforge-events';
 import { useAutoScroll } from '@/hooks/use-auto-scroll';
@@ -22,12 +22,10 @@ import { fetchLatestSessionId, fetchOrchestration, fetchProjectContext } from '@
 import type { OrchestrationConfig, PipelineStage } from '@/lib/types';
 import type { ProjectContext } from '@/components/layout/header';
 
-type ContentTab = 'changes' | 'graph';
-
 function AppContent() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sidebarRefresh, setSidebarRefresh] = useState(0);
-  const [activeTab, setActiveTab] = useState<ContentTab>('changes');
+  const [lowerTab, setLowerTab] = useState<LowerTab>('log');
   const [orchestration, setOrchestration] = useState<OrchestrationConfig | null>(null);
   const [mergedPlanIds, setMergedPlanIds] = useState<Set<string>>(new Set());
   const [showVerbose, setShowVerbose] = useState(false);
@@ -61,7 +59,7 @@ function AppContent() {
 
   // Persist panel layout to localStorage
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: 'monitor-console',
+    id: 'monitor-layout-v2',
   });
 
   const stats = getSummaryStats(runState);
@@ -254,10 +252,10 @@ function AppContent() {
     return null;
   }, [runState.events]);
 
-  // Reset active tab if its feature becomes unavailable
+  // Reset lower tab if graph becomes unavailable
   useEffect(() => {
-    if (activeTab === 'graph' && !graphEnabled) setActiveTab('changes');
-  }, [graphEnabled, activeTab]);
+    if (lowerTab === 'graph' && !graphEnabled) setLowerTab('log');
+  }, [graphEnabled, lowerTab]);
 
   // Update duration every second while running
   const [, setTick] = useState(0);
@@ -267,15 +265,6 @@ function AppContent() {
       return () => clearInterval(timer);
     }
   }, [runState.startTime, runState.isComplete]);
-
-  const tabClass = (tab: ContentTab, enabled = true) =>
-    `px-4 py-2 text-xs font-medium border-b-2 transition-colors cursor-pointer ${
-      activeTab === tab
-        ? 'border-primary text-foreground'
-        : enabled
-          ? 'border-transparent text-text-dim hover:text-foreground'
-          : 'border-transparent text-text-dim/40 cursor-default'
-    }`;
 
   const handleToggleConsole = useCallback(() => {
     const panel = consolePanelRef.current;
@@ -313,7 +302,7 @@ function AppContent() {
     >
       {shutdownCountdown !== null && <ShutdownBanner countdown={shutdownCountdown} />}
       <ResizablePanelGroup orientation="vertical" defaultLayout={defaultLayout} onLayoutChanged={onLayoutChanged}>
-        {/* Upper panel: summary + tabs */}
+        {/* Upper panel: pipeline */}
         <ResizablePanel id="upper" defaultSize={65} minSize={30}>
           <main className="overflow-y-auto px-6 py-3 flex flex-col gap-4 h-full">
             {!hasEvents ? (
@@ -325,45 +314,6 @@ function AppContent() {
                 <SummaryCards {...stats} isComplete={runState.resultStatus === 'completed'} isFailed={runState.resultStatus === 'failed'} backend={runState.backend} />
                 <ThreadPipeline agentThreads={runState.agentThreads} startTime={runState.startTime} endTime={runState.endTime} planStatuses={runState.planStatuses} reviewIssues={runState.reviewIssues} profileInfo={runState.profileInfo} events={runState.events} orchestration={effectiveOrchestration} prdSource={prdSource} planArtifacts={planArtifacts} />
                 <FailureBanner failures={buildFailures} phaseSummary={phaseSummary} />
-
-                {/* Content tabs */}
-                <div className="flex gap-2 border-b border-border pb-px">
-                  <button
-                    onClick={() => setActiveTab('changes')}
-                    className={tabClass('changes')}
-                  >
-                    Changes
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('graph')}
-                    disabled={!graphEnabled}
-                    className={tabClass('graph', graphEnabled)}
-                    title={graphEnabled ? undefined : 'Available when plans have dependency edges'}
-                  >
-                    Graph
-                  </button>
-                </div>
-
-                {/* Tab content */}
-                {activeTab === 'graph' && graphEnabled ? (
-                  <div className="flex-1" style={{ minHeight: 400 }}>
-                    <DependencyGraph
-                      orchestration={effectiveOrchestration}
-                      planStatuses={graphPlanStatuses}
-                      mergedPlanIds={mergedPlanIds}
-                    />
-                  </div>
-                ) : activeTab === 'changes' ? (
-                  runState.fileChanges.size > 0 ? (
-                    <div className="flex-1 min-h-0">
-                      <FileHeatmap runState={runState} sessionId={currentSessionId} />
-                    </div>
-                  ) : (
-                    <div className="text-text-dim text-xs py-8 text-center">
-                      Changes will appear here once files are modified...
-                    </div>
-                  )
-                ) : null}
               </>
             )}
           </main>
@@ -371,7 +321,7 @@ function AppContent() {
 
         <ResizableHandle withHandle />
 
-        {/* Lower panel: Console (Timeline) */}
+        {/* Lower panel: Log / Changes / Graph */}
         <ResizablePanel
           id="console"
           panelRef={consolePanelRef}
@@ -382,6 +332,9 @@ function AppContent() {
           onResize={handleConsolePanelResize}
         >
           <ConsolePanel
+            activeTab={lowerTab}
+            onTabChange={setLowerTab}
+            graphEnabled={graphEnabled}
             showVerbose={showVerbose}
             onToggleVerbose={setShowVerbose}
             collapsed={consoleCollapsed}
@@ -390,11 +343,29 @@ function AppContent() {
             autoScroll={autoScroll}
             onEnableAutoScroll={enableAutoScroll}
           >
-            <Timeline
-              events={runState.events}
-              startTime={runState.startTime}
-              showVerbose={showVerbose}
-            />
+            {lowerTab === 'log' ? (
+              <Timeline
+                events={runState.events}
+                startTime={runState.startTime}
+                showVerbose={showVerbose}
+              />
+            ) : lowerTab === 'changes' ? (
+              runState.fileChanges.size > 0 ? (
+                <FileHeatmap runState={runState} sessionId={currentSessionId} />
+              ) : (
+                <div className="text-text-dim text-xs py-8 text-center">
+                  Changes will appear here once files are modified...
+                </div>
+              )
+            ) : lowerTab === 'graph' && graphEnabled ? (
+              <div className="h-full w-full">
+                <DependencyGraph
+                  orchestration={effectiveOrchestration}
+                  planStatuses={graphPlanStatuses}
+                  mergedPlanIds={mergedPlanIds}
+                />
+              </div>
+            ) : null}
           </ConsolePanel>
         </ResizablePanel>
       </ResizablePanelGroup>
