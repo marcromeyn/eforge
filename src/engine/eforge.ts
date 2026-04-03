@@ -288,7 +288,12 @@ export class EforgeEngine {
       if (ctx.plans.length > 0 && !ctx.pipeline.compile.includes('plan-review-cycle')) {
         const planDir = resolve(mergeWorktreePath, this.config.plan.outputDir, planSetName);
         await exec('git', ['add', planDir], { cwd: mergeWorktreePath });
-        await forgeCommit(mergeWorktreePath, `plan(${planSetName}): initial planning artifacts`);
+        // Guard: only commit if there are staged changes (prevents "nothing to commit" errors
+        // when artifacts were already committed by a previous run/retry).
+        const { stdout: staged } = await exec('git', ['diff', '--cached', '--name-only'], { cwd: mergeWorktreePath });
+        if (staged.trim().length > 0) {
+          await forgeCommit(mergeWorktreePath, `plan(${planSetName}): initial planning artifacts`);
+        }
       }
 
       // Persist merge worktree path to state for the build phase to pick up.

@@ -750,7 +750,12 @@ registerCompileStage({
   const commitCwd = ctx.planCommitCwd ?? ctx.cwd;
   const planDir = resolve(ctx.cwd, ctx.config.plan.outputDir, ctx.planSetName);
   await exec('git', ['add', planDir], { cwd: commitCwd });
-  await forgeCommit(commitCwd, `plan(${ctx.planSetName}): PRD passthrough artifacts`);
+  // Guard: only commit if there are staged changes (prevents "nothing to commit" errors
+  // when artifacts were already committed by a previous run/retry)
+  const { stdout: passthroughStaged } = await exec('git', ['diff', '--cached', '--name-only'], { cwd: commitCwd });
+  if (passthroughStaged.trim().length > 0) {
+    await forgeCommit(commitCwd, `plan(${ctx.planSetName}): PRD passthrough artifacts`);
+  }
 
   yield { timestamp: new Date().toISOString(), type: 'plan:complete', plans: [planFile] };
 });
