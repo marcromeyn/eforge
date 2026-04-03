@@ -352,6 +352,98 @@ export default function eforgeExtension(pi: ExtensionAPI) {
       );
       return jsonResult(summary);
     },
+
+    renderCall(_args, theme) {
+      return new Text(theme.fg("toolTitle", theme.bold("eforge status")), 0, 0);
+    },
+
+    renderResult(result, { expanded }, theme) {
+      try {
+        const text = result.content[0];
+        if (!text || text.type !== "text") {
+          return new Text(theme.fg("muted", "No data"), 0, 0);
+        }
+        const data = JSON.parse(text.text) as {
+          status?: string;
+          message?: string;
+          sessionId?: string;
+          runs?: Array<{ id: string; command: string; status: string; startedAt: string; completedAt: string | null }>;
+          plans?: Array<{ id: string; status: string; branch: string | null; dependsOn: string[] }>;
+          currentPhase?: string | null;
+          currentAgent?: string | null;
+          eventCounts?: { total: number; errors: number };
+          duration?: { startedAt: string | null; completedAt: string | null; seconds: number | null };
+        };
+
+        // Idle state
+        if (data.status === "idle") {
+          return new Text(theme.fg("muted", "⊘ No active sessions"), 0, 0);
+        }
+
+        const lines: string[] = [];
+
+        // Status + duration header
+        const statusIcon = data.status === "completed" ? "✓" : data.status === "running" ? "⟳" : data.status === "failed" ? "✗" : "?";
+        const statusColor = data.status === "completed" ? "success" : data.status === "running" ? "warning" : data.status === "failed" ? "error" : "muted";
+        let header = theme.fg(statusColor, `${statusIcon} ${data.status}`);
+        if (data.duration?.seconds != null) {
+          const mins = Math.floor(data.duration.seconds / 60);
+          const secs = data.duration.seconds % 60;
+          const timeStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+          header += theme.fg("dim", `  ${timeStr}`);
+        }
+        lines.push(header);
+
+        // Current activity (when running)
+        if (data.status === "running") {
+          const parts: string[] = [];
+          if (data.currentPhase) parts.push(data.currentPhase);
+          if (data.currentAgent) parts.push(data.currentAgent);
+          if (parts.length > 0) {
+            lines.push(theme.fg("accent", `  ▸ ${parts.join(" › ")}`));
+          }
+        }
+
+        // Plans
+        if (data.plans && data.plans.length > 0) {
+          lines.push("");
+          for (const plan of data.plans) {
+            const pIcon = plan.status === "completed" ? "✓" : plan.status === "running" ? "⟳" : plan.status === "failed" ? "✗" : "○";
+            const pColor = plan.status === "completed" ? "success" : plan.status === "running" ? "warning" : plan.status === "failed" ? "error" : "muted";
+            lines.push(`  ${theme.fg(pColor, pIcon)} ${theme.fg("text", plan.id)}`);
+          }
+        }
+
+        // Event counts
+        if (data.eventCounts) {
+          lines.push("");
+          let countsStr = theme.fg("dim", `${data.eventCounts.total} events`);
+          if (data.eventCounts.errors > 0) {
+            countsStr += theme.fg("error", ` · ${data.eventCounts.errors} errors`);
+          } else {
+            countsStr += theme.fg("dim", " · 0 errors");
+          }
+          lines.push(`  ${countsStr}`);
+        }
+
+        // Expanded: show runs detail
+        if (expanded && data.runs && data.runs.length > 0) {
+          lines.push("");
+          lines.push(theme.fg("muted", "  Runs:"));
+          for (const run of data.runs) {
+            const rIcon = run.status === "completed" ? "✓" : run.status === "running" ? "⟳" : run.status === "failed" ? "✗" : "○";
+            const rColor = run.status === "completed" ? "success" : run.status === "running" ? "warning" : run.status === "failed" ? "error" : "muted";
+            lines.push(`    ${theme.fg(rColor, rIcon)} ${theme.fg("text", run.command)} ${theme.fg("dim", `(${run.status})`)}`);
+          }
+        }
+
+        return new Text(lines.join("\n"), 0, 0);
+      } catch {
+        // Fallback to raw JSON on parse error
+        const text = result.content[0];
+        return new Text(theme.fg("muted", text?.type === "text" ? text.text : "Parse error"), 0, 0);
+      }
+    },
   });
 
   // ------------------------------------------------------------------
