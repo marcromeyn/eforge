@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.6] - 2026-04-03
+
+### Features
+
+- Emit and consume gap_close:plan_ready event
+
+### Bug Fixes
+
+- Resolve model config for eforge-level agents
+
+### Refactoring
+
+- Move Changes/Graph into lower panel with DevTools-style tabs
+
+### Documentation
+
+- Remove stale "default backend" and "experimental" labels
+
 ## [0.3.5] - 2026-04-03
 
 ### Features
