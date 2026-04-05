@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.8] - 2026-04-04
+
+### Bug Fixes
+
+- Use value equality for compile loop restart detection
+
+### Documentation
+
+- Refine README project description and review rationale
+
 ## [0.3.7] - 2026-04-04
 
 ### Bug Fixes
