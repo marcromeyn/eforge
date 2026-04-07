@@ -168,9 +168,29 @@ export class EforgeEngine {
     // Validate that a backend is configured
     if (!options.backend && !config.backend) {
       throw new Error(
-        'No backend configured. Set `backend: claude-sdk` or `backend: pi` in eforge/config.yaml, ' +
+        'No backend configured. Set `backend: claude-sdk`, `backend: pi`, or `backend: codex` in eforge/config.yaml, ' +
         'or run /eforge:config to set up your configuration.',
       );
+    }
+
+    // Select Codex backend from config when no explicit backend is provided
+    if (!options.backend && config.backend === 'codex') {
+      try {
+        const { CodexBackend } = await import('./backends/codex.js');
+        options = {
+          ...options,
+          backend: new CodexBackend({
+            apiKey: config.codex.apiKey,
+            baseUrl: config.codex.baseUrl,
+            codexPathOverride: config.codex.codexPathOverride,
+          }),
+        };
+      } catch (err) {
+        throw new Error(
+          'Failed to load Codex backend. Ensure @openai/codex-sdk is installed and the codex CLI is available. ' +
+          `Original error: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
     }
 
     // Select Pi backend from config when no explicit backend is provided
@@ -1530,6 +1550,7 @@ function mergeConfig(base: EforgeConfig, overrides: Partial<EforgeConfig>): Efor
     daemon: overrides.daemon ? { ...base.daemon, ...overrides.daemon } : base.daemon,
     monitor: overrides.monitor ? { ...base.monitor, ...overrides.monitor } : base.monitor,
     pi: overrides.pi ? { ...base.pi, ...overrides.pi } : base.pi,
+    codex: overrides.codex ? { ...base.codex, ...overrides.codex } : base.codex,
     hooks: overrides.hooks ?? base.hooks,
   };
 }

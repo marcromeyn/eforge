@@ -53,6 +53,10 @@ export { discoverPiExtensions } from './backends/pi-extensions.js';
 export type { PiExtensionConfig } from './backends/pi-extensions.js';
 // --- eforge:endregion plan-02-pi-backend ---
 
+// --- codex backend ---
+export { CodexBackend } from './backends/codex.js';
+export type { CodexBackendOptions } from './backends/codex.js';
+
 // --- agents/common ---
 export { parseClarificationBlocks, parseStalenessBlock, parseBuildConfigBlock } from './agents/common.js';
 export type { StalenessVerdict as StalenessVerdictResult } from './agents/common.js';
@@ -137,8 +141,8 @@ export type { HookConfig } from './config.js';
 export { withHooks, matchesPattern } from './hooks.js';
 
 // --- config ---
-export type { EforgeConfig, PartialEforgeConfig, PluginConfig, ModelRef, ReviewProfileConfig, BuildStageSpec, PiConfig } from './config.js';
-export { DEFAULT_CONFIG, DEFAULT_REVIEW, AGENT_ROLES, eforgeConfigSchema, backendSchema, piConfigSchema, buildStageSpecSchema, reviewProfileConfigSchema, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, validateConfigFile } from './config.js';
+export type { EforgeConfig, PartialEforgeConfig, PluginConfig, ModelRef, ReviewProfileConfig, BuildStageSpec, PiConfig, CodexConfig } from './config.js';
+export { DEFAULT_CONFIG, DEFAULT_REVIEW, AGENT_ROLES, eforgeConfigSchema, backendSchema, piConfigSchema, codexConfigSchema, buildStageSpecSchema, reviewProfileConfigSchema, findConfigFile, resolveConfig, loadConfig, getUserConfigPath, mergePartialConfigs, validateConfigFile } from './config.js';
 export type { TracingContext, SpanHandle, ToolCallHandle } from './tracing.js';
 export { createTracingContext, createNoopTracingContext } from './tracing.js';
 

@@ -100,7 +100,7 @@ const pluginConfigSchema = z.object({
 
 const SETTING_SOURCES = ['user', 'project', 'local'] as const;
 
-export const backendSchema = z.enum(['claude-sdk', 'pi']).describe('Backend provider for agent execution');
+export const backendSchema = z.enum(['claude-sdk', 'pi', 'codex']).describe('Backend provider for agent execution');
 
 export const piThinkingLevelSchema = z.enum(['off', 'medium', 'high']).describe('Pi-native thinking level');
 
@@ -122,6 +122,12 @@ export const piConfigSchema = z.object({
     backoffMs: z.number().int().positive().optional().describe('Initial backoff in milliseconds'),
   }).optional().describe('Retry configuration for Pi API calls'),
 }).describe('Configuration for the Pi coding agent backend');
+
+export const codexConfigSchema = z.object({
+  apiKey: z.string().optional().describe('OpenAI API key for the Codex backend'),
+  baseUrl: z.string().optional().describe('OpenAI API base URL override'),
+  codexPathOverride: z.string().optional().describe('Path to a custom codex CLI binary'),
+}).describe('Configuration for the OpenAI Codex backend');
 
 /** Base object schema without refinements — .partial() is derived from this. */
 const eforgeConfigBaseSchema = z.object({
@@ -170,6 +176,7 @@ const eforgeConfigBaseSchema = z.object({
     retentionCount: z.number().int().positive().optional(),
   }).optional(),
   pi: piConfigSchema.optional(),
+  codex: codexConfigSchema.optional(),
   hooks: z.array(hookConfigSchema).optional(),
 });
 
@@ -192,6 +199,13 @@ export const eforgeConfigSchema = eforgeConfigBaseSchema.superRefine((data, ctx)
       ctx.addIssue({
         code: 'custom',
         message: `Claude SDK backend does not accept "provider" in model ref at ${path}. Got { provider: "${ref.provider}", id: "${ref.id}" }.`,
+        path: path.split('.'),
+      });
+    }
+    if (backend === 'codex' && ref.provider) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Codex backend does not accept "provider" in model ref at ${path}. Got { provider: "${ref.provider}", id: "${ref.id}" }.`,
         path: path.split('.'),
       });
     }
@@ -250,8 +264,14 @@ export interface PiConfig {
   retry: { maxRetries: number; backoffMs: number };
 }
 
+export interface CodexConfig {
+  apiKey?: string;
+  baseUrl?: string;
+  codexPathOverride?: string;
+}
+
 export interface EforgeConfig {
-  backend?: 'claude-sdk' | 'pi';
+  backend?: 'claude-sdk' | 'pi' | 'codex';
   maxConcurrentBuilds: number;
   langfuse: { enabled: boolean; publicKey?: string; secretKey?: string; host: string };
   agents: {
@@ -273,6 +293,7 @@ export interface EforgeConfig {
   daemon: { idleShutdownMs: number };
   monitor: { retentionCount: number };
   pi: PiConfig;
+  codex: CodexConfig;
   hooks: readonly HookConfig[];
 }
 
@@ -303,6 +324,7 @@ export const DEFAULT_CONFIG: EforgeConfig = Object.freeze({
     compaction: Object.freeze({ enabled: true, threshold: 100_000 }),
     retry: Object.freeze({ maxRetries: 3, backoffMs: 1000 }),
   }),
+  codex: Object.freeze({}),
   hooks: Object.freeze([]),
 });
 
@@ -425,6 +447,11 @@ export function resolveConfig(
         backoffMs: fileConfig.pi?.retry?.backoffMs ?? DEFAULT_CONFIG.pi.retry.backoffMs,
       }),
     }),
+    codex: Object.freeze({
+      apiKey: fileConfig.codex?.apiKey,
+      baseUrl: fileConfig.codex?.baseUrl,
+      codexPathOverride: fileConfig.codex?.codexPathOverride,
+    }),
     hooks: Object.freeze(fileConfig.hooks ?? DEFAULT_CONFIG.hooks) as HookConfig[],
   });
 }
@@ -466,7 +493,7 @@ function parseRawConfigFallback(data: Record<string, unknown>): PartialEforgeCon
       (result as Record<string, unknown>).maxConcurrentBuilds = mcbResult.data;
     }
   }
-  const sections = ['langfuse', 'agents', 'build', 'plan', 'plugins', 'prdQueue', 'daemon', 'pi', 'hooks'] as const;
+  const sections = ['langfuse', 'agents', 'build', 'plan', 'plugins', 'prdQueue', 'daemon', 'pi', 'codex', 'hooks'] as const;
   for (const key of sections) {
     if (data[key] === undefined) continue;
     const sectionSchema = eforgeConfigSchema.shape[key];
@@ -495,6 +522,7 @@ function stripUndefinedSections(config: PartialEforgeConfig): PartialEforgeConfi
   if (config.prdQueue !== undefined) out.prdQueue = config.prdQueue;
   if (config.daemon !== undefined) out.daemon = config.daemon;
   if (config.pi !== undefined) out.pi = config.pi;
+  if (config.codex !== undefined) out.codex = config.codex;
   if (config.hooks !== undefined) out.hooks = config.hooks;
   return out;
 }
@@ -579,6 +607,9 @@ export function mergePartialConfigs(
   }
   if (global.pi || project.pi) {
     result.pi = { ...global.pi, ...project.pi };
+  }
+  if (global.codex || project.codex) {
+    result.codex = { ...global.codex, ...project.codex };
   }
 
   // hooks: concatenate (global first, then project)

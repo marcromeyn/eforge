@@ -466,6 +466,11 @@ export const MODEL_CLASS_DEFAULTS: Record<string, Record<ModelClass, import('./c
     balanced: undefined,
     fast: undefined,
   },
+  codex: {
+    max: { id: 'o3' },
+    balanced: { id: 'o4-mini' },
+    fast: { id: 'o4-mini' },
+  },
 };
 
 /** Ordered tier list for fallback resolution: index 0 is the most capable. */
@@ -491,7 +496,7 @@ const MODEL_CLASS_TIER: ModelClass[] = ['max', 'balanced', 'fast'];
 export function resolveAgentConfig(
   role: AgentRole,
   config: EforgeConfig,
-  backend?: 'claude-sdk' | 'pi',
+  backend?: EforgeConfig['backend'],
 ): import('./config.js').ResolvedAgentConfig {
   const builtinRoleDefaults = AGENT_ROLE_DEFAULTS[role] ?? {};
   const userGlobal: import('./config.js').ResolvedAgentConfig = {
