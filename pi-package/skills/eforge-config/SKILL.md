@@ -39,7 +39,7 @@ Walk the user through configuration sections, asking about each one. Only includ
 
 **Sections to cover:**
 
-1. **Backend selection** (required) - Which LLM backend: `claude-sdk` (uses Claude Code's built-in SDK) or `pi` (multi-provider via Pi SDK supporting OpenRouter, Anthropic, OpenAI, Google, etc.).
+1. **Backend selection** (required) - Which LLM backend: `claude-sdk` (uses Claude Code's built-in SDK), `pi` (multi-provider via Pi SDK supporting OpenRouter, Anthropic, OpenAI, Google, etc.), or `codex` (uses OpenAI Codex SDK — requires the `codex` CLI to be installed).
 2. **Build settings** - `postMergeCommands` (validation commands to run after merging worktrees, e.g. `pnpm install`, `pnpm type-check`, `pnpm test`), `maxValidationRetries`
 3. **Model & thinking tuning** (opt-in - "Would you like to customize model or thinking settings? Most users keep defaults.") - Model references are objects: `{ id: "model-name" }` for Claude SDK, `{ provider: "provider-name", id: "model-name" }` for Pi. Model class overrides via `agents.models` (map class names `max`/`balanced`/`fast` to model ref objects), global `agents.model` override (bypasses class system), `agents.thinking` config (`adaptive`, `enabled` with optional `budgetTokens`, or `disabled`), `agents.effort` level (`low`/`medium`/`high`/`max`). Model resolution order: per-role model > global model > user class override > backend class default > fallback chain. Three roles (`staleness-assessor`, `prd-validator`, `dependency-detector`) default to `balanced`; all others default to `max`. If a role's model class has no configured model, eforge walks up to more capable tiers, then down, before erroring. For `pi`, users should set at least `agents.models.max` (or `agents.model`) with `{ provider, id }` refs because Pi has no built-in model class defaults.
 4. **Agent behavior** - Global `maxTurns`, `maxContinuations` (default 3 - max continuation attempts after maxTurns hit), `permissionMode` (`bypass` or `default`), `settingSources`, `bare` (default false)
@@ -51,6 +51,7 @@ Walk the user through configuration sections, asking about each one. Only includ
 10. **PRD queue** - Queue directory (`dir`), `autoBuild` (default true - daemon auto-builds after enqueue), `watchPollIntervalMs` (default 5000ms), and top-level `maxConcurrentBuilds` (default 2 - max concurrent PRD builds from the queue)
 11. **Daemon** (opt-in - "Would you like to customize daemon behavior?") - `idleShutdownMs` (default 7200000 = 2 hours, set to 0 to run forever)
 12. **Pi backend** (conditional - only if user chose `backend: pi` in step 1) - `thinkingLevel` (`off`/`medium`/`high`), `extensions` (auto-discover from `.pi/extensions/`), `compaction` (context compaction threshold), and `retry` config. Authentication usually comes from env vars or `~/.pi/agent/auth.json`. Model selection uses `agents.model` or `agents.models.*` with `{ provider, id }` refs (provider is part of each model ref, not a separate config field).
+13. **Codex backend** (conditional - only if user chose `backend: codex` in step 1) - `apiKey` (OpenAI API key, defaults to env), `baseUrl` (API base URL override), `codexPathOverride` (path to custom codex CLI binary). Model defaults: `o3` (max), `o4-mini` (balanced/fast). Model refs use `{ id }` format (no provider needed).
 
 For each section, explain what it controls and suggest values based on the project context gathered in Step 2. Skip sections the user isn't interested in.
 
@@ -106,7 +107,7 @@ Available top-level sections in `eforge/config.yaml`:
 
 ```yaml
 # Backend
-backend: claude-sdk                    # REQUIRED - 'claude-sdk' or 'pi'
+backend: claude-sdk                    # REQUIRED - 'claude-sdk', 'pi', or 'codex'
 
 # Queue concurrency
 maxConcurrentBuilds: 2                 # Max concurrent PRD builds (default: 2)
@@ -213,6 +214,12 @@ profiles:
 #     max:
 #       provider: openrouter
 #       id: anthropic/claude-opus-4-6
+
+# Codex backend (only used when backend: codex)
+# codex:
+#   apiKey: sk-...                       # OpenAI API key (defaults to env)
+#   baseUrl: https://api.openai.com      # API base URL override
+#   codexPathOverride: /usr/local/bin/codex  # Custom codex CLI path
 ```
 
 ## Error Handling
