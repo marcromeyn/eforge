@@ -75,7 +75,7 @@ Report success:
 
 > Codex backend configured. eforge will use the `codex` CLI for agent execution.
 >
-> Default models: `o3` (max), `o4-mini` (balanced/fast)
+> Default models: `gpt-5.4` (max), `o4-mini` (balanced/fast), reasoning effort: `high`
 >
 > To customize models, edit `agents.models` in `eforge/config.yaml`.
 > To switch back: set `backend: claude-sdk` in your config.

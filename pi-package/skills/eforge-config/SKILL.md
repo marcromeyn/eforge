@@ -51,7 +51,7 @@ Walk the user through configuration sections, asking about each one. Only includ
 10. **PRD queue** - Queue directory (`dir`), `autoBuild` (default true - daemon auto-builds after enqueue), `watchPollIntervalMs` (default 5000ms), and top-level `maxConcurrentBuilds` (default 2 - max concurrent PRD builds from the queue)
 11. **Daemon** (opt-in - "Would you like to customize daemon behavior?") - `idleShutdownMs` (default 7200000 = 2 hours, set to 0 to run forever)
 12. **Pi backend** (conditional - only if user chose `backend: pi` in step 1) - `thinkingLevel` (`off`/`medium`/`high`), `extensions` (auto-discover from `.pi/extensions/`), `compaction` (context compaction threshold), and `retry` config. Authentication usually comes from env vars or `~/.pi/agent/auth.json`. Model selection uses `agents.model` or `agents.models.*` with `{ provider, id }` refs (provider is part of each model ref, not a separate config field).
-13. **Codex backend** (conditional - only if user chose `backend: codex` in step 1) - `apiKey` (OpenAI API key, defaults to env), `baseUrl` (API base URL override), `codexPathOverride` (path to custom codex CLI binary). Model defaults: `o3` (max), `o4-mini` (balanced/fast). Model refs use `{ id }` format (no provider needed).
+13. **Codex backend** (conditional - only if user chose `backend: codex` in step 1) - `apiKey` (OpenAI API key, defaults to env), `baseUrl` (API base URL override), `codexPathOverride` (path to custom codex CLI binary). Model defaults: `gpt-5.4` (max), `o4-mini` (balanced/fast), reasoning effort: `high`. Model refs use `{ id }` format (no provider needed).
 
 For each section, explain what it controls and suggest values based on the project context gathered in Step 2. Skip sections the user isn't interested in.
 

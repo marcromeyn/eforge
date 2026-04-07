@@ -70,7 +70,7 @@ function mapEffortLevel(effort: EffortLevel): ModelReasoningEffort {
 function resolveReasoningEffort(options: AgentRunOptions): ModelReasoningEffort | undefined {
   if (options.thinking) return mapThinkingConfig(options.thinking);
   if (options.effort) return mapEffortLevel(options.effort);
-  return undefined;
+  return 'high';
 }
 
 /**

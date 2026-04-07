@@ -467,7 +467,7 @@ export const MODEL_CLASS_DEFAULTS: Record<string, Record<ModelClass, import('./c
     fast: undefined,
   },
   codex: {
-    max: { id: 'o3' },
+    max: { id: 'gpt-5.4' },
     balanced: { id: 'o4-mini' },
     fast: { id: 'o4-mini' },
   },
